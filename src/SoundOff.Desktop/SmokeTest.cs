@@ -43,8 +43,17 @@ public static class SmokeTest
                 checks.Add("save-reopen-export-readback");
                 var undone = reopened.Undo(saved.Revision); Require(undone.Revision > saved.Revision && undone.Speakers[0].Name == "Demo speaker A", "persistent undo"); checks.Add("persistent-undo");
             }
-            using (var final = ProjectStore.Open(project)) Require(final.Read().Speakers[0].Name == "Demo speaker A", "undo durability");
-            checks.Add("undo-reopen");
+            using (var final = ProjectStore.Open(project))
+            {
+                var current = final.Read(); Require(current.Speakers[0].Name == "Demo speaker A" && final.CanRedo, "undo durability");
+                checks.Add("undo-reopen");
+                var redone = final.Redo(current.Revision); Require(redone.Speakers[0].Name == "José 👩🏽‍💻" && !final.CanRedo, "persistent redo"); checks.Add("persistent-redo");
+                var offset = redone.Blocks[0].Text.IndexOf('\n') + 1; var split = final.Apply(redone.Revision, EditBatch.None, new SplitBlock(blockId, offset, Guid.NewGuid()));
+                Require(split.Blocks.Length == 4 && split.Blocks[0].Id == blockId && split.Blocks[1].Text == "Second line." && split.Blocks[1].Timing is null, "grapheme-safe split");
+                var merged = final.Apply(split.Revision, EditBatch.None, new MergeWithNext(blockId));
+                Require(merged.Blocks.Length == 3 && merged.Blocks[0].Text == redone.Blocks[0].Text && final.Undo(merged.Revision).Blocks.Length == 4, "merge and undo of structural edit");
+                checks.Add("structural-split-merge");
+            }
             var result = JsonSerializer.Serialize(new { status = "passed", checks, project, export,
                 coverage = "Non-GUI .NET/SQLite/real fixture subprocess only; no media, models or clipboard API exercised." }, new JsonSerializerOptions { WriteIndented = true });
             File.WriteAllText(Path.Combine(directory, "result.json"), result, new UTF8Encoding(false)); Console.WriteLine(result); return 0;
