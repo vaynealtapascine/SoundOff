@@ -234,8 +234,8 @@ def do_prepare(worker, command):
             raise RuntimeError(f"The recognition model at {asr_path} is incomplete")
         asr = whisperx.load_model(asr_path, device="cpu", compute_type="int8", local_files_only=True, threads=2)
         del asr
-        worker.progress("download-vad", 0.4, "Fetching the voice-activity model")
-        from whisperx.vads import load_vad_model
+        worker.progress("download-vad", 0.4, "Verifying the voice-activity model")
+        from whisperx.vads.pyannote import load_vad_model  # load_model above already fetched it into TORCH_HOME; this proves it loads
         load_vad_model("cpu")
         for index, language in enumerate(languages):
             worker.progress("download-align", 0.5 + 0.3 * index / max(1, len(languages)), f"Fetching the {language} alignment model")
