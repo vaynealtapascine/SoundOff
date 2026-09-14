@@ -66,6 +66,53 @@ public sealed class UiTests
         using var reopened = ProjectStore.Open(folder.Project); Assert.Equal("Demo speaker A", reopened.Read().Speakers[0].Name);
     }
 
+    [AvaloniaFact] public async Task Immediate_copy_after_text_input_includes_the_unsaved_draft()
+    {
+        using var folder = new TestDirectory();
+        var window = new MainWindow(new Picker(folder.Project, Path.Combine(folder.Root, "draft.txt"))); window.Show();
+        try
+        {
+            Click(window, "DemoButton"); await Idle(window);
+            var block = window.GetVisualDescendants().OfType<TextBox>().First(t => t.Classes.Contains("transcript"));
+            block.Text = "Immediate draft piña 👩🏽‍💻";
+            // Do not wait for a queued TextChanged event: commands/closing must see the current input.
+            Click(window, "CopyButton"); await Idle(window);
+            var text = await TopLevel.GetTopLevel(window)!.Clipboard!.TryGetTextAsync();
+            Assert.Contains("UNSAVED DRAFT", text); Assert.Contains("Immediate draft piña 👩🏽‍💻", text);
+            Assert.True(Button(window, "SaveButton").IsEnabled);
+        }
+        finally { Click(window, "DiscardButton"); window.Close(); }
+        using var store = ProjectStore.Open(folder.Project);
+        Assert.Equal(1, store.Read().Revision); Assert.DoesNotContain("Immediate draft", store.Read().Blocks[0].Text);
+    }
+
+    [AvaloniaFact] public async Task Immediate_close_after_speaker_input_requires_discard_confirmation()
+    {
+        using var folder = new TestDirectory();
+        var window = new MainWindow(new Picker(folder.Project, Path.Combine(folder.Root, "draft.txt"))); window.Show();
+        try
+        {
+            Click(window, "DemoButton"); await Idle(window);
+            var speaker = window.FindControl<StackPanel>("SpeakerHost")!.Children.OfType<TextBox>().First();
+            speaker.Text = "Unsaved José";
+            Assert.True(Button(window, "SaveButton").IsEnabled);
+            window.Close();
+            Assert.True(window.IsVisible);
+            var dialog = Assert.Single(window.OwnedWindows);
+            Assert.Equal("Discard unsaved draft?", dialog.Title);
+            dialog.GetVisualDescendants().OfType<Button>().Single(b => b.IsCancel)
+                .RaiseEvent(new RoutedEventArgs(Avalonia.Controls.Button.ClickEvent));
+            Assert.True(window.IsVisible); Assert.Equal("Unsaved José", speaker.Text);
+        }
+        finally
+        {
+            foreach (var dialog in window.OwnedWindows.ToArray()) dialog.Close(false);
+            Click(window, "DiscardButton"); window.Close();
+        }
+        using var store = ProjectStore.Open(folder.Project);
+        Assert.Equal(1, store.Read().Revision); Assert.Equal("Demo speaker A", store.Read().Speakers[0].Name);
+    }
+
     [AvaloniaFact] public async Task Timed_synthetic_project_is_not_mislabelled_as_entirely_untimed()
     {
         using var folder = new TestDirectory(); var fixture = SyntheticFixture.Create(Guid.NewGuid(), 0);

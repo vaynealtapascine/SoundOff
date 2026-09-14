@@ -173,7 +173,7 @@ public sealed partial class MainWindow : Window
             foreach (var speaker in snapshot.Speakers)
             {
                 var input = new TextBox { Text = speaker.Name, MaxLength = 100, Watermark = "Speaker name", IsUndoEnabled = false };
-                AutomationProperties.SetName(input, "Rename " + speaker.Name); input.TextChanged += OnDraftChanged;
+                AutomationProperties.SetName(input, "Rename " + speaker.Name); input.PropertyChanged += OnDraftChanged;
                 speakerInputs.Add(speaker.Id, input); speakerHost.Children.Add(input);
             }
             foreach (var block in snapshot.Blocks)
@@ -183,16 +183,17 @@ public sealed partial class MainWindow : Window
                 group.Children.Add(new TextBlock { Text = name + " · " + (block.Timing is null ? "Untimed" : "Microsecond interval stored"), FontWeight = FontWeight.SemiBold });
                 var input = new TextBox { Text = block.Text, AcceptsReturn = true, TextWrapping = TextWrapping.Wrap, MaxLength = DocumentRules.MaxBlockLength, IsUndoEnabled = false };
                 input.Classes.Add("transcript"); AutomationProperties.SetName(input, "Transcript block by " + name);
-                input.TextChanged += OnDraftChanged; blockInputs.Add(block.Id, input); group.Children.Add(input);
+                input.PropertyChanged += OnDraftChanged; blockInputs.Add(block.Id, input); group.Children.Add(input);
                 var card = new Border { Child = group }; card.Classes.Add("card"); documentHost.Children.Add(card);
             }
         }
         rendering = false; UpdateControls();
     }
     private static TextBlock Label(string text) => new() { Text = text, TextWrapping = TextWrapping.Wrap };
-    private void OnDraftChanged(object? sender, TextChangedEventArgs args)
+    private void OnDraftChanged(object? sender, AvaloniaPropertyChangedEventArgs args)
     {
-        if (rendering || snapshot is null || lifetime.IsCancellationRequested) return;
+        // TextChanged is queued by Avalonia; export/close must not see a stale saved-state flag.
+        if (args.Property != TextBox.TextProperty || rendering || snapshot is null || lifetime.IsCancellationRequested) return;
         dirty = speakerInputs.Any(p => p.Value.Text != snapshot.Speakers.Single(s => s.Id == p.Key).Name) ||
                 blockInputs.Any(p => p.Value.Text != snapshot.Blocks.Single(b => b.Id == p.Key).Text);
         if (dirty) status.Text = $"UNSAVED DRAFT based on revision {snapshot.Revision}. Save edits to commit; Export/Copy can rescue a draft.";
