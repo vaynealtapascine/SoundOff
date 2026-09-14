@@ -220,6 +220,14 @@
         "resolved": "2.4.0",
         "contentHash": "VDXi1Wp1CUFgMxYyyajaG8sM9c9v5Mf2AdJkYUnksqwENSqVlrXsPe9l/mG55pNIv9eMYXGHiIxVuhS7+a3BQg=="
       },
+      "NAudio.Wasapi": {
+        "type": "Transitive",
+        "resolved": "2.4.0",
+        "contentHash": "DKwpFzgJkUkge4sR+5t/DND1SbuHOJXQX3BBqnmd0n/zjM/CqBqbKA1wMXKIKdN2R1PtETVDu5C9ODPif37hhw==",
+        "dependencies": {
+          "NAudio.Core": "2.4.0"
+        }
+      },
       "NAudio.WinMM": {
         "type": "Transitive",
         "resolved": "2.4.0",
@@ -379,6 +387,7 @@
           "Avalonia.Desktop": "[11.3.20, )",
           "Avalonia.Themes.Fluent": "[11.3.20, )",
           "NAudio.Core": "[2.4.0, )",
+          "NAudio.Wasapi": "[2.4.0, )",
           "NAudio.WinMM": "[2.4.0, )",
           "SoundOff.Core": "[1.0.0, )",
           "SoundOff.Protocol": "[1.0.0, )"

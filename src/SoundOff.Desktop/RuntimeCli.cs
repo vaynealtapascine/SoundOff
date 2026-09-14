@@ -1,3 +1,4 @@
+using SoundOff.Core;
 using System.Text.Json;
 using SoundOff.Protocol;
 
@@ -53,8 +54,26 @@ public static class RuntimeCli
                         segments = completion.Artifact.Segments.Length, paragraphs = document.Blocks.Length, speakers = document.Speakers.Length,
                         text = string.Join("\n", document.Blocks.Select(b => b.Text)) }, Pretty)); return 0;
                 }
+                case ["--record", var seconds, var output, .. var rest]:
+                {
+                    var mode = rest.Length > 0 && rest[0] == "microphone" ? CaptureMode.Microphone : CaptureMode.SystemAudio;
+                    if (!double.TryParse(seconds, System.Globalization.CultureInfo.InvariantCulture, out var duration) || duration <= 0 || duration > 3600)
+                    { Console.Error.WriteLine("Give a recording length in seconds between 0 and 3600."); return 2; }
+                    using var capture = CaptureEngines.Create();
+                    var devices = capture.Devices(mode);
+                    Console.Error.WriteLine($"Recording {mode} for {duration:0.#}s to {output}. Devices available: {devices.Count}");
+                    capture.Start(mode, null, output);
+                    await Task.Delay(TimeSpan.FromSeconds(duration));
+                    var recorded = capture.Stop();
+                    var probe = await MediaTools.ProbeAsync(recorded.Path, CancellationToken.None);
+                    Console.WriteLine(JsonSerializer.Serialize(new { status = "completed", path = recorded.Path, mode = recorded.Mode.ToString(), device = recorded.DeviceName,
+                        recordedSeconds = recorded.DurationMicroseconds / 1_000_000.0, probedSeconds = probe.DurationSeconds,
+                        bytes = new FileInfo(recorded.Path).Length, format = probe.FormatName, codec = probe.Streams[0].CodecName,
+                        sampleRate = probe.Streams[0].SampleRate, channels = probe.Streams[0].Channels, gaps = recorded.Gaps, interrupted = recorded.Interrupted }, Pretty));
+                    return 0;
+                }
                 default:
-                    Console.Error.WriteLine("Usage: --runtime-status | --prepare-pack <model> [en tl] [--diarization] | --transcribe <audio> <output.json> [model] [cpu|cuda] [auto|en|tl]"); return 2;
+                    Console.Error.WriteLine("Usage: --runtime-status | --prepare-pack <model> [en tl] [--diarization] | --transcribe <audio> <output.json> [model] [cpu|cuda] [auto|en|tl] | --record <seconds> <output.wav> [system|microphone]"); return 2;
             }
         }
         catch (Exception e)
