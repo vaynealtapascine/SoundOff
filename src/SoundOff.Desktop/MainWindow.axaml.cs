@@ -29,12 +29,14 @@ public sealed partial class MainWindow : Window
 
     public MainWindow() : this(null, new SettingsStore(SettingsStore.DefaultPath)) { }
     // initialProject: a project path given on the command line, opened once the window is shown; failures are shown, never fatal.
-    public MainWindow(IProjectPicker? picker, SettingsStore settings, string? initialProject = null)
+    // inference: the worker client (tests inject a protocol-speaking stand-in and a temporary runtime location).
+    public MainWindow(IProjectPicker? picker, SettingsStore settings, string? initialProject = null, InferenceWorkerClient? inference = null)
     {
         if (initialProject is not null) Opened += async (_, _) => await GuardAsync(() => OpenPathAsync(initialProject, confirmed: true));
         AvaloniaXamlLoader.Load(this);
         this.picker = picker ?? new LocalProjectPicker(this);
         this.settings = settings;
+        InitializeTranscribe(inference);
         documentHost = this.FindControl<StackPanel>("DocumentHost")!;
         speakerHost = this.FindControl<StackPanel>("SpeakerHost")!;
         status = this.FindControl<TextBlock>("StatusText")!; path = this.FindControl<TextBlock>("PathText")!;
@@ -72,12 +74,13 @@ public sealed partial class MainWindow : Window
         ApplyAppearance(persist: false);
         Closing += async (_, e) =>
         {
-            if (!dirty || allowClose) return;
+            if ((!dirty && !JobRunning) || allowClose) return;
             e.Cancel = true;
             if (confirmingClose) return;
             confirmingClose = true;
-            if (await ConfirmAsync("Discard unsaved draft?", "Your saved revision remains on disk. Choose Cancel to keep editing or save/export the draft.", "Discard and close"))
-            { allowClose = true; Close(); }
+            var proceed = await StopJobForCloseAsync() && (!dirty ||
+                await ConfirmAsync("Discard unsaved draft?", "Your saved revision remains on disk. Choose Cancel to keep editing or save/export the draft.", "Discard and close"));
+            if (proceed) { allowClose = true; Close(); }
             confirmingClose = false;
         };
         Closed += (_, _) => { lifetime.Cancel(); store?.Dispose(); };
@@ -337,7 +340,7 @@ public sealed partial class MainWindow : Window
                 () => CommitStructuralAsync(new InsertBlock(snapshot.Blocks.Length == 0 ? null : snapshot.Blocks[^1].Id, Guid.NewGuid(), snapshot.Speakers[0].Id, "")),
                 enabled: snapshot.Speakers.Length > 0 && snapshot.Blocks.Length < DocumentRules.MaxBlocks));
         }
-        rendering = false; RenderHistory(); UpdateControls();
+        rendering = false; RenderHistory(); RenderTranscribe(); UpdateControls();
     }
     private static TextBlock Label(string text) => new() { Text = text, TextWrapping = TextWrapping.Wrap };
     private string NewSpeakerName()
@@ -379,6 +382,7 @@ public sealed partial class MainWindow : Window
             : "Every paragraph needs timing. The synthetic fixture has none, and this build measures no timing.");
         findNext.IsEnabled = replaceOne.IsEnabled = replaceAll.IsEnabled = !busy && snapshot is not null && snapshot.Blocks.Length != 0;
         documentHost.IsEnabled = speakerHost.IsEnabled = recentHost.IsEnabled = historyHost.IsEnabled = !busy;
+        UpdateTranscribeControls();
     }
 
     private async Task<bool> ConfirmAsync(string title, string message, string affirmative)

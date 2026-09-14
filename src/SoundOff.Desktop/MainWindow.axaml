@@ -38,6 +38,30 @@
       <ScrollViewer Grid.Column="1" HorizontalScrollBarVisibility="Disabled">
         <StackPanel Spacing="20">
           <Border Classes="card"><StackPanel Spacing="10">
+            <TextBlock Text="Transcribe" FontSize="20" FontWeight="SemiBold" />
+            <TextBlock x:Name="RuntimeText" TextWrapping="Wrap" />
+            <WrapPanel Orientation="Horizontal">
+              <Button x:Name="ImportMediaButton" Content="Import audio/video…" Margin="0,0,8,8" />
+              <Button x:Name="PreparePackButton" Content="Prepare model pack" Margin="0,0,8,8" />
+            </WrapPanel>
+            <TextBlock x:Name="MediaText" TextWrapping="Wrap" />
+            <WrapPanel Orientation="Horizontal">
+              <ComboBox x:Name="LanguageChoice" SelectedIndex="0" MinWidth="130" Margin="0,0,8,8" AutomationProperties.Name="Spoken language">
+                <ComboBoxItem>Detect language</ComboBoxItem><ComboBoxItem>English</ComboBoxItem><ComboBoxItem>Filipino</ComboBoxItem>
+              </ComboBox>
+              <ComboBox x:Name="DeviceChoice" SelectedIndex="0" MinWidth="90" Margin="0,0,8,8" AutomationProperties.Name="Processing device">
+                <ComboBoxItem>CPU</ComboBoxItem><ComboBoxItem>GPU</ComboBoxItem>
+              </ComboBox>
+            </WrapPanel>
+            <WrapPanel Orientation="Horizontal">
+              <Button x:Name="TranscribeButton" Content="Transcribe" Margin="0,0,8,8" />
+              <Button x:Name="CancelRunButton" Content="Cancel" Margin="0,0,8,8" />
+              <Button x:Name="ApplyResultButton" Content="Apply model result" Margin="0,0,8,8" />
+            </WrapPanel>
+            <TextBlock x:Name="JobText" TextWrapping="Wrap" />
+            <StackPanel x:Name="RunHost" Spacing="6" />
+          </StackPanel></Border>
+          <Border Classes="card"><StackPanel Spacing="10">
             <TextBlock Text="Speakers" FontSize="20" FontWeight="SemiBold" />
             <TextBlock Text="Names are yours to edit. They are not inferred identities." TextWrapping="Wrap" />
             <StackPanel x:Name="SpeakerHost" Spacing="12" />

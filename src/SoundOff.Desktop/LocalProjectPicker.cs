@@ -12,6 +12,7 @@ public interface IProjectPicker
     Task<string?> ExportBundleAsync() => Task.FromResult<string?>(null);
     Task<string?> ImportBundleAsync() => Task.FromResult<string?>(null);
     Task<string?> ExportSubtitlesAsync() => Task.FromResult<string?>(null);
+    Task<string?> PickMediaAsync() => Task.FromResult<string?>(null);
 }
 public sealed class LocalProjectPicker(Window owner) : IProjectPicker
 {
@@ -48,6 +49,16 @@ public sealed class LocalProjectPicker(Window owner) : IProjectPicker
         SuggestedFileName = "Synthetic demo.soundoff.zip", DefaultExtension = "soundoff.zip", ShowOverwritePrompt = true,
         FileTypeChoices = [BundleType]
     }));
+    public async Task<string?> PickMediaAsync()
+    {
+        var files = await owner.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+        {
+            Title = "Import a recording (a copy is kept with the project; the original is never modified)", AllowMultiple = false,
+            FileTypeFilter = [new FilePickerFileType("Audio or video") { Patterns = ["*.wav", "*.mp3", "*.m4a", "*.aac", "*.flac", "*.ogg", "*.opus", "*.mp4", "*.mov", "*.mkv", "*.webm"] },
+                new FilePickerFileType("All files") { Patterns = ["*"] }]
+        });
+        return PathOf(files.FirstOrDefault());
+    }
     public async Task<string?> ImportBundleAsync()
     {
         var files = await owner.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions

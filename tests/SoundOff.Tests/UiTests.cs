@@ -474,7 +474,9 @@ public sealed class UiTests
         using var folder = new TestDirectory(); var window = new MainWindow(null, folder.Settings); window.Show();
         try
         {
-            Assert.DoesNotContain(window.GetVisualDescendants().OfType<Button>(), b => (b.Content?.ToString() ?? "").Contains("Transcribe", StringComparison.OrdinalIgnoreCase));
+            // Transcribe is a real feature now, but it must never look available before a project and recording exist.
+            var transcribe = Button(window, "TranscribeButton");
+            Assert.False(transcribe.IsEnabled); Assert.Contains("first", (string)ToolTip.GetTip(transcribe)!);
             var theme = window.FindControl<ComboBox>("ThemeChoice")!;
             theme.SelectedIndex = 1; Assert.Equal(ThemeVariant.Light, window.ActualThemeVariant);
             theme.SelectedIndex = 2; Assert.Equal(ThemeVariant.Dark, window.ActualThemeVariant);
