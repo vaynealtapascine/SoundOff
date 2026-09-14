@@ -57,6 +57,15 @@ public sealed class RegressionTests
         Assert.Throws<InvalidDataException>(() => DocumentJson.Deserialize("{\"revision\":1," + document[1..]));
     }
 
+    [Fact] public async Task Escaped_unpaired_property_names_are_rejected_as_invalid_data()
+    {
+        // JSON permits the escape syntactically; accessing the decoded name throws in System.Text.Json.
+        var malformed = "{\"" + (char)92 + "ud800\":0}";
+        Assert.Throws<InvalidDataException>(() => DocumentJson.Deserialize(malformed));
+        using var stream = new MemoryStream(Encoding.UTF8.GetBytes(malformed + "\n"));
+        await Assert.ThrowsAsync<InvalidDataException>(() => new JsonLineReader(stream).ReadAsync(CancellationToken.None));
+    }
+
     [Fact] public async Task Already_cancelled_request_never_starts_a_worker()
     {
         var client = new FixtureWorkerClient(() => throw new InvalidOperationException("Must not spawn"));
@@ -118,7 +127,7 @@ public sealed class RegressionTests
     [Fact] public async Task Worker_self_test_is_real_and_invalid_input_never_produces_a_transcript()
     {
         var assembly = Path.Combine(AppContext.BaseDirectory, "worker", "SoundOff.Worker.dll");
-        foreach (var mode in new[] { "--self-test", "invalid-input" })
+        foreach (var mode in new[] { "--self-test", "invalid-input", "invalid-unicode-property" })
         {
             var info = FixtureWorkerClient.ForAssembly(assembly);
             if (mode == "--self-test") info.ArgumentList.Add(mode);
@@ -128,6 +137,7 @@ public sealed class RegressionTests
             try
             {
                 if (mode == "invalid-input") await child.StandardInput.WriteLineAsync("{}");
+                if (mode == "invalid-unicode-property") await child.StandardInput.WriteLineAsync("{\"" + (char)92 + "ud800\":0}");
                 child.StandardInput.Close();
                 var output = child.StandardOutput.ReadToEndAsync(); var error = child.StandardError.ReadToEndAsync();
                 await child.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(10));

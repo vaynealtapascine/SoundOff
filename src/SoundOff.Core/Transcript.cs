@@ -122,7 +122,11 @@ public static class DocumentJson
             var names = new HashSet<string>(StringComparer.Ordinal);
             foreach (var property in element.EnumerateObject())
             {
-                if (!names.Add(property.Name)) throw new InvalidDataException("Duplicate JSON property.");
+                string name;
+                try { name = property.Name; }
+                catch (InvalidOperationException error)
+                { throw new InvalidDataException("JSON property name contains invalid Unicode.", error); }
+                if (!names.Add(name)) throw new InvalidDataException("Duplicate JSON property.");
                 CheckProperties(property.Value);
             }
         }
