@@ -1,57 +1,82 @@
 # Implementation verification
 
 - Repository: `C:/Users/pcuser/source/repos/SoundOff`, branch `main`
-- Scope: **authored synthetic fixtures only; no real inference**.
-- Increments since the v0.1 slice: reviewed fixes from `agent/final-review`; project schema 2 with a backed-up upgrade; persistent redo; structural paragraph/speaker edits with per-paragraph speaker reassignment; editable title; find/replace in the draft; saved appearance settings; recent-project list; append-only revision history with restore; command-line project argument; keyboard shortcuts; validated portable project bundles; SRT export for timed paragraphs; manual paragraph timing with exact timecodes in TXT output.
+- Scope: **real local WhisperX inference and real audio playback on Windows**. No recording, no diarization, no packaging.
 
 ## Executed results
 
-`python scripts/verify.py --clean --desktop-smoke` completed with **exit 0**, `status: passed`.
-It first removed only the five solution projects' generated `bin` and `obj` directories. Package sources remained empty; the pinned global NuGet package cache was retained. This establishes fresh project/assets restoration and a clean-source rebuild, **not** cold-machine dependency acquisition.
+`python scripts/verify.py --clean --desktop-smoke` completed with **exit 0**, `status: passed`. It first removed only the five solution projects' generated `bin` and `obj` directories, so this is a clean-source rebuild. It is **not** cold-machine dependency acquisition: the NuGet package cache and the provisioned Python runtime were already present.
 
 | Actual command/check | Actual result |
 |---|---|
 | `dotnet --info` | Windows x64, OS build 26200, SDK 8.0.319; tests ran on .NET 8.0.31. |
-| `python -m unittest discover -s scripts -p test_verify.py -v` | 2 verifier regression tests passed (TRX freshness and counter/result agreement). |
-| `dotnet restore SoundOff.sln --force --no-cache --locked-mode` | All five projects restored; exit 0. |
-| `dotnet build SoundOff.sln -c Release --no-restore -t:Rebuild` | Build succeeded, **0 warnings, 0 errors**; exit 0. |
-| `dotnet test SoundOff.sln -c Release --no-build --no-restore --logger "trx;LogFileName=SoundOff.Tests.trx" --results-directory artifacts/test-results` | **168 passed, 0 failed, 0 skipped, 168 total**; exit 0. The previous TRX is deleted before the run and the fresh TRX's summary, counters and per-test outcomes are cross-checked by the script. |
-| `dotnet src/SoundOff.Worker/bin/Release/net8.0/SoundOff.Worker.dll --self-test` | `status: passed`, `provider: soundoff-demo-v1`, `inference: false`; bounded framing, hello/completion/EOF, deterministic untimed fixture checks passed. |
-| `dotnet src/SoundOff.Desktop/bin/Release/net8.0/SoundOff.Desktop.dll --self-test --output artifacts/self-test` | `status: passed`; ten non-GUI checks through SQLite and an actual fixture child process: empty state, real child worker fixture, writer lock, stale edit rejected, transactional Unicode edit, save/reopen/export read-back, persistent undo, undo after reopen, persistent redo, grapheme-safe split and merge with undo. |
-| Native smoke inside the verification script | Observed the visible native Windows window titled `SoundOff — private fixture editor`, requested WM_CLOSE only for that process, observed clean **exit 0**. Launching created no `%LOCALAPPDATA%\SoundOff` directory: settings and the recent list are written only when a choice changes or a project is opened. |
+| `python -m unittest discover -s scripts -p test_verify.py -v` | 2 verifier regression tests passed. |
+| `dotnet restore SoundOff.sln --force --no-cache --locked-mode` | All five projects restored from lock files; exit 0. |
+| `dotnet build SoundOff.sln -c Release --no-restore -t:Rebuild` | **0 warnings, 0 errors**; exit 0. |
+| `dotnet test SoundOff.sln -c Release --no-build --no-restore` | **204 passed, 0 failed, 0 skipped, 204 total**; exit 0. The previous TRX is deleted first and the fresh one's summary, counters and per-test outcomes are cross-checked. |
+| `SoundOff.Worker.dll --self-test` | `status: passed`, `provider: soundoff-demo-v1`, `inference: false`. This is the *fixture* protocol, unrelated to real inference. |
+| `SoundOff.Desktop.dll --self-test --output artifacts/self-test` | `status: passed`; ten non-GUI checks through SQLite and a real fixture child process. |
+| Native smoke | Observed the visible native window titled `SoundOff — local transcription editor`, sent WM_CLOSE to that process only, observed clean **exit 0**. |
 
-## Artifacts
+## Real inference
 
-All paths below are relative to the repository; generated results/binaries are ignored by Git.
+The private runtime is installed at `C:/Users/pcuser/SoundOff/runtime/venv` (Python 3.11.16) with whisperx 3.8.6, torch 2.8.0 (CPU build), faster-whisper 1.2.1, ctranslate2 4.8.2, pyannote.audio 4.0.7, transformers 4.57.6. The `small` pack is prepared at `C:/Users/pcuser/SoundOff/models`: recognition model, voice-activity model, English and Filipino aligners, sentence data. Roughly 2 GB on disk.
 
-- `artifacts/verification/result.json` — parsed final clean-run results, command arrays, exit codes and native-window result.
-- `artifacts/verification/{environment,verifier-tests,restore,build,tests,worker,desktop}.log` — clean-run stdout/stderr.
-- `artifacts/test-results/SoundOff.Tests.trx` — the final complete passing run.
-- `artifacts/self-test/<run-id>/result.json` — final desktop self-test result, with `Synthetic smoke.soundoff.sqlite`, its `.writer.lock` marker and `Synthetic Unicode.txt` in the same directory.
-- `src/SoundOff.Desktop/bin/Release/net8.0/SoundOff.Desktop.dll` and its dependencies plus `worker/SoundOff.Worker.dll` — working framework-dependent development app/child layout.
-- `src/SoundOff.Worker/bin/Release/net8.0/SoundOff.Worker.dll` — standalone fixture-protocol executable, including `--self-test`.
+End-to-end through the app's own CLI, on a 9.335 s clip synthesized locally with Windows TTS:
 
-The self-test TXT freezes the edited revision before undo; the final SQLite project contains the later undo, redo, split, merge and undo revisions. That intentional difference is not stale/corrupt export behavior.
+```text
+dotnet SoundOff.Desktop.dll --transcribe tests/SoundOff.Tests/fixtures/tts-english.wav out.json small cpu en
+```
+
+| Stage | Seconds |
+|---|---|
+| worker start and imports | 1.94 |
+| model load | 10.56 |
+| audio decode | 0.17 |
+| recognition | 2.24 |
+| word alignment | 1.63 |
+
+Recognized text, verbatim, including its mistake:
+
+```text
+Hello. This is a synthetic English test clip for Sohn Duff.
+The quick brown fox jumps over the lazy dog.
+```
+
+"Sohn Duff" is the model mishearing "SoundOff". It is reproduced here deliberately: the app presents model output as a proposal to correct, and this document does not clean up the evidence.
+
+Word timings are real forced-alignment output, for example `Hello.` at 0.13–0.49 s and `quick` at 6.26 s. The same run is captured by the test suite as `real-inference-evidence.json` in the test output directory.
+
+**This is not a benchmark.** Recognition plus alignment took 3.86 s for 9.3 s of audio, but a 9-second English clip from a speech synthesizer says nothing about the architecture's demanding case: two hours, a dozen speakers, imperfect microphones and Filipino/English code-switching. Model load dominates this measurement and is paid once per run. No accuracy, timing-quality or throughput claim is made, and the 40–60% processing-duration target remains unmeasured.
+
+## Real playback
+
+`PlaybackEngineTests` run against the actual Windows audio stack, not a mock:
+
+- A PCM wave file opens directly and reports 9.335 s; seeks land within a millisecond and clamp at both ends.
+- An mp3 produced by ffmpeg is decoded once into a cached 22.05 kHz proxy; the proxy's duration matches the source, and a second load reuses the file rather than re-decoding.
+- An unreadable file reports a reason and every transport call stays harmless.
+- With a real output device present, playing advances the engine clock and pausing stops it dead. Where no device exists the test asserts the honest failure message instead.
 
 ## What the test suite covers
 
-- **Domain:** Unicode/combining marks/emoji round trips, stable IDs, nullable timing and synthetic overlap, validation limits, frozen export, title as part of the draft.
-- **Structural operations:** split offsets are accepted only on interior extended-grapheme-cluster boundaries (surrogate pairs, combining acute, ZWJ emoji and regional-indicator flags are refused); split halves and inserted paragraphs are untimed; merge unions only two known intervals and inserts at most one space; delete/insert are positional and bounded by the 128-block limit; speakers are added, reassigned (timing preserved) and removed only when unused, bounded by 32; a draft plus operations commit as one labelled revision that undo and redo reverse as a unit, and a failing operation rolls the whole commit back.
-- **Storage:** transaction rollback and abrupt process exit, durable undo and redo across reopen, redo cleared by a new edit, writer ownership across processes, protected stale revisions, refusal of unsupported/incomplete schemas, the schema-1 upgrade (flushed backup first, transactional upgrade, injected interruption leaves schema 1, backup is a readable schema-1 copy), append-only history listing, reading stored revisions, and restore as a new forward revision.
-- **Portable bundles:** round trip reproduces identity, revision and history while the original and the bundle stay byte-identical; a hand-built well-formed bundle imports; extra/nested/traversal entries, wrong format/version/schema, unknown or missing manifest fields, declared-size mismatches, over-limit sizes, digest mismatches, a damaged database header, identity/revision mismatches, non-database content, an oversized manifest and a non-ZIP file are all refused without leaving staging files.
-- **Protocol:** strict JSON-lines parsing (invalid UTF-8, unknown/duplicate/missing properties, escaped unpaired surrogates in property names, oversized lines), worker lifecycle adversaries (hung, wrong identity, truncated, extra, nonzero exit, stderr overflow), cancellation and reaping.
-- **Timing text:** exact H:MM:SS.ffffff formatting and parsing of seconds/MM:SS/H:MM:SS forms with up to six fractional digits, plain-language refusals (bad separators, non-digits, over-long fractions, out-of-range minutes/seconds, beyond 1000 hours), ranges needing both ends and positive length; draft timing as an explicit anchor that survives a text edit, clears on request, and is refused for legacy untimed provenance; TXT timecodes only for timed paragraphs and dropped for edited draft text unless retimed.
-- **Subtitles:** outward timestamp rounding, soft wrapping that keeps words and author line breaks, refusal of untimed paragraphs unless excluded, start ordering, refuse-or-combine overlap policies, skipped blank cues, and an unmutated snapshot.
-- **Search:** ordinal case-insensitive, non-overlapping, normalization-free matching; forward stepping with wrap; counted replace-all.
-- **Settings and recents:** strict parsing of both JSON files (missing, empty, malformed, missing/unknown/duplicate fields, wrong version/theme/type, oversized, invalid UTF-8, invalid timestamps, duplicate paths), defaults with a visible reason, atomic replacement on the next change, a reported save failure that still applies the choice, recency ordering, deduplication by path, the ten-entry cap, and forget removing only the entry.
-- **Headless UI:** demo/edit/save/copy/export/reopen/undo/redo through real controls, immediate copy/close after input, invalid drafts, draft export labels, project/export/bundle extension policy, theme and reduced-motion effects on template parts, timed-project labels, upgrade notice, paragraph actions (split/merge/insert/delete/add) with undo, edge and surrogate split offsets failing visibly while keeping the draft, speaker add/reassign/remove, title editing, find next/replace/replace all changing only the draft, settings persistence across windows, recent-project listing/reopen/missing/forget, history rows with restore and the draft-discard confirmation, command-line project opening including a missing path, keyboard shortcuts gated by enabled buttons, bundle export/import through the window, SRT export disabled with a reason for untimed projects but writing combined cues for a timed one, and manual timing boxes that fail visibly with the paragraph number, never re-anchor edited text when untouched, keep retyped timing, clear when blanked, and unlock SRT export for the fixture.
+- **Domain:** Unicode round trips, stable IDs, nullable timing, overlap, validation limits, model provenance, word evidence dropped on text change and kept on re-anchoring.
+- **Structural operations:** grapheme-safe split offsets (surrogate pairs, combining marks, ZWJ emoji, flag pairs all refused), untimed split halves, merge unioning only known intervals, bounded insert/delete, speaker add/reassign/remove, and a draft plus operations committing as one revision that undo and redo reverse as a unit.
+- **Storage:** rollback, abrupt process exit, durable undo/redo across reopen, writer ownership across processes, stale-revision protection, refusal of unknown or incomplete schemas, and chained 1→2→3 upgrades behind a flushed backup with an interrupted upgrade leaving the original schema.
+- **Media and runs:** ffprobe identifying content and rejecting a text file named `.wav`, copy-with-digest leaving the original untouched, identical bytes sharing one owned copy, runs finishing exactly once, and results importing as a new undoable revision.
+- **Inference protocol:** an adversary worker exercising wrong job id, sequence gaps, failure messages, missing or tampered artifacts, wrong audio identity, extra messages after completion, silence until the liveness deadline, cooperative cancel, and cancel ignored until the kill. Plus real WhisperX when the runtime and pack are present.
+- **Playback:** clock-to-document mapping including overlap and unaligned words, and the real engine above.
+- **Subtitles, search, settings, recents, bundles** as before.
+- **Headless UI:** the full edit/save/undo/redo/export path, structural actions, manual timing, find and replace, history restore, bundle round trip, recent projects, keyboard shortcuts, the transcription card (import, prepare, transcribe, auto-apply into an empty document, explicit apply otherwise, cancelled and failed runs), and synchronized review (transport, overlap highlighting, word ribbon seeks, Play from here, follow-scroll suspension).
 
 No tests are skipped.
 
 ## What this evidence does not establish
 
-The worker returns fixed authored text. There are no model files, model downloads, private recordings, speech recognition, diarization, measured timestamps or accuracy/performance benchmarks. No credentials, hosted inference or network fallback were used.
-
-Avalonia interaction/clipboard tests run **headlessly with an in-memory clipboard, a deterministic test picker and per-test settings files**. The native smoke proves only real window launch/close. Native clipboard/file-picker interaction, visual layout, accessibility/IME, long-document performance, installed artifacts, macOS/Linux, network instrumentation, model/dependency security and license audits are not certified here.
-
-**Real WhisperX, capture, playback, cue editing, packaging/publication and mobile remain deferred**, along with the other full-product features listed in README. SRT output exists only for paragraphs that already carry synthetic timing; no measured timing exists anywhere in this build. The original architecture acceptance matrix remains an unexecuted full-product plan, not a relabeled fixture-test report.
+- **No recording of any kind** exists. Capture, its permissions and its state machine are absent.
+- **Diarization is untested.** The worker implements the pyannote path but it needs a gated Hugging Face token, so it has never run here.
+- **One machine, one platform.** Windows x64 only, one CPU, and a GPU that torch's CPU build does not use. No macOS or Linux, no packaged artifact, no clean-device install, no upgrade or uninstall test.
+- **No network instrumentation.** The app has no network client beyond the explicit model download and transcription sets `HF_HUB_OFFLINE=1`, but outbound traffic was never measured.
+- **No licence or security audit** of the model weights, the Python dependency tree, or ffmpeg's build configuration.
+- **No accessibility, IME, screen-reader or long-document performance testing.** Headless UI tests drive real controls and event handlers, but with a test file picker and an in-memory clipboard.
+- The original `ACCEPTANCE-MATRIX.csv` remains an unexecuted full-product plan.
