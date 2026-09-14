@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <ApplicationIcon />
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <RootNamespace>SoundOff.Desktop</RootNamespace>
+    <AvaloniaUseCompiledBindingsByDefault>false</AvaloniaUseCompiledBindingsByDefault>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Avalonia" Version="11.3.20" />
+    <PackageReference Include="Avalonia.Desktop" Version="11.3.20" />
+    <PackageReference Include="Avalonia.Themes.Fluent" Version="11.3.20" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\SoundOff.Core\SoundOff.Core.csproj" />
+    <ProjectReference Include="..\SoundOff.Protocol\SoundOff.Protocol.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <AvaloniaResource Include="App.axaml" />
+    <AvaloniaResource Include="MainWindow.axaml" />
+  </ItemGroup>
+</Project>

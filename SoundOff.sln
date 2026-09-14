@@ -1,0 +1,45 @@
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SoundOff.Core", "src\SoundOff.Core\SoundOff.Core.csproj", "{1A0E7D4E-11C3-4A5D-A1C1-3E9C6D3B3D01}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SoundOff.Protocol", "src\SoundOff.Protocol\SoundOff.Protocol.csproj", "{2B1F8E5F-22D4-4B6E-B2D2-4FAD7E4C4E02}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SoundOff.Worker", "src\SoundOff.Worker\SoundOff.Worker.csproj", "{3C2F9F60-33E5-4C7F-C3E3-5ABE8F5D5F03}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SoundOff.Desktop", "src\SoundOff.Desktop\SoundOff.Desktop.csproj", "{4D30A071-44F6-4D80-D4F4-6ACF906E6A04}"
+EndProject
+Project("{FAE04EC0-E8FB-11D0-8B55-00A0C91BC942}") = "SoundOff.Tests", "tests\SoundOff.Tests\SoundOff.Tests.csproj", "{5E41B182-5507-4E91-E5A5-7A0DA17F7A05}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{1A0E7D4E-11C3-4A5D-A1C1-3E9C6D3B3D01}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{1A0E7D4E-11C3-4A5D-A1C1-3E9C6D3B3D01}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{1A0E7D4E-11C3-4A5D-A1C1-3E9C6D3B3D01}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{1A0E7D4E-11C3-4A5D-A1C1-3E9C6D3B3D01}.Release|Any CPU.Build.0 = Release|Any CPU
+		{2B1F8E5F-22D4-4B6E-B2D2-4FAD7E4C4E02}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{2B1F8E5F-22D4-4B6E-B2D2-4FAD7E4C4E02}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{2B1F8E5F-22D4-4B6E-B2D2-4FAD7E4C4E02}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{2B1F8E5F-22D4-4B6E-B2D2-4FAD7E4C4E02}.Release|Any CPU.Build.0 = Release|Any CPU
+		{3C2F9F60-33E5-4C7F-C3E3-5ABE8F5D5F03}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{3C2F9F60-33E5-4C7F-C3E3-5ABE8F5D5F03}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{3C2F9F60-33E5-4C7F-C3E3-5ABE8F5D5F03}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{3C2F9F60-33E5-4C7F-C3E3-5ABE8F5D5F03}.Release|Any CPU.Build.0 = Release|Any CPU
+		{4D30A071-44F6-4D80-D4F4-6ACF906E6A04}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{4D30A071-44F6-4D80-D4F4-6ACF906E6A04}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{4D30A071-44F6-4D80-D4F4-6ACF906E6A04}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{4D30A071-44F6-4D80-D4F4-6ACF906E6A04}.Release|Any CPU.Build.0 = Release|Any CPU
+		{5E41B182-5507-4E91-E5A5-7A0DA17F7A05}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{5E41B182-5507-4E91-E5A5-7A0DA17F7A05}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{5E41B182-5507-4E91-E5A5-7A0DA17F7A05}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{5E41B182-5507-4E91-E5A5-7A0DA17F7A05}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+EndGlobal
