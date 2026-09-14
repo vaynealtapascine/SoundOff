@@ -1,11 +1,11 @@
 <Window xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        x:Class="SoundOff.Desktop.MainWindow" Title="SoundOff — private fixture editor"
+        x:Class="SoundOff.Desktop.MainWindow" Title="SoundOff — local transcription editor"
         Width="1180" Height="860" MinWidth="880" MinHeight="680">
   <Grid RowDefinitions="Auto,Auto,*,Auto,Auto" Margin="24" RowSpacing="16">
     <Grid ColumnDefinitions="*,Auto">
       <StackPanel Spacing="6">
         <TextBlock Text="SoundOff" Classes="heading" />
-        <TextBlock Text="Private Windows v0.1 · Synthetic fixture editor · Not a transcription product" TextWrapping="Wrap" />
+        <TextBlock Text="Private Windows build · Local WhisperX transcription and review · Nothing is uploaded" TextWrapping="Wrap" />
       </StackPanel>
       <StackPanel Grid.Column="1" Spacing="4">
         <TextBlock Text="Appearance" />
@@ -106,8 +106,8 @@
           </StackPanel></Border>
           <Border Classes="card"><StackPanel Spacing="10">
             <TextBlock Text="Scope &amp; privacy" FontSize="18" FontWeight="SemiBold" />
-            <TextBlock Text="Demo content is authored and explicitly synthetic. No audio is accessed, no model is run, and the app has no network client." TextWrapping="Wrap" />
-            <TextBlock Text="Deferred: audio/video import, recording, playback, WhisperX/model packs, measured timing, cue editing, reprocessing, durable jobs, word-anchored editing, media in bundles, tray, installers/packaging, and mobile." TextWrapping="Wrap" />
+            <TextBlock Text="Recognition, alignment and playback all run on this computer. The only component that reaches the network is the explicit model-pack download; transcription itself runs with the hub offline." TextWrapping="Wrap" />
+            <TextBlock Text="Deferred: recording, video preview, speaker diarization, playback speed, cue editing, reprocessing comparisons, durable job queues, word-anchored editing, media in bundles, tray, installers/packaging, and mobile." TextWrapping="Wrap" />
             <TextBlock Text="Local project files and clipboard text are not encrypted. Other software, clipboard history or OS backups may read them." TextWrapping="Wrap" />
             <TextBlock Text="Editor limits: up to 64 speakers, 20,000 paragraphs, 16,384 UTF-16 units per paragraph. Accessibility, IME and long-recording release gates remain open." TextWrapping="Wrap" />
           </StackPanel></Border>

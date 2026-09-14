@@ -1,4 +1,4 @@
-"""Rebuild and exercise the fixture editor using only .NET and Python's standard library.
+"""Rebuild and exercise the app using only .NET and Python's standard library.
 
 No model downloads, recordings, credentials, or network fallback. NuGet.Config
 has no sources, so restore fails explicitly if the pinned package cache is missing.
@@ -65,7 +65,7 @@ def native_window_smoke(environment: dict[str, str]) -> dict:
             if pid.value == child.pid and user32.IsWindowVisible(handle):
                 title = ctypes.create_unicode_buffer(user32.GetWindowTextLengthW(handle) + 1)
                 user32.GetWindowTextW(handle, title, len(title))
-                if title.value == "SoundOff — private fixture editor":
+                if title.value == "SoundOff — local transcription editor":
                     found.append((handle, title.value))
             return True
         try:

@@ -1,123 +1,133 @@
-# SoundOff — private v0.1 fixture editor
+# SoundOff — local transcription editor
 
-**This build edits explicitly authored synthetic text. It does not transcribe audio.**
-No WhisperX, speech recognition, alignment, diarization, recording or playback is implemented or simulated as a working product feature. The window starts empty, with no fake **Transcribe** button. **Load synthetic demo** runs a real local child process that returns a fixed fixture, not model inference. The fixture's Filipino/English, accented names, combining marks, Chinese and emoji exercise text preservation, not language accuracy.
+Import a recording, transcribe it **on this computer** with WhisperX, listen while the words highlight in time, correct the text and speakers, and export. No account, no upload, no hosted inference.
 
-This is a bounded Windows development slice of the larger [architecture](ARCHITECTURE.md), not completion of its P0–P6 release gates. See [verification evidence](docs/VERIFICATION.md) for actual commands, coverage and limitations.
+This is a working Windows development build, not a packaged release. See [verification evidence](docs/VERIFICATION.md) for the exact commands, results and limits, and [ARCHITECTURE.md](ARCHITECTURE.md) for the full intended product and its release gates.
+
+## What runs locally
+
+| Stage | What actually happens |
+|---|---|
+| Import | ffprobe identifies the file by content, then the bytes are copied beside the project while being hashed. The original is never modified. |
+| Transcribe | A private Python child process runs WhisperX: voice-activity batching, faster-whisper recognition, then wav2vec2 forced alignment for word timing. |
+| Review | Playback highlights the active paragraph and word from one authoritative clock; clicking a word seeks to it. |
+| Correct | Text, speakers, paragraph structure and timing are yours; each save is an immutable revision you can undo, redo or restore. |
+| Export | UTF-8 text with timecodes, SRT subtitles, the clipboard, or a portable project bundle. |
+
+The only component that touches the network is the explicit model-pack download. Transcription itself runs with `HF_HUB_OFFLINE=1`, so a missing resource is a setup error rather than a hidden fetch.
+
+## Install the inference runtime
+
+The app needs a private Python runtime holding the pinned WhisperX stack. It is provisioned once, outside the repository, by [uv](https://docs.astral.sh/uv/):
+
+```bash
+python scripts/setup_runtime.py
+```
+
+That creates `%LOCALAPPDATA%\SoundOff\runtime\venv` with whisperx 3.8.6, torch 2.8.0 (CPU wheels) and their pinned dependencies, freezes the resolved package list beside it, and writes `runtime.json` recording what was installed. It downloads **no models**. Pass `--gpu` to install the CUDA 12.6 torch build instead (about 3 GB more), or `--dir` to place the runtime elsewhere; `SOUNDOFF_HOME` overrides the location for both the script and the app.
+
+Packaged hosts virtualize `%LOCALAPPDATA%` per application, so a runtime installed from one host can be invisible to another. If the app reports the runtime missing even though it installed cleanly, put it somewhere shared:
+
+```bash
+python scripts/setup_runtime.py --dir %USERPROFILE%\SoundOff\runtime
+```
+
+**ffmpeg and ffprobe must be on `PATH`** (or in `SOUNDOFF_FFMPEG_DIR`). They identify imported media, decode audio for recognition and build playback proxies.
 
 ## Build and run
 
-Tested environment: Windows x64 (build 26200), .NET SDK **8.0.319**, .NET 8 runtime **8.0.31**. The solution targets `net8.0`; Avalonia **11.3.20**, Microsoft.Data.Sqlite **8.0.22**, and the test dependencies are pinned in the project files and `packages.lock.json`. A .NET 8 SDK is required to build; the app and worker require the .NET 8 runtime and `dotnet` on PATH. This is not a self-contained installer.
-
-Run commands from the repository root. Before building, opt out of the .NET SDK and Avalonia's **build-time** telemetry:
+Tested environment: Windows x64 (build 26200), .NET SDK **8.0.319**, .NET 8 runtime **8.0.31**, ffmpeg 6.0. The solution targets `net8.0`; Avalonia **11.3.20**, Microsoft.Data.Sqlite **8.0.22**, NAudio.Core/NAudio.WinMM **2.4.0** and the test dependencies are pinned in the project files and `packages.lock.json`.
 
 ```bash
-# Bash / Git Bash
 export DOTNET_CLI_TELEMETRY_OPTOUT=1
 export AVALONIA_TELEMETRY_OPTOUT=1
-```
-
-```powershell
-# PowerShell alternative
-$env:DOTNET_CLI_TELEMETRY_OPTOUT = "1"
-$env:AVALONIA_TELEMETRY_OPTOUT = "1"
-```
-
-`NuGet.Config` intentionally clears package sources. Restore uses a **previously provisioned global NuGet package cache**, without silently going online. `--no-cache` below bypasses the NuGet HTTP cache; it does not empty the global package cache. All five projects' `bin` and `obj` directories were deleted before the recorded verification, so the result is not merely an old `--no-restore` build. It is **not** proof of a cold-machine install without a provisioned dependency cache.
-
-If packages are missing, restore fails. Supply an explicitly approved local NuGet feed/cache; do not remove the lock files or ignore failed sources to manufacture a successful build. SDK/package acquisition and a distributable offline dependency bundle are outside this slice. `NuGetAudit` is disabled for deterministic offline restoration; **no vulnerability-audit pass is claimed**.
-
-```text
-dotnet restore SoundOff.sln --force --no-cache --locked-mode
-dotnet build SoundOff.sln -c Release --no-restore -t:Rebuild
-dotnet test SoundOff.sln -c Release --no-build --no-restore --logger "trx;LogFileName=SoundOff.Tests.trx" --results-directory artifacts/test-results
-```
-
-Launch the real Avalonia window:
-
-```text
+dotnet build SoundOff.sln -c Release
+dotnet test SoundOff.sln -c Release --no-build
 dotnet src/SoundOff.Desktop/bin/Release/net8.0/SoundOff.Desktop.dll
 ```
 
-A single `*.soundoff.sqlite` argument opens that project once the window is shown; a missing or unreadable project is reported in the status line rather than failing startup. Keep the generated `worker/` folder beside the desktop DLL. The desktop project builds and copies its worker automatically. Running just the desktop DLL without its dependencies/worker folder is not a supported deployment.
+A single `*.soundoff.sqlite` argument opens that project once the window is shown. Keep the generated `worker/` folder beside the desktop DLL: it holds the Python worker script the app runs.
 
-## Use the fixture editor
+## Transcribe a recording
 
-1. **Load synthetic demo** and choose a *new* local filename ending in `.soundoff.sqlite`. Existing files are never replaced by this action. No file is created merely by launching the app.
-2. Edit the project title, speaker names, whole transcript paragraphs, the speaker assigned to a paragraph (the selector above each paragraph), or a paragraph's manual timing (start/end boxes, `H:MM:SS.ffffff`, seconds or `MM:SS` also accepted, exact microseconds, no rounding; both blank means untimed). Manually entered timing is synthetic, not measured. Editing a paragraph's text clears its timing unless you retype timing in the same draft; untouched timing boxes never re-anchor edited text. Stable speaker/block IDs do not change. Typing remains an **UNSAVED DRAFT**; this slice does **not** claim keystroke autosave. **Find in draft** searches paragraphs with plain case-insensitive matching (no Unicode normalization); **Replace selected** and **Replace all** change only the draft, so Save commits them and Discard reverts them.
-3. **Save edits** commits the entire draft as one durable, undoable revision. **Undo saved edit** and **Redo undone edit** operate on persisted application history, including after reopen; a new saved edit clears the redo stack, but every undone state remains in revision history. The **History** card lists the newest fifty revisions with their operation and parent; **Restore** commits that revision's content as a *new* revision (undoable, never rewriting history) and asks before discarding an unsaved draft. Discard restores the saved snapshot. Saving failure retains the input and shows **NOT SAVED**; opening another project or closing with a draft asks before discarding it.
-   Shortcuts: **Ctrl+S** save, **Ctrl+Z** undo, **Ctrl+Y** redo, **Ctrl+F** find, **F3** find next. Each only triggers the corresponding enabled button, so undo/redo shortcuts do nothing while a draft exists and never discard typed text.
-4. Paragraph actions (**Split at cursor**, **Merge with next**, **Insert paragraph after**, **Delete paragraph**, **Add paragraph at end**) and speaker actions (**Add speaker**, **Remove** for an unused speaker) save the current draft together with their change as **one** undoable revision. Split offsets must fall between whole user-perceived characters (grapheme clusters); split halves and inserted paragraphs are untimed; merge keeps only the union of two already-timed intervals and inserts at most one space. Deleting every paragraph keeps the project open.
-5. **Export SRT** writes subtitles from the saved revision when every paragraph carries timing; the fixture starts untimed, so the button stays disabled with that reason until you enter timing for every paragraph. **Export TXT** or **Copy text** exports a frozen saved revision, or a clearly labeled unsaved draft. Draft rescue still works if a speaker name is blank and therefore cannot be saved. UTF-8 TXT includes speaker labels, revision and synthetic provenance, plus exact `[start – end]` timecodes on paragraphs that carry timing (never a placeholder for untimed ones); clipboard text uses the same renderer and is read back for equality. The native save picker prompts before replacing an existing TXT file. Project and export extensions cannot be confused.
-6. **Export bundle** writes a portable `*.soundoff.zip` of the *saved* revision (an unsaved draft is deliberately not included, and the status line says so). **Import bundle** validates the bundle and creates a *new* project file from it, then opens that project; an existing destination is refused, and the bundle file is left unchanged.
-7. **Open project** reopens the SQLite project without a worker, model or media file. A second editor is refused while another SoundOff process owns the project writer lock. **Recent projects** (paths and titles only, at most ten, stored in `recent-projects.json` beside the settings file) can be reopened with one click; a missing file is flagged rather than dropped, and **Forget** removes only the entry. A schema-1 project from the earlier v0.1 build is upgraded in place after an untouched backup copy is written beside it; the status line names that backup.
+1. **Import audio/video…** probes the file, creates the project if there is not one yet, and copies the recording into `<project>.soundoff.media/media/`. The transport bar appears once it loads.
+2. **Prepare model pack** downloads the `small` recognition model, the voice-activity model, the English and Filipino aligners and sentence data into `%LOCALAPPDATA%\SoundOff\models`, then verifies them. About 2 GB, once. A pack counts as ready only after that verification succeeds.
+3. Choose **Detect language**, English or Filipino, and CPU or GPU. **Transcribe** runs the job beside the editor with a stage-by-stage status line and a rough estimate. **Cancel** asks the worker to stop and terminates it if a stage will not yield.
+4. The result becomes the transcript automatically only when the document is still empty. Otherwise it waits behind **Apply model result**, which confirms before replacing the document as a new undoable revision. Every run is recorded with its status and its immutable result artifact, and a completed run can be re-applied later after its artifact is re-verified.
 
-**Appearance:** Follow system, Light and Dark affect the real window. Reduced motion defaults **on** conservatively and disables control/template transitions; switching it off restores the Fluent transitions. The app does not animate scrolling or contain a progress animation. Both choices are saved to `%LOCALAPPDATA%\SoundOff\settings.json` (strict JSON, written atomically); a missing or invalid file yields the defaults with a visible reason and is replaced on the next change, and a save failure is reported while the window still applies the choice. OS reduced-motion detection and a full accessibility/IME review remain deferred. Theme follows the OS only when **Follow system** is selected. Styling entry points are `App.axaml` (typography, padding, cards, transition policy) and `MainWindow.axaml` (document width, spacing and speaker-panel width).
+**Model output is a proposal, not truth.** Recognition, timing and any speaker labels are machine estimates; the document says so until you correct it. The demanding two-hour, many-speaker case in the architecture has not been benchmarked here.
 
-## Contracts implemented in this slice
+## Review and correct
+
+**Playback:** play/pause, five-second skips, a position slider, volume and elapsed/duration. The active paragraph highlights, and overlapping speakers both stay highlighted rather than being flattened into one turn. The active paragraph grows a ribbon of clickable words; clicking one, or **Play from here**, seeks without starting playback. A word that alignment never placed falls back to its paragraph and says so, and an untimed paragraph offers no seek at all. Highlighting only changes styling, so it never moves the caret, changes your selection, dirties the draft or creates history. Typing or moving around suspends follow-scrolling until you press **Follow playback** again.
+
+Playback has a **Windows adapter only**; elsewhere the app says so instead of pretending. Anything that is not already a PCM wave file is decoded once into a cached proxy by the same ffmpeg the worker uses, so playback and stored timing share one time base. There is **no speed control**: honest time-stretching needs an LGPL dependency whose distribution terms are a packaging decision, and a pitch-shifting resample would be a worse lie than no control.
+
+**Editing:** the project title, speaker names, paragraph text, the speaker assigned to each paragraph, and manual timing (`H:MM:SS.ffffff`, exact microseconds, both boxes blank means untimed) are all part of one unsaved draft. **Save edits** commits it as one durable revision. Editing a paragraph's text clears its timing and word evidence unless you retype timing in the same draft; untouched timing boxes never re-anchor edited text.
+
+**Structure:** Split at cursor, Merge with next, Insert paragraph after, Delete paragraph, Add paragraph at end, Add speaker and Remove (unused speakers only). Each saves the current draft together with its change as one undoable revision. Split offsets must fall between whole user-perceived characters, so surrogate pairs, combining marks, ZWJ emoji and flag pairs cannot be torn apart.
+
+**History:** every saved change is an immutable revision. Undo and redo survive reopening; a new saved edit clears the redo stack but never rewrites history. **Restore** commits an earlier revision's content as a *new* revision.
+
+**Find in draft** searches paragraphs with plain case-insensitive matching and no Unicode normalization. Replacements change only the draft, so Save commits them and Discard reverts them.
+
+Shortcuts: **Ctrl+S** save, **Ctrl+Z** undo, **Ctrl+Y** redo, **Ctrl+F** find, **F3** find next. Each only triggers the corresponding enabled button, so undo never silently discards typed text.
+
+**Appearance:** Follow system, Light and Dark, plus reduced motion (default on, since OS detection is not implemented). Both are saved to `%LOCALAPPDATA%\SoundOff\settings.json`; an invalid file yields defaults with a visible reason rather than a crash.
+
+## Export
+
+- **Export TXT** / **Copy text** — UTF-8 with speaker labels, revision, provenance, and exact `[start – end]` timecodes on paragraphs that carry timing. Never a placeholder for untimed ones. A clearly labelled unsaved draft can be rescued even when it cannot be saved.
+- **Export SRT** — one cue per timed paragraph, enabled only when every paragraph is timed. Starts round down and ends round up, cues are ordered by start, and overlapping paragraphs are combined into one cue spanning their union rather than being dropped.
+- **Export bundle** / **Import bundle** — a `*.soundoff.zip` holding exactly `manifest.json` and a consistent SQLite copy of the saved project. Import accepts only those two flat entries, checks size and SHA-256, runs `integrity_check`, validates the document, and only then creates a *new* project. Nothing in a bundle is executed. Media is not bundled yet.
+
+## Contracts
 
 | Area | Implemented boundary |
 |---|---|
-| App-owned transcript | Immutable project/speaker/block GUIDs; manual-edit flag; monotonic revisions. Block-level text only, no engine JSON as the canonical schema and no character/word anchor claims. |
-| Structural edits | Split, merge, insert, delete, speaker add/remove and per-paragraph speaker reassignment are validated domain operations; a draft plus operations commit as one labelled revision. Split coordinates are UTF-16 offsets on an interior extended-grapheme-cluster boundary (surrogate pairs, combining marks, ZWJ emoji and flag pairs cannot be torn). Removed paragraph IDs stay in revision history. |
-| Timing and overlap | Nullable half-open integer-microsecond intervals. Unknown is `null`, not zero. Distinct blocks may overlap. The UI fixture starts entirely untimed; timed test data and manually entered timing are explicitly synthetic. Editing text invalidates only that block's timing, while speaker renames and unrelated intervals are preserved; a timing typed in the same draft is an explicit manual anchor and wins. |
-| SQLite | Schema 2: current app-owned document snapshot, immutable revision snapshots and persistent undo and redo stacks. Current state, history and both stacks change in one transaction with FULL synchronous durability and DELETE journal mode. Schema 1 is upgraded only after a consistent, flushed, never-overwritten backup (`<project>.schema1-<UTC stamp>.backup`) exists; the upgrade is one transaction, so an interruption leaves a readable schema-1 file. Any other or incomplete schema is refused, not migrated. Earlier untimed schema-1 fixture provenance remains readable. |
-| Writer ownership | Exclusive OS handle on a sibling `.writer.lock` file, held for the entire project session. The marker file intentionally remains after close/crash; a file's age or PID is never treated as ownership. Actual cross-process lock release and abrupt transaction interruption are tested. Use ordinary local filesystem paths, not hard-link aliases or shared/network/synced concurrent editing; this is not an OS security sandbox. |
-| Worker boundary | One private `dotnet` child, no shell/ports/HTTP/model server. One `start-fixture` request, then `hello-fixture` and `completed-fixture`, followed by EOF and exit 0. Version, provider, job/project identity, base revision and exact sequence are checked, as is the deterministic fixture payload. The worker never receives a project path or writes the project DB. |
-| Protocol limits | UTF-8 JSON lines, at most 256 KiB per line *before* deserialization, 16 KiB total stderr, 10-second deadline, depth 32. Missing required, unknown or duplicate JSON fields, invalid UTF-8, extra/truncated/out-of-order messages and nonzero exit are refused. Cancellation/timeout kills and reaps the child. Diagnostics are bounded and discarded, not copied into transcript logs. |
-| Editor limits | Up to 32 speakers, 128 blocks, 16,384 UTF-16 code units per block and an 8 MiB serialized snapshot. Unicode is not normalized; malformed surrogate input is rejected. This is not the long-recording editor proof. |
-| Export | Strict UTF-8 without BOM, same-directory staging, flush and atomic move; failed staging does not destroy an earlier export. Exporting does not mutate project text, revision or history. |
-| SRT | One cue per timed paragraph of the saved revision, optional speaker labels, soft word wrap at 42 code units. Untimed paragraphs are refused unless explicitly excluded; timing is never invented. Starts round down and ends round up to milliseconds; cues are ordered by start; overlaps are combined into one cue spanning their union (compatibility layout) in the window, or refused by the library default. **Export SRT** is enabled only when every paragraph is timed, so it is disabled with a reason for the untimed fixture. |
-| Portable bundle | `*.soundoff.zip` holding exactly `manifest.json` and a consistent SQLite online-backup copy of the saved project (never the draft, no media or models exist yet). Import accepts only those two flat entries, parses the manifest strictly (64 KiB cap), streams the database with a hard byte cap and SHA-256 check, runs `integrity_check`, validates the document, matches identity/revision/title, and only then moves it to a *new* project path. Nothing in a bundle is executed; the bundle file is never modified. |
+| App-owned transcript | Immutable project/speaker/block GUIDs, manual-edit flags, monotonic revisions. Engine output is converted into app-owned turns; the engine's response is never the saved schema. |
+| Provenance | `empty`, `synthetic-fixture` or `model-inference`. Model provenance names the engine and version and keeps the estimate status visible in the document and every export. |
+| Timing | Nullable half-open integer-microsecond intervals; unknown is `null`, never zero. Word evidence carries the aligner's own score where it gave one, which is not a calibrated probability of correctness. Overlap between paragraphs is preserved. |
+| Worker protocol | Protocol 2 over bounded NDJSON to a private Python child: one command per process, strict schemas, version/job/sequence checked on every message, liveness deadline, cooperative cancel then kill. The worker never receives the project database and writes exactly one result artifact. |
+| Result validation | Size, SHA-256, strict schema, engine and audio identity, and finite ordered intervals are all checked before a result can become a proposal. A rejected run leaves no artifact behind. |
+| SQLite | Schema 3: document snapshot, immutable revision snapshots, undo and redo stacks, owned media assets and processing runs, all in one transaction with FULL synchronous durability. Schemas 1 and 2 upgrade behind a flushed, never-overwritten backup; anything else is refused. |
+| Writer ownership | An exclusive OS handle on a sibling `.writer.lock` file for the whole session. A file's age or PID is never treated as ownership. |
+| Editor limits | 64 speakers, 20,000 paragraphs, 4,096 words per paragraph, 16,384 UTF-16 units per paragraph, 64 MiB snapshots. Unicode is not normalized; malformed surrogate input is rejected. |
 
-The worker protocol is intentionally a **fixture-only subset**, not the architecture's future inference/job protocol. There is no fake recognition progress, checkpoint, resumable inference or quality/performance claim. `LoadFixture` cannot replace a nonempty or newer corrected document.
+## Verification
 
-## Self-tests and reproducible evidence
-
-These commands work without starting a GUI:
-
-```text
-dotnet src/SoundOff.Worker/bin/Release/net8.0/SoundOff.Worker.dll --self-test
-dotnet src/SoundOff.Desktop/bin/Release/net8.0/SoundOff.Desktop.dll --self-test --output artifacts/self-test
-```
-
-The worker self-test exercises its real protocol handler/framing in memory and reports `"inference":false`. The desktop self-test starts the **actual fixture subprocess**, creates a new UUID-named artifact directory, commits Unicode edits, rejects stale edits and a second writer, reopens/exports/read-checks text, then undoes and reopens again. Its exported revision is intentionally the edited snapshot; its final database contains the later undo revision. It does not initialize Avalonia or use a clipboard API. Exit 0 means passed, 1 means failed, 2 means invalid CLI usage.
-
-For one-command clean verification (Python 3 standard library, no pip packages):
-
-```text
+```bash
 python scripts/verify.py --clean --desktop-smoke
 ```
 
-The script sets both telemetry opt-outs, removes **only** the five solution projects' generated `bin/obj` directories, freshly restores/builds/tests, validates TRX counters, runs both self-tests, then observes the real empty native Windows window and requests a normal close of that exact child. It never searches for or closes unrelated windows. Omit `--desktop-smoke` for the non-native checks; this does not establish another OS as supported.
+Rebuilds from clean, runs the whole suite, runs both self-tests, and observes the real native window. The suite includes **real WhisperX inference** on a short Windows-TTS clip whenever the runtime and `small` pack are present, and real playback through the actual audio device when one exists. See [docs/VERIFICATION.md](docs/VERIFICATION.md).
 
-Generated evidence, deliberately excluded from Git:
+Headless entry points, no GUI required:
 
-- `artifacts/verification/result.json` and `environment.log`, `restore.log`, `build.log`, `tests.log`, `worker.log`, `desktop.log` — actual command/exit records and parsed results.
-- `artifacts/test-results/SoundOff.Tests.trx` — all discovered xUnit tests, including headless Avalonia control interactions, a headless clipboard test, malformed/hung worker adversaries, Unicode/overlap, SQLite rollback/reopen/undo and cross-process writer ownership.
-- `artifacts/self-test/<run-id>/result.json`, `Synthetic smoke.soundoff.sqlite`, its lock marker and `Synthetic Unicode.txt` — synthetic artifacts only. Every invocation gets its own directory.
-- `src/SoundOff.Desktop/bin/Release/net8.0/` and its `worker/` subdirectory — framework-dependent development binaries, not a packaged release.
+```bash
+dotnet src/SoundOff.Desktop/bin/Release/net8.0/SoundOff.Desktop.dll --runtime-status
+dotnet src/SoundOff.Desktop/bin/Release/net8.0/SoundOff.Desktop.dll --prepare-pack small en tl
+dotnet src/SoundOff.Desktop/bin/Release/net8.0/SoundOff.Desktop.dll --transcribe recording.wav result.json small cpu en
+python scripts/worker_cli.py hello --probe-cuda
+```
 
-Headless Avalonia tests use real controls and event handlers but a test filesystem picker, a per-test settings file and an **in-memory headless clipboard**. The native smoke proves launch/close only. Neither is a native clipboard/file-picker, screen-reader, IME, visual-layout or installed-product acceptance certification.
+## Not implemented
 
-## Explicitly deferred
+- **Recording.** No microphone, per-app or system-audio capture. The recorder, its capture modes and its state machine are entirely absent.
+- **Speaker diarization.** The worker implements the pyannote path, but it needs a Hugging Face token from an account that accepted the model terms, so it is off and untested here. Speakers come from the engine's own labels, or are yours to assign.
+- **Video preview.** Video files import and their audio transcribes; no picture is shown.
+- **Playback speed**, cue editing, reprocessing comparisons, durable job queues surviving restart, word-anchored editing inside the text box, media inside portable bundles, tray and notifications, model choices beyond `small`, library search, and OS reduced-motion detection.
+- **Packaging**: no installer, no self-contained runtime, no signing or notarization, no dependency or model licence audit, no macOS or Linux validation. Everyday users cannot install this yet.
+- **Mobile.**
 
-- **Real WhisperX** or any model inference, resource acquisition, ASR/alignment/diarization, model packs, real English/Filipino accuracy and timing benchmarks.
-- **Capture/recording** (microphone, per-app, system audio, mixed capture), audio/video import, original-media management and source-time maps.
-- **Playback** and synchronized word/video review, seeking, follow-scroll, waveforms and media components.
-- Cue editing, cue staleness tracking, per-source subtitle timelines, other subtitle formats, RTF/PDF/DOCX, and media inside portable bundles (the bundle format carries only the project database today). SRT exists only for paragraphs that already carry (synthetic) timing.
-- Full-document/word-anchored editing, autosave, a searchable library index beyond the recent-project list, reprocessing comparisons, durable inference jobs, progress/ETA, cancellation checkpoints, tray/notifications, OS reduced-motion detection and migrations beyond the schema 1 to 2 upgrade.
-- **Packaging**, offline installer/resource bundles, self-contained runtimes, signing/notarization, publication, dependency/model license and security-release audits; macOS/Linux platform validation.
-- **Mobile**: Android and optional iPhone/iPad.
-
-No private recordings, credentials or model downloads were used. Application code contains no network client or inference fallback, but instrumented outbound-traffic testing has **not** been performed. Build tools have their own telemetry behavior, hence the explicit opt-outs. Local databases, exports and clipboard content are not encrypted and may be visible to other local software, clipboard history, backups or user-configured sync.
+Local project files, media copies, caches, exports and clipboard content are not encrypted and may be read by other local software, clipboard history, backups or user-configured sync. Application code contains no network client beyond model acquisition, but instrumented outbound-traffic testing has **not** been performed.
 
 ## Original planning documents
 
-`ARCHITECTURE.md` and `LUNA-HANDOFF.md` retain the larger intended product and gates. `ACCEPTANCE-MATRIX.csv` / `acceptance.json` are **proposed full-product scenarios, still marked NOT RUN**, not a claim that these fixture tests complete those scenarios. `plan-sources.json`, `DOCUMENT-VALIDATION.json` and `PACKAGE-MANIFEST.json` describe the original planning package; its historical hashes are not an implementation build manifest.
+`ARCHITECTURE.md` and `LUNA-HANDOFF.md` retain the larger intended product and its gates. `ACCEPTANCE-MATRIX.csv` / `acceptance.json` remain **proposed full-product scenarios, still NOT RUN**; they are not a claim about this build. `plan-sources.json`, `DOCUMENT-VALIDATION.json` and `PACKAGE-MANIFEST.json` describe the original planning package.
 
-```text
+```bash
 python validate_documents.py
 ```
 
-This optional command checks only planning-document structure/coverage and regenerates the planning CSV/report. It does not run application tests or update the old integrity manifest.
+Checks only planning-document structure and coverage.

@@ -281,8 +281,8 @@ public sealed partial class MainWindow : Window
         {
             var message = new StackPanel { Spacing = 16, Margin = new Thickness(24, 36) };
             message.Children.Add(new TextBlock { Text = "No transcript loaded", FontSize = 28, FontWeight = FontWeight.SemiBold });
-            message.Children.Add(Label("Load synthetic demo to practice editing an explicitly authored example, or open a saved fixture project. Nothing runs automatically."));
-            message.Children.Add(Label("This build does not transcribe, record or play media. There are no measured timestamps; subtitle export works only for paragraphs that already carry synthetic timing."));
+            message.Children.Add(Label("Import audio or video to transcribe it on this computer, load the synthetic demo to practise editing, or open a saved project. Nothing runs automatically."));
+            message.Children.Add(Label("Import a recording to transcribe it locally with WhisperX, or load the synthetic demo to practise editing. This build does not record audio; measured timing comes from alignment and still needs review."));
             documentHost.Children.Add(message);
             speakerHost.Children.Add(Label("No speakers yet."));
         }
