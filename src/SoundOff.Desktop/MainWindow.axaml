@@ -69,7 +69,7 @@
             <TextBlock Text="Demo content is authored and explicitly synthetic. No audio is accessed, no model is run, and the app has no network client." TextWrapping="Wrap" />
             <TextBlock Text="Deferred: audio/video import, recording, playback, WhisperX/model packs, measured timing, cue editing, reprocessing, durable jobs, word-anchored editing, media in bundles, tray, installers/packaging, and mobile." TextWrapping="Wrap" />
             <TextBlock Text="Local project files and clipboard text are not encrypted. Other software, clipboard history or OS backups may read them." TextWrapping="Wrap" />
-            <TextBlock Text="Small fixture editor only: up to 128 blocks, 16,384 UTF-16 units per block. Accessibility, IME and long-recording release gates remain open." TextWrapping="Wrap" />
+            <TextBlock Text="Editor limits: up to 64 speakers, 20,000 paragraphs, 16,384 UTF-16 units per paragraph. Accessibility, IME and long-recording release gates remain open." TextWrapping="Wrap" />
           </StackPanel></Border>
         </StackPanel>
       </ScrollViewer>

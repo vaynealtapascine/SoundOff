@@ -99,9 +99,9 @@ public sealed class OperationTests
         Assert.Single(removed.Speakers); Assert.Equal(timed.Speakers[1].Id, removed.Speakers[0].Id);
         Assert.Throws<InvalidDataException>(() => TranscriptEdits.Apply(source, new EditBatch(new Dictionary<Guid, string>(), new Dictionary<Guid, string>(),
             new Dictionary<Guid, Guid> { [source.Blocks[0].Id] = Guid.NewGuid() })));
-        var crowded = Apply(source, Enumerable.Range(0, 30).Select(i => new AddSpeaker(Guid.NewGuid(), "Speaker " + i)).ToArray<DocumentOperation>());
-        Assert.Equal(32, crowded.Speakers.Length);
-        Assert.Throws<InvalidDataException>(() => Apply(crowded, new AddSpeaker(Guid.NewGuid(), "33rd")));
+        var crowded = Apply(source, Enumerable.Range(0, DocumentRules.MaxSpeakers - 2).Select(i => new AddSpeaker(Guid.NewGuid(), "Speaker " + i)).ToArray<DocumentOperation>());
+        Assert.Equal(DocumentRules.MaxSpeakers, crowded.Speakers.Length);
+        Assert.Throws<InvalidDataException>(() => Apply(crowded, new AddSpeaker(Guid.NewGuid(), "one too many")));
     }
 
     [Fact] public void Title_is_part_of_the_draft_and_validated_like_other_text()

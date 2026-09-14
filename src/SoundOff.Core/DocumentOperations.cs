@@ -45,7 +45,7 @@ public sealed record SplitBlock(Guid BlockId, int Utf16Offset, Guid NewBlockId) 
         var index = BlockIndex(document, BlockId); var block = document.Blocks[index];
         if (!IsInteriorGraphemeBoundary(block.Text, Utf16Offset))
             throw new InvalidDataException("Place the cursor inside the paragraph, between whole characters, before splitting.");
-        var left = block with { Text = block.Text[..Utf16Offset], Timing = null, ManuallyEdited = true };
+        var left = block with { Text = block.Text[..Utf16Offset], Timing = null, Words = default, ManuallyEdited = true };
         var right = new TranscriptBlock(NewBlockId, block.SpeakerId, block.Text[Utf16Offset..], null, true);
         return Validated(document with { Blocks = document.Blocks.SetItem(index, left).Insert(index + 1, right) });
     }
@@ -59,7 +59,10 @@ public sealed record MergeWithNext(Guid BlockId) : DocumentOperation
         var index = BlockIndex(document, BlockId);
         if (index + 1 >= document.Blocks.Length) throw new InvalidDataException("The last paragraph has no following paragraph to merge with.");
         var first = document.Blocks[index]; var second = document.Blocks[index + 1];
-        var merged = first with { Text = Join(first.Text, second.Text), Timing = Union(first.Timing, second.Timing), ManuallyEdited = true };
+        var timing = Union(first.Timing, second.Timing);
+        // Word evidence survives only when both sides were timed (so the union is meaningful) and both carried words.
+        var words = timing is not null && first.WordsOrEmpty.Length > 0 && second.WordsOrEmpty.Length > 0 ? first.Words.AddRange(second.Words) : default;
+        var merged = first with { Text = Join(first.Text, second.Text), Timing = timing, Words = words, ManuallyEdited = true };
         return Validated(document with { Blocks = document.Blocks.SetItem(index, merged).RemoveAt(index + 1) });
     }
     // One space is inserted only when both sides have text and neither boundary already has whitespace.

@@ -302,7 +302,7 @@ public sealed partial class MainWindow : Window
                 Grid.SetColumn(remove, 1); row.Children.Add(remove); speakerHost.Children.Add(row);
             }
             speakerHost.Children.Add(Action("Add speaker", "Add speaker", () => CommitStructuralAsync(new AddSpeaker(Guid.NewGuid(), NewSpeakerName())),
-                enabled: snapshot.Speakers.Length < 32));
+                enabled: snapshot.Speakers.Length < DocumentRules.MaxSpeakers));
             for (var index = 0; index < snapshot.Blocks.Length; index++)
             {
                 var block = snapshot.Blocks[index]; var id = block.Id; var ordinal = index + 1;

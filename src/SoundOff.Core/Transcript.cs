@@ -8,19 +8,36 @@ namespace SoundOff.Core;
 public sealed record Provenance([property: JsonRequired] string Kind, [property: JsonRequired] string Provider,
     [property: JsonRequired] string Notice)
 {
-    public static readonly Provenance Synthetic = new("synthetic-fixture", "soundoff-demo-v1",
+    public const string SyntheticKind = "synthetic-fixture";
+    public const string EmptyKind = "empty";
+    public const string ModelKind = "model-inference";
+    public static readonly Provenance Synthetic = new(SyntheticKind, "soundoff-demo-v1",
         "SYNTHETIC DEMO — authored fixture, not a recording or model output. Any timing is synthetic, not measured.");
     // Retain readability of schema-1 projects made by the interrupted fixture implementation.
-    internal static readonly Provenance LegacySynthetic = new("synthetic-fixture", "soundoff-demo-v1",
+    internal static readonly Provenance LegacySynthetic = new(SyntheticKind, "soundoff-demo-v1",
         "SYNTHETIC DEMO — authored fixture, not a recording or model output. All timing is unknown.");
-    public static readonly Provenance Empty = new("empty", "none", "No transcript has been loaded.");
+    public static readonly Provenance Empty = new(EmptyKind, "none", "No transcript has been loaded.");
+    // Real local model output. Provider names the engine and exact version; the notice keeps the estimate status visible.
+    public static Provenance Model(string provider) => new(ModelKind, provider,
+        "MODEL OUTPUT — proposed by a local " + provider + " run. Text, timing and speaker labels are machine estimates that need review; timing is measured by alignment, not verified.");
+    public bool IsModel => Kind == ModelKind;
 }
 
 // Exact integer microseconds; half-open interval. Null means unknown, never zero.
 public sealed record TimeRange([property: JsonRequired] long StartMicroseconds, [property: JsonRequired] long EndMicroseconds);
 public sealed record Speaker([property: JsonRequired] Guid Id, [property: JsonRequired] string Name);
+// Word-level evidence from alignment. Timing null means the aligner could not place the word; Score is the aligner's
+// own number where it gave one and is not a calibrated probability that the word is right.
+public sealed record Word([property: JsonRequired] string Text, [property: JsonRequired] TimeRange? Timing, double? Score = null);
 public sealed record TranscriptBlock([property: JsonRequired] Guid Id, [property: JsonRequired] Guid SpeakerId,
-    [property: JsonRequired] string Text, [property: JsonRequired] TimeRange? Timing, bool ManuallyEdited = false);
+    [property: JsonRequired] string Text, [property: JsonRequired] TimeRange? Timing, bool ManuallyEdited = false,
+    ImmutableArray<Word> Words = default)
+{
+    private readonly ImmutableArray<Word> words = Words.IsDefault ? ImmutableArray<Word>.Empty : Words;
+    // Optional in JSON (older documents omit it); a default array from construction or a with-expression becomes empty.
+    public ImmutableArray<Word> Words { get => words; init => words = value.IsDefault ? ImmutableArray<Word>.Empty : value; }
+    public ImmutableArray<Word> WordsOrEmpty => words;
+}
 public sealed record Transcript([property: JsonRequired] Guid ProjectId, [property: JsonRequired] string Title,
     [property: JsonRequired] long Revision, [property: JsonRequired] Provenance Provenance,
     [property: JsonRequired] ImmutableArray<Speaker> Speakers, [property: JsonRequired] ImmutableArray<TranscriptBlock> Blocks)
@@ -31,19 +48,27 @@ public sealed record Transcript([property: JsonRequired] Guid ProjectId, [proper
 
 public static class DocumentRules
 {
-    public const int MaxBlocks = 128;
+    // Sized for a multi-hour, many-speaker recording: turns, not words, are blocks.
+    public const int MaxBlocks = 20_000;
+    public const int MaxSpeakers = 64;
+    public const int MaxWordsPerBlock = 4_096;
     public const int MaxBlockLength = 16_384; // UTF-16 code units; no positional anchors are exposed.
-    public const int MaxSnapshotBytes = 8 * 1024 * 1024;
+    public const int MaxSnapshotBytes = 64 * 1024 * 1024;
     private static readonly System.Text.UTF8Encoding StrictUtf8 = new(false, true);
 
     public static void Validate(Transcript document)
     {
         if (document.ProjectId == Guid.Empty || document.Revision < 0) Fail("Invalid project identity/revision.");
         Text(document.Title, 200, false);
-        if (document.Provenance != Provenance.Synthetic && document.Provenance != Provenance.LegacySynthetic && document.Provenance != Provenance.Empty)
-            Fail("Unsupported provenance; v0.1 accepts only its explicit synthetic fixture.");
-        if (document.Speakers.IsDefault || document.Blocks.IsDefault || document.Speakers.Length > 32 || document.Blocks.Length > MaxBlocks)
-            Fail("Document exceeds the v0.1 editor limits.");
+        var provenance = document.Provenance;
+        if (provenance is null) Fail("Missing provenance.");
+        if (provenance != Provenance.Synthetic && provenance != Provenance.LegacySynthetic && provenance != Provenance.Empty)
+        {
+            if (provenance.Kind != Provenance.ModelKind) Fail("Unsupported provenance kind; only the synthetic fixture, empty and model-inference are known.");
+            Text(provenance.Provider, 200, false); Text(provenance.Notice, 1000, false);
+        }
+        if (document.Speakers.IsDefault || document.Blocks.IsDefault || document.Speakers.Length > MaxSpeakers || document.Blocks.Length > MaxBlocks)
+            Fail("Document exceeds the editor limits.");
         var ids = new HashSet<Guid> { document.ProjectId };
         var speakers = new HashSet<Guid>();
         foreach (var speaker in document.Speakers)
@@ -57,13 +82,29 @@ public static class DocumentRules
             if (block is null || block.Id == Guid.Empty || !ids.Add(block.Id) || !speakers.Contains(block.SpeakerId))
                 Fail("Invalid block identity or speaker reference.");
             Text(block.Text, MaxBlockLength, true);
-            if (block.Timing is { } time && (time.StartMicroseconds < 0 || time.EndMicroseconds <= time.StartMicroseconds))
-                Fail("Timing must be a positive half-open microsecond interval.");
+            Interval(block.Timing);
+            if (!block.Words.IsDefault)
+            {
+                if (block.Words.Length > MaxWordsPerBlock) Fail("A paragraph carries too many words.");
+                if (block.Words.Length > 0 && block.Timing is null) Fail("Word timing cannot exist on an untimed paragraph.");
+                foreach (var word in block.Words)
+                {
+                    if (word is null) Fail("Missing word.");
+                    Text(word.Text, 200, false); Interval(word.Timing);
+                    if (word.Score is { } score && (double.IsNaN(score) || double.IsInfinity(score))) Fail("Word score must be a finite number.");
+                }
+            }
         }
         if (document.Provenance == Provenance.Empty && (document.Blocks.Length != 0 || document.Speakers.Length != 0))
             Fail("An empty document cannot contain transcript data.");
         if (document.Provenance == Provenance.LegacySynthetic && document.Blocks.Any(b => b.Timing is not null))
             Fail("The legacy fixture declares unknown timing; it cannot contain timed blocks.");
+    }
+
+    private static void Interval(TimeRange? time)
+    {
+        if (time is not null && (time.StartMicroseconds < 0 || time.EndMicroseconds <= time.StartMicroseconds))
+            Fail("Timing must be a positive half-open microsecond interval.");
     }
 
     // General text rule shared by document fields and the desktop's own small JSON files.
@@ -172,8 +213,9 @@ public static class TranscriptEdits
             Blocks = source.Blocks.Select(b =>
             {
                 var block = b with { SpeakerId = edits.SpeakerOf(b) };
-                if (edits.BlockTexts.TryGetValue(b.Id, out var text) && text != b.Text) block = block with { Text = text, Timing = null, ManuallyEdited = true };
-                if (edits.BlockTimings is not null && edits.BlockTimings.TryGetValue(b.Id, out var timing)) block = block with { Timing = timing };
+                // Changed text no longer matches aligned words; both block timing and word evidence are dropped.
+                if (edits.BlockTexts.TryGetValue(b.Id, out var text) && text != b.Text) block = block with { Text = text, Timing = null, Words = default, ManuallyEdited = true };
+                if (edits.BlockTimings is not null && edits.BlockTimings.TryGetValue(b.Id, out var timing)) block = block with { Timing = timing, Words = timing is null ? default : block.Words };
                 return block;
             }).ToImmutableArray()
         };

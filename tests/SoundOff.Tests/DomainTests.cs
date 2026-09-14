@@ -57,6 +57,39 @@ public sealed class DomainTests
         Assert.Throws<InvalidDataException>(() => TranscriptEdits.Apply(source, new(new Dictionary<Guid, string> { [Guid.NewGuid()] = "missing" }, new Dictionary<Guid, string>())));
     }
 
+    [Fact] public void Model_provenance_and_word_evidence_are_accepted_validated_and_dropped_on_text_change()
+    {
+        var source = SyntheticFixture.Create(Guid.NewGuid(), 0) with { Provenance = Provenance.Model("whisperx 3.8.6") };
+        ImmutableArray<Word> words = [new("Kumusta!", new TimeRange(1_000_000, 1_400_000), 0.91), new("Halimbawang", new TimeRange(1_450_000, 2_000_000), null), new("teksto", null, 0.2)];
+        source = source with { Blocks = source.Blocks.SetItem(1, source.Blocks[1] with { Timing = new TimeRange(1_000_000, 3_000_000), Words = words }) };
+        DocumentRules.Validate(source);
+        var roundtrip = DocumentJson.Deserialize(DocumentJson.Serialize(source));
+        Assert.Equal(words.ToArray(), roundtrip.Blocks[1].Words.ToArray()); Assert.True(roundtrip.Blocks[0].Words.IsEmpty); Assert.Empty(roundtrip.Blocks[0].WordsOrEmpty);
+        Assert.True(roundtrip.Provenance.IsModel); Assert.Contains("MODEL OUTPUT", roundtrip.Provenance.Notice);
+        // Older documents without a words property still load; words are optional, everything else stays required.
+        var json = System.Text.Json.Nodes.JsonNode.Parse(DocumentJson.Serialize(source))!;
+        json["blocks"]![1]!.AsObject().Remove("words"); Assert.True(DocumentJson.Deserialize(json.ToJsonString()).Blocks[1].Words.IsEmpty);
+        Assert.Throws<InvalidDataException>(() => DocumentRules.Validate(source with { Provenance = new("model-inference", " ", "x") }));
+        Assert.Throws<InvalidDataException>(() => DocumentRules.Validate(source with { Provenance = new("oracle", "x", "y") }));
+        Assert.Throws<InvalidDataException>(() => DocumentRules.Validate(source with { Blocks = [source.Blocks[1] with { Timing = null }] })); // words on an untimed paragraph
+        Assert.Throws<InvalidDataException>(() => DocumentRules.Validate(source with { Blocks = [source.Blocks[1] with { Words = [new("x", new TimeRange(5, 5))] }] }));
+        Assert.Throws<InvalidDataException>(() => DocumentRules.Validate(source with { Blocks = [source.Blocks[1] with { Words = [new("x", null, double.NaN)] }] }));
+        Assert.Throws<InvalidDataException>(() => DocumentRules.Validate(source with { Blocks = [source.Blocks[1] with { Words = [new(" ", null)] }] }));
+        var edited = TranscriptEdits.Apply(source, new(new Dictionary<Guid, string>(), new Dictionary<Guid, string> { [source.Blocks[1].Id] = "changed" }));
+        Assert.Null(edited.Blocks[1].Timing); Assert.True(edited.Blocks[1].Words.IsEmpty);
+        var retimed = TranscriptEdits.Apply(source, EditBatch.None with { BlockTimings = new Dictionary<Guid, TimeRange?> { [source.Blocks[1].Id] = new TimeRange(0, 9_000_000) } });
+        Assert.Equal(3, retimed.Blocks[1].WordsOrEmpty.Length); // re-anchoring the paragraph keeps its word evidence
+        var cleared = TranscriptEdits.Apply(source, EditBatch.None with { BlockTimings = new Dictionary<Guid, TimeRange?> { [source.Blocks[1].Id] = null } });
+        Assert.True(cleared.Blocks[1].Words.IsEmpty);
+        var split = TranscriptEdits.Apply(source, EditBatch.None, [new SplitBlock(source.Blocks[1].Id, 9, Guid.NewGuid())]);
+        Assert.True(split.Blocks[1].Words.IsEmpty); Assert.True(split.Blocks[2].Words.IsEmpty);
+        var both = source with { Blocks = source.Blocks.SetItem(2, source.Blocks[2] with { Timing = new TimeRange(3_000_000, 4_000_000), Words = [new("No", new TimeRange(3_000_000, 3_100_000))] }) };
+        var merged = TranscriptEdits.Apply(both, EditBatch.None, [new MergeWithNext(both.Blocks[1].Id)]);
+        Assert.Equal(4, merged.Blocks[1].WordsOrEmpty.Length); Assert.Equal(new TimeRange(1_000_000, 4_000_000), merged.Blocks[1].Timing);
+        var mergedUntimed = TranscriptEdits.Apply(source, EditBatch.None, [new MergeWithNext(source.Blocks[1].Id)]);
+        Assert.True(mergedUntimed.Blocks[1].Words.IsEmpty);
+    }
+
     [Fact] public void Frozen_export_preserves_unicode_provenance_and_never_mutates_source()
     {
         using var folder = new TestDirectory(); var source = SyntheticFixture.Create(Guid.NewGuid(), 17);
