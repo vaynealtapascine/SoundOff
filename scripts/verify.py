@@ -1,7 +1,8 @@
 """Rebuild and exercise the app using only .NET and Python's standard library.
 
-No model downloads, recordings, credentials, or network fallback. NuGet.Config
-has no sources, so restore fails explicitly if the pinned package cache is missing.
+No model downloads or credentials. NuGet restore may contact the configured source.
+Conditional tests use an existing runtime/pack and real Windows playback/loopback;
+their fresh adapter evidence explicitly distinguishes exercised and unavailable paths.
 """
 from __future__ import annotations
 
@@ -21,6 +22,24 @@ ROOT = Path(__file__).resolve().parents[1]
 PROJECTS = [ROOT / "src" / f"SoundOff.{name}" for name in ("Core", "Protocol", "Worker", "Desktop")]
 PROJECTS.append(ROOT / "tests" / "SoundOff.Tests")
 ARTIFACTS = ROOT / "artifacts" / "verification"
+ADAPTERS = ("inference", "capture", "playback")
+
+
+def adapter_evidence_paths():
+    output = ROOT / "tests/SoundOff.Tests/bin/Release/net8.0"
+    return [output / f"adapter-evidence-{name}.json" for name in ADAPTERS]
+
+
+def read_adapter_evidence():
+    evidence = {}
+    for name, path in zip(ADAPTERS, adapter_evidence_paths()):
+        if not path.is_file():
+            raise RuntimeError(f"Missing fresh {name} adapter evidence")
+        item = json.loads(path.read_text(encoding="utf-8"))
+        if item.get("adapter") != name or item.get("status") not in ("exercised", "unavailable") or not item.get("reason"):
+            raise RuntimeError(f"Invalid {name} adapter evidence")
+        evidence[name] = item
+    return evidence
 
 
 def read_test_counters(path: Path) -> dict[str, str]:
@@ -96,7 +115,7 @@ def main() -> int:
     args = parser.parse_args()
     ARTIFACTS.mkdir(parents=True, exist_ok=True)
     environment = dict(os.environ, DOTNET_CLI_TELEMETRY_OPTOUT="1", AVALONIA_TELEMETRY_OPTOUT="1")
-    report = {"status": "running", "scope": "Synthetic fixtures only; no real model inference", "commands": []}
+    report = {"status": "running", "scope": "Fixture/domain/headless tests plus conditional real adapters; consult adapterEvidence, not TRX pass counts, for actual model/device coverage.", "commands": []}
     try:
         if args.clean:
             for project in PROJECTS:
@@ -108,7 +127,7 @@ def main() -> int:
             report["cleaned"] = "Only the five solution projects' bin/obj directories"
         commands = [
             ("environment", ["dotnet", "--info"]),
-            ("verifier-tests", [sys.executable, "-m", "unittest", "discover", "-s", "scripts", "-p", "test_verify.py", "-v"]),
+            ("verifier-tests", [sys.executable, "-m", "unittest", "discover", "-s", "scripts", "-p", "test_*.py", "-v"]),
             ("restore", ["dotnet", "restore", "SoundOff.sln", "--force", "--no-cache", "--locked-mode"]),
             ("build", ["dotnet", "build", "SoundOff.sln", "-c", "Release", "--no-restore", "-t:Rebuild"]),
             ("tests", ["dotnet", "test", "SoundOff.sln", "-c", "Release", "--no-build", "--no-restore",
@@ -120,6 +139,9 @@ def main() -> int:
             if label == "tests":
                 # A zero-exit launcher that discovers nothing must not reuse a previous passing run.
                 (ROOT / "artifacts/test-results/SoundOff.Tests.trx").unlink(missing_ok=True)
+                for evidence in adapter_evidence_paths():
+                    evidence.unlink(missing_ok=True)
+                (ROOT / "tests/SoundOff.Tests/bin/Release/net8.0/real-inference-evidence.json").unlink(missing_ok=True)
             result = subprocess.run(command, cwd=ROOT, env=environment, stdout=subprocess.PIPE,
                                     stderr=subprocess.STDOUT, text=True, encoding="utf-8", errors="replace", timeout=180)
             log = ARTIFACTS / f"{label}.log"
@@ -130,6 +152,7 @@ def main() -> int:
                 raise RuntimeError(f"{label} failed; see {log}")
             if label == "tests":
                 report["testCounters"] = read_test_counters(ROOT / "artifacts/test-results/SoundOff.Tests.trx")
+                report["adapterEvidence"] = read_adapter_evidence()
             if label in ("worker", "desktop"):
                 details = json.loads(result.stdout)
                 if details["status"] != "passed" or (label == "worker" and details["inference"] is not False):

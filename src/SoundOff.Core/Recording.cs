@@ -7,13 +7,13 @@ namespace SoundOff.Core;
 public enum CaptureMode { Microphone, SystemAudio }
 
 // Idle -> Ready -> Recording <-> Paused -> Stopping -> Completed, with Failed and Interrupted as terminal problems.
-// Interrupted means the device vanished mid-recording: what was already written to disk is kept and usable.
+// Interrupted means capture or writing failed: retain the file for finalization/probing; it is not guaranteed usable.
 public enum RecordingState { Idle, Ready, Recording, Paused, Stopping, Completed, Failed, Interrupted }
 
 public sealed record CaptureDevice(string Id, string Name, CaptureMode Mode);
 
-// A pause excludes its own duration from the recording but leaves a marker, so a gap is visible evidence rather than
-// silence that looks like continuous speech.
+// A pause excludes its own duration. These markers are returned for the current session only;
+// they are not persisted in the project schema or embedded in the WAV.
 public sealed record CaptureGap([property: JsonRequired] long AtMicroseconds, [property: JsonRequired] string ResumedUtc);
 
 public sealed record RecordingResult(string Path, long DurationMicroseconds, CaptureMode Mode, string DeviceName,

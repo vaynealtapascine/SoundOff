@@ -9,13 +9,13 @@ This is a working Windows development build, not a packaged release. See [verifi
 | Stage | What actually happens |
 |---|---|
 | Import | ffprobe identifies the file by content, then the bytes are copied beside the project while being hashed. The original is never modified. |
-| Record | WASAPI captures the microphone or the whole computer straight to a wave file whose header is rewritten continuously, so a crash keeps what was captured. |
+| Record | Windows WASAPI captures a microphone or all apps on one selected output endpoint. A new wave file is written continuously and its header refreshed; this is not power-loss-certified recovery. |
 | Transcribe | A private Python child process runs WhisperX: voice-activity batching, faster-whisper recognition, then wav2vec2 forced alignment for word timing. |
 | Review | Playback highlights the active paragraph and word from one authoritative clock; clicking a word seeks to it. |
 | Correct | Text, speakers, paragraph structure and timing are yours; each save is an immutable revision you can undo, redo or restore. |
 | Export | UTF-8 text with timecodes, SRT subtitles, the clipboard, or a portable project bundle. |
 
-The only component that touches the network is the explicit model-pack download. Transcription itself runs with `HF_HUB_OFFLINE=1`, so a missing resource is a setup error rather than a hidden fetch.
+Model-pack download is explicit. Transcription sets `HF_HUB_OFFLINE=1` and `TRANSFORMERS_OFFLINE=1` and uses local model paths, but those flags are not a network sandbox for every dependency. Missing-resource/outbound-traffic auditing is still required; no network-isolation guarantee is made.
 
 ## Install the inference runtime
 
@@ -52,10 +52,10 @@ A single `*.soundoff.sqlite` argument opens that project once the window is show
 ## Transcribe a recording
 
 1. **Import audio/video…** probes the file, creates the project if there is not one yet, and copies the recording into `<project>.soundoff.media/media/`. The transport bar appears once it loads.
-   **Record** captures the microphone or the whole computer instead. Capture starts only from the Record button, shows a live level and elapsed time, pauses with a visible gap marker, and stops into an ordinary project recording. Starting a whole-computer capture pauses playback so the app does not record itself.
+   **Record** captures the microphone or all apps on the selected output device instead (not every output endpoint, and not mic+computer together). Capture starts only from Record and shows a live level and elapsed time. Starting capture pauses and disables this app's playback until Stop. Pausing excludes that time; the gap count is session-only and is **not persisted**. An interruption must be kept before another take can start. If probing/saving fails, **Keep recording** retries the retained file and closing is cancelled rather than reporting success. There is no startup recovery scanner: after restarting, manually import a retained take from `<project>.soundoff.media/recordings/`.
 2. **Prepare model pack** downloads the `small` recognition model, the voice-activity model, the English and Filipino aligners and sentence data into `%LOCALAPPDATA%\SoundOff\models`, then verifies them. About 2 GB, once. A pack counts as ready only after that verification succeeds.
 3. Choose **Detect language**, English or Filipino, and CPU or GPU. **Transcribe** runs the job beside the editor with a stage-by-stage status line and a rough estimate. **Cancel** asks the worker to stop and terminates it if a stage will not yield.
-4. The result becomes the transcript automatically only when the document is still empty. Otherwise it waits behind **Apply model result**, which confirms before replacing the document as a new undoable revision. Every run is recorded with its status and its immutable result artifact, and a completed run can be re-applied later after its artifact is re-verified.
+4. The result becomes the transcript automatically only when the document is still empty at the run's starting revision and there is no draft or competing editor action. Otherwise it waits behind **Apply model result**, which confirms before replacing the document as a new undoable revision. Cancelling that confirmation keeps the proposal. Project switching is blocked during a job or an unfinalized take. Every run is recorded with its status and its immutable result artifact, and a completed run can be re-applied later after its artifact and input digest are re-verified.
 
 **Model output is a proposal, not truth.** Recognition, timing and any speaker labels are machine estimates; the document says so until you correct it. The demanding two-hour, many-speaker case in the architecture has not been benchmarked here.
 

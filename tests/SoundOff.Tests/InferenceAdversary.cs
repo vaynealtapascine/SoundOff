@@ -55,6 +55,12 @@ internal static class InferenceAdversary
                 await Emit(new JsonObject { ["type"] = "progress", ["stage"] = "transcribe", ["fraction"] = 0.2 });
                 await Task.Delay(TimeSpan.FromMinutes(5)); return 0;
             case "inf-extra-after-completed":
+            case "inf-completed-hang":
+            case "inf-stderr-flood":
+            case "inf-delayed-ok":
+            case "inf-wrong-digest":
+            case "inf-outside-audio":
+            case "inf-word-outside-segment":
             case "inf-missing-artifact":
             case "inf-bad-sha":
             case "inf-bad-schema":
@@ -63,6 +69,12 @@ internal static class InferenceAdversary
             {
                 var outputPath = command["outputPath"]!.GetValue<string>(); var audioPath = command["audioPath"]!.GetValue<string>();
                 var artifact = Artifact(mode == "inf-wrong-audio" ? audioPath + ".other" : audioPath, command["model"]!.GetValue<string>(), command["device"]!.GetValue<string>());
+                artifact["audio"]!["sha256"] = Convert.ToHexString(SHA256.HashData(await File.ReadAllBytesAsync(audioPath))).ToLowerInvariant();
+                if (mode == "inf-wrong-digest") artifact["audio"]!["sha256"] = new string('f', 64);
+                if (mode == "inf-outside-audio") artifact["segments"]![0]!["end"] = 1000;
+                if (mode == "inf-word-outside-segment") artifact["segments"]![0]!["words"]![0]!["end"] = 8;
+                if (mode == "inf-delayed-ok") await Task.Delay(1800);
+                if (mode == "inf-stderr-flood") await Console.Error.WriteAsync(new string('x', 4 * 1024 * 1024 + 65536));
                 if (mode == "inf-bad-schema") artifact["surprise"] = true;
                 var bytes = Encoding.UTF8.GetBytes(artifact.ToJsonString());
                 if (mode != "inf-missing-artifact") await File.WriteAllBytesAsync(outputPath, bytes);
@@ -73,6 +85,7 @@ internal static class InferenceAdversary
                 await Emit(new JsonObject { ["type"] = "completed", ["result"] = new JsonObject { ["path"] = outputPath, ["bytes"] = bytes.Length, ["sha256"] = sha,
                     ["segments"] = 2, ["durationSeconds"] = 9.3, ["language"] = "en", ["timings"] = new JsonObject() } });
                 if (mode == "inf-extra-after-completed") await Emit(new JsonObject { ["type"] = "progress", ["stage"] = "late" });
+                if (mode == "inf-completed-hang") await Task.Delay(TimeSpan.FromMinutes(5));
                 return 0;
             }
             default: return 2;

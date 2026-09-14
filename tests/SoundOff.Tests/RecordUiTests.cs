@@ -20,6 +20,8 @@ internal sealed class FakeCaptureEngine : IPlaybackHostClip, ICaptureEngine
     public double PeakLevel { get; private set; }
     public bool HasMicrophone { get; set; } = true;
     public string SourceClip { get; set; } = "";
+    public string? Destination => path;
+    private CaptureMode mode;
     public event EventHandler? Changed;
 
     public IReadOnlyList<CaptureDevice> Devices(CaptureMode mode) =>
@@ -29,6 +31,7 @@ internal sealed class FakeCaptureEngine : IPlaybackHostClip, ICaptureEngine
     {
         if (State is RecordingState.Recording or RecordingState.Paused) throw new InvalidOperationException("A recording is already running.");
         RecordingRules.RequireWritableSpace(destinationPath);
+        this.mode = mode;
         path = destinationPath; gaps.Clear(); RecordedMicroseconds = 0; PeakLevel = 0.4;
         State = RecordingState.Recording; Changed?.Invoke(this, EventArgs.Empty);
     }
@@ -42,7 +45,7 @@ internal sealed class FakeCaptureEngine : IPlaybackHostClip, ICaptureEngine
         if (State is not (RecordingState.Recording or RecordingState.Paused or RecordingState.Interrupted)) throw new InvalidOperationException("Nothing is being recorded.");
         var interrupted = State == RecordingState.Interrupted;
         State = RecordingState.Completed; PeakLevel = 0;
-        var result = new RecordingResult(path!, RecordedMicroseconds, CaptureMode.Microphone, "Test microphone", gaps.ToList(), interrupted, interrupted ? "device removed" : null);
+        var result = new RecordingResult(path!, RecordedMicroseconds, mode, mode == CaptureMode.Microphone ? "Test microphone" : "Test speakers", gaps.ToList(), interrupted, interrupted ? "device removed" : null);
         Changed?.Invoke(this, EventArgs.Empty);
         return result;
     }
@@ -68,7 +71,7 @@ public sealed class RecordUiTests
     private static async Task Idle(MainWindow w)
     {
         var deadline = DateTime.UtcNow.AddSeconds(15);
-        while (!Button(w, "DemoButton").IsEnabled && DateTime.UtcNow < deadline) await Task.Delay(10);
+        while (!(Button(w, "StopRecordButton").IsEnabled || Button(w, "DemoButton").IsEnabled) && DateTime.UtcNow < deadline) await Task.Delay(10);
         Dispatcher.UIThread.RunJobs();
     }
 

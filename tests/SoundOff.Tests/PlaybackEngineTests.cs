@@ -4,6 +4,7 @@ using Xunit;
 
 namespace SoundOff.Tests;
 
+[Collection("Native audio")]
 public sealed class PlaybackEngineTests
 {
     private static string Clip => Path.Combine(AppContext.BaseDirectory, "fixtures", "tts-english.wav");
@@ -66,23 +67,51 @@ public sealed class PlaybackEngineTests
         using var folder = new TestDirectory();
         using var engine = PlaybackEngines.Create(Path.Combine(folder.Root, "cache"));
         await engine.LoadAsync(Clip, CancellationToken.None);
-        if (engine.Status != PlaybackStatus.Ready) return;
+        if (engine is UnavailablePlaybackEngine) { AdapterEvidence.Write("playback", false, engine.FailureReason!); return; }
+        Assert.Equal(PlaybackStatus.Ready, engine.Status); // decode failures are never mistaken for missing hardware
         engine.Volume = 0.0;   // audible output is not the point; the clock is
+        var devices = OperatingSystem.IsWindows() ? NAudio.Wave.WaveOutEvent.DeviceCount : 0;
         engine.Play();
-        if (engine.Status == PlaybackStatus.Failed)
+        if (devices == 0)
         {
+            Assert.Equal(PlaybackStatus.Failed, engine.Status);
             Assert.Contains("No audio output device", engine.FailureReason);
+            AdapterEvidence.Write("playback", false, engine.FailureReason!);
             return;
         }
-        Assert.Equal(PlaybackStatus.Playing, engine.Status);
-        var start = engine.PositionMicroseconds;
-        await Task.Delay(600);
-        var moved = engine.PositionMicroseconds;
-        Assert.True(moved > start, $"the clock did not advance: {start} -> {moved}");
+        // A fixed 600 ms sleep races the WaveOutEvent producer's thread-pool startup under a full suite.
+        // Wait for measured progress, with a hard failure deadline, never mark a stalled device unavailable.
+        await RequireRenderedProgress(engine, 0);
         engine.Pause();
         Assert.Equal(PlaybackStatus.Paused, engine.Status);
         var paused = engine.PositionMicroseconds;
         await Task.Delay(200);
         Assert.Equal(paused, engine.PositionMicroseconds);   // a paused clock does not drift
+        engine.Play(); await RequireRenderedProgress(engine, paused); engine.Pause();
+        engine.Seek(4_000_000); Assert.InRange(engine.PositionMicroseconds, 3_999_000, 4_001_000);
+        engine.Play(); await RequireRenderedProgress(engine, 4_000_000); engine.Pause();
+        Assert.True(engine.PositionMicroseconds > 4_000_000);
+        engine.Seek(engine.DurationMicroseconds - 300_000); engine.Play();
+        var deadline = System.Diagnostics.Stopwatch.StartNew();
+        while (engine.Status == PlaybackStatus.Playing && deadline.Elapsed < TimeSpan.FromSeconds(5)) await Task.Delay(20);
+        Assert.Equal(PlaybackStatus.Ended, engine.Status); Assert.Equal(engine.DurationMicroseconds, engine.PositionMicroseconds);
+        engine.Play(); await RequireRenderedProgress(engine, 0); engine.Pause();
+        AdapterEvidence.Write("playback", true, "Real Windows output device at zero volume; rendered-byte clock, pause/resume, seek, EOF and replay asserted. No listening or audiovisual sync certification.");
+    }
+
+    private static async Task RequireRenderedProgress(IPlaybackEngine engine, long origin)
+    {
+        var clock = System.Diagnostics.Stopwatch.StartNew();
+        long moved;
+        do
+        {
+            Assert.True(engine.Status == PlaybackStatus.Playing, engine.FailureReason ?? engine.Status.ToString());
+            moved = engine.PositionMicroseconds;
+            Assert.True(moved - origin <= clock.Elapsed.TotalMilliseconds * 1000 + 150_000,
+                $"Clock is ahead of rendered audio: {moved - origin} us after {clock.Elapsed.TotalMilliseconds} ms.");
+            if (moved > origin + 150_000) return;
+            await Task.Delay(20);
+        } while (clock.Elapsed < TimeSpan.FromSeconds(5));
+        Assert.Fail($"Present output device did not advance within 5 s: {origin} -> {moved}; {engine.FailureReason}");
     }
 }

@@ -137,6 +137,7 @@ public static class MediaImport
             if (File.Exists(destination))
             {
                 // Same bytes already owned by this project: reuse the copy, still record a fresh asset row.
+                await RequireDigestAsync(destination, sha, cancellationToken);
                 File.Delete(staging);
             }
             else File.Move(staging, destination);
@@ -156,8 +157,14 @@ public static class MediaImport
     {
         ownedPath = Path.GetFullPath(ownedPath);
         var mediaDir = Path.Combine(store.MediaDirectory, "media");
-        if (!ownedPath.StartsWith(Path.GetFullPath(store.MediaDirectory), StringComparison.OrdinalIgnoreCase))
+        var root = Path.TrimEndingDirectorySeparator(Path.GetFullPath(store.MediaDirectory)) + Path.DirectorySeparatorChar;
+        var comparison = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
+        if (!ownedPath.StartsWith(root, comparison))
             throw new InvalidDataException("Only a file already inside this project's media directory can be adopted.");
+        // Lexical containment is not ownership when a junction/symlink points outside the project.
+        for (FileSystemInfo? entry = new FileInfo(ownedPath); entry is not null; entry = entry is FileInfo file ? file.Directory : ((DirectoryInfo)entry).Parent)
+            if (entry.Exists && (entry.Attributes & FileAttributes.ReparsePoint) != 0)
+                throw new InvalidDataException("Recording adoption cannot follow a symbolic link or junction.");
         var source = new FileInfo(ownedPath);
         if (!source.Exists || source.Length == 0) throw new InvalidDataException("The recording is missing or empty.");
         var probe = await MediaTools.ProbeAsync(ownedPath, cancellationToken);
@@ -169,12 +176,33 @@ public static class MediaImport
         if (extension.Length > 8 || extension.Any(c => !char.IsAsciiLetterOrDigit(c) && c != '.')) extension = ".media";
         var relative = Path.Combine("media", sha[..16] + extension);
         var destination = Path.Combine(store.MediaDirectory, relative);
-        if (File.Exists(destination)) File.Delete(ownedPath);   // identical bytes already owned
-        else File.Move(ownedPath, destination);
+        var samePath = string.Equals(ownedPath, destination, comparison);
+        var exists = File.Exists(destination);
+        if (exists) await RequireDigestAsync(destination, sha, cancellationToken);
         var asset = new MediaAsset(Guid.NewGuid().ToString("N"), originalName, relative, sha, source.Length,
             InferenceImportMicro(probe.DurationSeconds), JsonSerializer.Serialize(probe, DocumentJson.Options), DateTime.UtcNow.ToString("yyyy-MM-dd'T'HH:mm:ss'Z'"));
-        store.AddMediaAsset(asset);
+        cancellationToken.ThrowIfCancellationRequested();
+        if (!exists) File.Move(ownedPath, destination);
+        try { store.AddMediaAsset(asset); }
+        catch
+        {
+            // Restore the exact take path for Retry; never delete an original or the only complete copy.
+            if (!exists) File.Move(destination, ownedPath);
+            throw;
+        }
+        if (exists && !samePath)
+        {
+            // A redundant recording can remain after a cleanup failure, but its durable asset already exists.
+            try { File.Delete(ownedPath); } catch (IOException) { } catch (UnauthorizedAccessException) { }
+        }
         return asset;
+    }
+
+    private static async Task RequireDigestAsync(string path, string expected, CancellationToken token)
+    {
+        using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read);
+        var actual = Convert.ToHexString(await SHA256.HashDataAsync(stream, token)).ToLowerInvariant();
+        if (actual != expected) throw new InvalidDataException("The existing owned media copy has changed; it was not reused or overwritten.");
     }
 
     private static long InferenceImportMicro(double seconds) => (long)Math.Round(seconds * 1_000_000.0);

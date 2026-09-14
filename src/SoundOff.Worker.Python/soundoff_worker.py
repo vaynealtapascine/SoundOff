@@ -46,9 +46,12 @@ class Worker:
         self.cancel_requested = threading.Event()
         self.started = time.monotonic()
         self.lock = threading.Lock()
+        self.finished = False
 
     def emit(self, message_type, **fields):
         with self.lock:
+            if self.finished:
+                return
             self.sequence += 1
             payload = {"version": PROTOCOL, "type": message_type, "jobId": self.job_id, "sequence": self.sequence,
                        "provider": PROVIDER, "elapsedSeconds": round(time.monotonic() - self.started, 3), **fields}
@@ -57,6 +60,8 @@ class Worker:
                 raise ValueError("protocol message too large")
             self.protocol.write(line + "\n")
             self.protocol.flush()
+            if message_type in ("completed", "failed"):
+                self.finished = True
 
     def progress(self, stage, fraction=None, message=None):
         if self.cancel_requested.is_set():

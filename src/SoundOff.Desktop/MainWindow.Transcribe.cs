@@ -67,9 +67,9 @@ public sealed partial class MainWindow
     private void UpdateTranscribeControls()
     {
         var runtimeReady = inference.Runtime.IsInstalled; var packReady = runtimeReady && inference.Runtime.IsPackReady(PackModel);
-        importMedia.IsEnabled = !busy && !JobRunning;
-        preparePack.IsEnabled = !busy && !JobRunning && runtimeReady;
-        transcribe.IsEnabled = !busy && !JobRunning && packReady && store?.MediaAssets().Count > 0;
+        importMedia.IsEnabled = !busy && !JobRunning && !Recording;
+        preparePack.IsEnabled = !busy && !JobRunning && !Recording && runtimeReady;
+        transcribe.IsEnabled = !busy && !JobRunning && !Recording && packReady && store?.MediaAssets().Count > 0;
         cancelRun.IsEnabled = JobRunning && job?.IsCancellationRequested == false;
         applyResult.IsEnabled = !busy && !JobRunning && pendingResult is not null && store is not null;
         languageChoice.IsEnabled = deviceChoice.IsEnabled = !JobRunning;
@@ -78,6 +78,7 @@ public sealed partial class MainWindow
 
     private async Task ImportMediaAsync()
     {
+        if (Recording || JobRunning) return;
         var media = await picker.PickMediaAsync();
         if (media is null) return;
         if (store is null)
@@ -101,7 +102,7 @@ public sealed partial class MainWindow
     // Jobs run outside GuardAsync so the editor stays usable; only media/model actions are blocked meanwhile.
     private void StartJob(Func<CancellationToken, Task> work)
     {
-        if (JobRunning || busy) return;
+        if (JobRunning || busy || Recording) return;
         job = CancellationTokenSource.CreateLinkedTokenSource(lifetime.Token);
         var token = job.Token; UpdateControls();
         jobTask = RunJobAsync(work, token);
@@ -158,6 +159,7 @@ public sealed partial class MainWindow
 
     private async Task TranscribeJobAsync(CancellationToken token)
     {
+        var baseRevision = snapshot!.Revision;
         var asset = store!.MediaAssets().Last();
         var runId = Guid.NewGuid().ToString("N");
         var language = languageChoice.SelectedIndex switch { 1 => "en", 2 => "tl", _ => null };
@@ -171,11 +173,11 @@ public sealed partial class MainWindow
         {
             var completion = await inference.TranscribeAsync(Path.Combine(store.MediaDirectory, asset.RelativePath), artifact, log, PackModel, device, language, false, null, JobProgress("Transcribing"), token);
             var relative = Path.Combine("runs", runId + ".json");
+            var proposal = InferenceImport.ToTranscript(completion.Artifact, snapshot!.ProjectId, baseRevision, snapshot.Title);
             store.FinishRun(runId, "completed", relative, completion.Sha256, null, completion.Artifact.ProviderLabel);
-            var proposal = InferenceImport.ToTranscript(completion.Artifact, snapshot!.ProjectId, snapshot.Revision, snapshot.Title);
             var seconds = completion.Artifact.Timings.Values.Sum();
             var summary = $"Finished: {proposal.Blocks.Length} paragraph(s), {proposal.Speakers.Length} speaker(s), language {completion.Artifact.Engine.Language ?? "?"}, {seconds:0} s of processing for {completion.Artifact.Audio.DurationSeconds:0} s of audio.";
-            if (snapshot.Provenance == Provenance.Empty && !dirty)
+            if (snapshot.Provenance == Provenance.Empty && snapshot.Revision == baseRevision && !dirty && !busy)
             {
                 snapshot = store.ImportInference(snapshot.Revision, proposal, runId); Render(); SavedStatus();
                 jobText.Text = summary + " The result is now the transcript (revision " + snapshot.Revision + ").";
@@ -197,8 +199,7 @@ public sealed partial class MainWindow
     private async Task ApplyPendingResultAsync()
     {
         if (pendingResult is not { } pending) return;
-        await ApplyProposalAsync(pending.RunId, pending.Proposal);
-        pendingResult = null;
+        if (await ApplyProposalAsync(pending.RunId, pending.Proposal)) pendingResult = null;
     }
     private async Task ApplyStoredRunAsync(string runId)
     {
@@ -210,13 +211,14 @@ public sealed partial class MainWindow
         var completion = InferenceWorkerClient.ValidateArtifact(path, run.ArtifactSha256, new FileInfo(path).Length, command);
         await ApplyProposalAsync(runId, InferenceImport.ToTranscript(completion.Artifact, snapshot!.ProjectId, snapshot.Revision, snapshot.Title));
     }
-    private async Task ApplyProposalAsync(string runId, Transcript proposal)
+    private async Task<bool> ApplyProposalAsync(string runId, Transcript proposal)
     {
-        if (dirty && !await ConfirmAsync("Discard unsaved draft?", "Applying the model result replaces the whole document as a new revision. Your unsaved input would be discarded.", "Discard draft and apply")) return;
+        if (dirty && !await ConfirmAsync("Discard unsaved draft?", "Applying the model result replaces the whole document as a new revision. Your unsaved input would be discarded.", "Discard draft and apply")) return false;
         if (snapshot!.Provenance != Provenance.Empty && !await ConfirmAsync("Replace the transcript?",
-            "The model result becomes a new revision replacing the current text, speakers and timing. History keeps the current revision and Restore brings it back.", "Replace with model result")) return;
+            "The model result becomes a new revision replacing the current text, speakers and timing. History keeps the current revision and Restore brings it back.", "Replace with model result")) return false;
         snapshot = store!.ImportInference(snapshot.Revision, proposal with { Revision = snapshot.Revision }, runId); Render(); SavedStatus();
         status.Text = $"Applied model result of run {runId[..8]} as revision {snapshot.Revision}. " + status.Text;
+        return true;
     }
 
     // Closing with a running job: stop the worker first so no half-written artifact or orphan process remains.

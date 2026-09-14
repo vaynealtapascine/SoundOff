@@ -78,7 +78,9 @@ public sealed partial class MainWindow : Window
         ApplyAppearance(persist: false);
         Closing += async (_, e) =>
         {
-            if ((!dirty && !JobRunning && !Recording) || allowClose) return;
+            if (allowClose) return;
+            if (busy) { e.Cancel = true; return; }
+            if (!dirty && !JobRunning && !Recording) return;
             e.Cancel = true;
             if (confirmingClose) return;
             confirmingClose = true;
@@ -116,8 +118,8 @@ public sealed partial class MainWindow : Window
         finally { busy = false; if (!lifetime.IsCancellationRequested) UpdateControls(); }
     }
 
-    private async Task<bool> MayReplaceAsync() => !dirty || await ConfirmAsync("Discard unsaved draft?",
-        "Opening another project discards only your unsaved input. Saved edits remain in the current project.", "Discard draft");
+    private async Task<bool> MayReplaceAsync() => !JobRunning && !Recording && (!dirty || await ConfirmAsync("Discard unsaved draft?",
+        "Opening another project discards only your unsaved input. Saved edits remain in the current project.", "Discard draft"));
 
     private async Task LoadDemoAsync()
     {
@@ -146,7 +148,7 @@ public sealed partial class MainWindow : Window
     // confirmed: the draft-discard question was already answered before a picker was shown.
     private async Task OpenPathAsync(string local, bool confirmed = false)
     {
-        if (!confirmed && !await MayReplaceAsync()) return;
+        if (JobRunning || Recording || (!confirmed && !await MayReplaceAsync())) return;
         RequireProjectExtension(local);
         lifetime.Token.ThrowIfCancellationRequested();
         if (store is not null && string.Equals(Path.GetFullPath(local), store.PathName, StringComparison.OrdinalIgnoreCase))
@@ -162,7 +164,7 @@ public sealed partial class MainWindow : Window
 
     private void Replace(ProjectStore next, Transcript document)
     {
-        store?.Dispose(); store = next; snapshot = document; Render();
+        store?.Dispose(); store = next; snapshot = document; pendingResult = null; Render();
         _ = SyncPlaybackSourceAsync();
     }
     // Timing boxes count only when their text differs from the saved timing: an untouched box is not a re-anchoring, so an
@@ -213,7 +215,7 @@ public sealed partial class MainWindow : Window
         status.Text = $"Exported {result.CueCount} SRT cue(s) from saved revision {revision}"
             + (result.CombinedOverlaps > 0 ? $"; {result.CombinedOverlaps} overlap(s) combined into shared cues" : "")
             + (result.SkippedEmpty > 0 ? $"; {result.SkippedEmpty} empty paragraph(s) skipped" : "")
-            + ". Timing is synthetic, not measured." + (wasDirty ? " The unsaved draft is not included." : "");
+            + ". " + snapshot.Provenance.Notice + (wasDirty ? " The unsaved draft is not included." : "");
     }
 
     // The bundle holds the SAVED revision only; a draft is deliberately never bundled.
@@ -285,13 +287,13 @@ public sealed partial class MainWindow : Window
     {
         rendering = true; dirty = false; titleInput = null; documentHost.Children.Clear(); speakerHost.Children.Clear();
         speakerInputs.Clear(); blockInputs.Clear(); blockSpeakerInputs.Clear(); blockTimingInputs.Clear(); blockCards.Clear(); blockRibbons.Clear();
-        path.Text = store?.PathName ?? "No project file is created until you explicitly load a demo and choose its location.";
+        path.Text = store?.PathName ?? "Import, Record or Load synthetic demo asks where to create a project.";
         if (snapshot is null || snapshot.Provenance == Provenance.Empty)
         {
             var message = new StackPanel { Spacing = 16, Margin = new Thickness(24, 36) };
             message.Children.Add(new TextBlock { Text = "No transcript loaded", FontSize = 28, FontWeight = FontWeight.SemiBold });
             message.Children.Add(Label("Import audio or video to transcribe it on this computer, load the synthetic demo to practise editing, or open a saved project. Nothing runs automatically."));
-            message.Children.Add(Label("Import a recording to transcribe it locally with WhisperX, or load the synthetic demo to practise editing. This build does not record audio; measured timing comes from alignment and still needs review."));
+            message.Children.Add(Label("Import a recording to transcribe it locally with WhisperX, or load the synthetic demo to practise editing. Record captures a microphone or a selected whole-computer output on Windows; alignment timing still needs review."));
             documentHost.Children.Add(message);
             speakerHost.Children.Add(Label("No speakers yet."));
         }
@@ -303,7 +305,7 @@ public sealed partial class MainWindow : Window
             documentHost.Children.Add(Label(snapshot.Provenance.Notice));
             documentHost.Children.Add(Label("Edit whole paragraphs below. Save edits commits one undoable revision; typing is an unsaved draft. " +
                 "Paragraph and speaker actions save the draft together with their change as one revision. " +
-                "Unknown timing is not zero; any stored intervals are synthetic, not measured. Split and inserted paragraphs are untimed."));
+                "Unknown timing is not zero. Model alignment and manual timing need review. Split and inserted paragraphs are untimed."));
             var names = snapshot.Speakers.Select(s => s.Name).ToList();
             var used = snapshot.Blocks.Select(b => b.SpeakerId).ToHashSet();
             foreach (var speaker in snapshot.Speakers)
@@ -387,21 +389,22 @@ public sealed partial class MainWindow : Window
         else SavedStatus();
         UpdateControls();
     }
-    private void SavedStatus() => status.Text = snapshot is null ? "No project open." : $"Saved · revision {snapshot.Revision} · Synthetic/empty project only. Undo and redo are persistent across reopen.";
+    private void SavedStatus() => status.Text = snapshot is null ? "No project open." : $"Saved · revision {snapshot.Revision} · {snapshot.Provenance.Kind}. Undo and redo are persistent across reopen.";
     private void UpdateControls()
     {
-        demo.IsEnabled = open.IsEnabled = !busy;
+        demo.IsEnabled = open.IsEnabled = !busy && !JobRunning && !Recording;
         save.IsEnabled = discard.IsEnabled = !busy && dirty;
         undo.IsEnabled = !busy && !dirty && store?.CanUndo == true;
         redo.IsEnabled = !busy && !dirty && store?.CanRedo == true;
         export.IsEnabled = copy.IsEnabled = !busy && snapshot is not null && snapshot.Provenance != Provenance.Empty;
-        exportBundle.IsEnabled = !busy && store is not null; importBundle.IsEnabled = !busy;
+        exportBundle.IsEnabled = !busy && store is not null; importBundle.IsEnabled = !busy && !JobRunning && !Recording;
         var timed = snapshot is not null && snapshot.Blocks.Length != 0 && snapshot.Blocks.All(b => b.Timing is not null);
         srt.IsEnabled = !busy && timed;
         ToolTip.SetTip(srt, timed ? "One cue per timed paragraph of the saved revision; overlaps are combined into shared cues."
-            : "Every paragraph needs timing. The synthetic fixture has none, and this build measures no timing.");
+            : "Every paragraph needs timing. Align a model result or enter manual timing; unknown timing is never invented.");
         findNext.IsEnabled = replaceOne.IsEnabled = replaceAll.IsEnabled = !busy && snapshot is not null && snapshot.Blocks.Length != 0;
-        documentHost.IsEnabled = speakerHost.IsEnabled = recentHost.IsEnabled = historyHost.IsEnabled = !busy;
+        documentHost.IsEnabled = speakerHost.IsEnabled = historyHost.IsEnabled = !busy;
+        recentHost.IsEnabled = !busy && !JobRunning && !Recording;
         UpdateTranscribeControls(); RefreshRecording();
     }
 

@@ -26,34 +26,30 @@ public sealed class UnavailableCaptureEngine : ICaptureEngine
     public void Dispose() { }
 }
 
-// Windows capture over NAudio: WASAPI for both the microphone and whole-computer loopback. Audio is written to a wave
-// file continuously and the header is rewritten on every flush, so a crash or power loss leaves a valid, playable file
-// of everything captured so far rather than an unreadable stub. Position comes from bytes actually written, so it never
-// counts paused time and a wall-clock change cannot shift it.
+// Each take owns its endpoint, capture and newly-created file. Never join a capture thread under gate:
+// an in-flight DataAvailable callback may still need that lock. Headers are refreshed, not power-loss certified.
 [SupportedOSPlatform("windows")]
 public sealed class NAudioCaptureEngine : ICaptureEngine
 {
     private readonly object gate = new();
-    private WasapiCapture? capture;
+    private readonly Func<CaptureMode, string?, (IWaveIn Capture, string Name, IDisposable? Owner)> open;
+    private IWaveIn? capture;
+    private IDisposable? deviceOwner;
     private WaveFileWriter? writer;
     private string? destination;
     private CaptureMode mode;
     private string deviceName = "";
     private readonly List<CaptureGap> gaps = [];
-    private DateTime? pausedAt;
     private bool disposed;
-    private long bytesPerSecond;
+    private long bytesPerSecond, recordedMicroseconds;
     private string? interruptionReason;
 
+    public NAudioCaptureEngine() : this(OpenDevice) { }
+    internal NAudioCaptureEngine(Func<CaptureMode, string?, (IWaveIn Capture, string Name, IDisposable? Owner)> open) => this.open = open;
     public RecordingState State { get; private set; } = RecordingState.Idle;
     public string? FailureReason { get; private set; }
     public double PeakLevel { get; private set; }
-
-    public long RecordedMicroseconds
-    {
-        get { lock (gate) { return writer is null || bytesPerSecond <= 0 ? 0 : writer.Length * 1_000_000L / bytesPerSecond; } }
-    }
-
+    public long RecordedMicroseconds { get { lock (gate) return recordedMicroseconds; } }
     public event EventHandler? Changed;
     private void Announce() => Changed?.Invoke(this, EventArgs.Empty);
 
@@ -63,10 +59,26 @@ public sealed class NAudioCaptureEngine : ICaptureEngine
         {
             using var enumerator = new MMDeviceEnumerator();
             var flow = mode == CaptureMode.Microphone ? DataFlow.Capture : DataFlow.Render;
-            return enumerator.EnumerateAudioEndPoints(flow, DeviceState.Active)
+            var devices = enumerator.EnumerateAudioEndPoints(flow, DeviceState.Active)
                 .Select(d => { using (d) return new CaptureDevice(d.ID, d.FriendlyName, mode); }).ToList();
+            FailureReason = null;
+            return devices;
         }
-        catch (Exception) { return []; }
+        catch (Exception e) { FailureReason = "Recording devices could not be listed: " + e.Message; return []; }
+    }
+
+    private static (IWaveIn Capture, string Name, IDisposable? Owner) OpenDevice(CaptureMode mode, string? id)
+    {
+        using var enumerator = new MMDeviceEnumerator();
+        MMDevice? selected = null;
+        var flow = mode == CaptureMode.Microphone ? DataFlow.Capture : DataFlow.Render;
+        if (id is null) selected = enumerator.GetDefaultAudioEndpoint(flow, Role.Console);
+        else
+            foreach (var device in enumerator.EnumerateAudioEndPoints(flow, DeviceState.Active))
+                if (device.ID == id) selected = device; else device.Dispose();
+        if (selected is null) throw new InvalidOperationException("That recording device is no longer available.");
+        try { return (mode == CaptureMode.Microphone ? new WasapiCapture(selected) : new WasapiLoopbackCapture(selected), selected.FriendlyName, selected); }
+        catch { selected.Dispose(); throw; }
     }
 
     public void Start(CaptureMode mode, string? deviceId, string destinationPath)
@@ -74,76 +86,93 @@ public sealed class NAudioCaptureEngine : ICaptureEngine
         ObjectDisposedException.ThrowIf(disposed, this);
         lock (gate)
         {
-            if (State is RecordingState.Recording or RecordingState.Paused) throw new InvalidOperationException("A recording is already running.");
-            RecordingRules.RequireWritableSpace(destinationPath);
-            this.mode = mode; destination = Path.GetFullPath(destinationPath);
-            gaps.Clear(); pausedAt = null; interruptionReason = null; FailureReason = null; PeakLevel = 0;
-            try
+            if (capture is not null || writer is not null || State == RecordingState.Stopping)
+                throw new InvalidOperationException("A recording is already running or awaiting finalization. Stop and keep it first.");
+            if (!Enum.IsDefined(mode)) throw new ArgumentOutOfRangeException(nameof(mode));
+        }
+        // CreateNew proves the exact destination is writable BEFORE any device is opened and never truncates a take.
+        RecordingRules.RequireWritableSpace(destinationPath);
+        var file = new FileStream(destinationPath, FileMode.CreateNew, FileAccess.ReadWrite, FileShare.Read);
+        try
+        {
+            var opened = open(mode, deviceId);
+            lock (gate)
             {
-                using var enumerator = new MMDeviceEnumerator();
-                var flow = mode == CaptureMode.Microphone ? DataFlow.Capture : DataFlow.Render;
-                var device = deviceId is null
-                    ? enumerator.GetDefaultAudioEndpoint(flow, Role.Console)
-                    : enumerator.EnumerateAudioEndPoints(flow, DeviceState.Active).FirstOrDefault(d => d.ID == deviceId)
-                      ?? throw new InvalidOperationException("That recording device is no longer available.");
-                deviceName = device.FriendlyName;
-                capture = mode == CaptureMode.Microphone ? new WasapiCapture(device) : new WasapiLoopbackCapture(device);
-                capture.DataAvailable += OnData;
-                capture.RecordingStopped += OnStopped;
-                writer = new WaveFileWriter(destination, capture.WaveFormat);
+                this.mode = mode; destination = Path.GetFullPath(destinationPath);
+                gaps.Clear(); interruptionReason = FailureReason = null; PeakLevel = 0; recordedMicroseconds = 0;
+                capture = opened.Capture; deviceOwner = opened.Owner; deviceName = opened.Name;
+                writer = new WaveFileWriter(file, capture.WaveFormat);
                 bytesPerSecond = capture.WaveFormat.AverageBytesPerSecond;
-                capture.StartRecording();
+                capture.DataAvailable += OnData; capture.RecordingStopped += OnStopped;
                 State = RecordingState.Recording;
             }
-            catch (Exception e)
+            capture.StartRecording();
+            // WaveFileWriter owns file until Stop, so do not dispose the stream on this success path.
+        }
+        catch (Exception e)
+        {
+            try { ReleaseCapture(); } catch (Exception) { }
+            lock (gate)
             {
-                CleanUp();
-                State = RecordingState.Failed;
-                FailureReason = mode == CaptureMode.Microphone
-                    ? "The microphone could not be opened: " + e.Message + " Check that a microphone is connected and that Windows lets this app use it."
-                    : "Whole-computer audio could not be captured: " + e.Message;
-                Announce();
-                throw new IOException(FailureReason, e);
+                try { writer?.Dispose(); } catch (Exception) { }
+                finally { writer = null; file.Dispose(); State = RecordingState.Failed; }
             }
+            FailureReason = (mode == CaptureMode.Microphone ? "The microphone could not be opened. Check the device and Windows microphone permission. " : "Whole-computer audio could not be captured. ") + e.Message;
+            Announce();
+            throw new IOException(FailureReason, e);
         }
         Announce();
     }
 
     private void OnData(object? sender, WaveInEventArgs e)
     {
+        var interrupted = false;
         lock (gate)
         {
-            if (writer is null || State != RecordingState.Recording) return;   // a paused recording discards buffers rather than storing silence
-            writer.Write(e.Buffer, 0, e.BytesRecorded);
-            // Rewriting the header keeps the file valid at every moment, not only after a clean stop.
-            writer.Flush();
-            PeakLevel = Peak(e.Buffer, e.BytesRecorded);
+            if (sender != capture || writer is null || State != RecordingState.Recording) return;
+            try
+            {
+                writer.Write(e.Buffer, 0, e.BytesRecorded);
+                writer.Flush();
+                PeakLevel = Peak(e.Buffer, e.BytesRecorded, writer.WaveFormat);
+            }
+            catch (Exception error)
+            {
+                interruptionReason = "Writing the recording failed: " + error.Message;
+                FailureReason = interruptionReason + " Keep the retained take before starting another.";
+                State = RecordingState.Interrupted; PeakLevel = 0; interrupted = true;
+            }
+            // A failed header flush must not turn already-written samples into an apparently empty take.
+            finally { recordedMicroseconds = writer.Length * 1_000_000L / bytesPerSecond; }
         }
+        if (interrupted) Announce();
     }
 
-    private static double Peak(byte[] buffer, int count)
+    internal static double Peak(byte[] buffer, int count, WaveFormat format)
     {
-        var peak = 0.0;
-        for (var i = 0; i + 1 < count; i += 2)
+        if (format is WaveFormatExtensible extended) format = extended.ToStandardWaveFormat();
+        var peak = 0.0; var step = format.BitsPerSample / 8;
+        if (step <= 0) return 0;
+        for (var i = 0; i + step <= count; i += step)
         {
-            var sample = Math.Abs(BitConverter.ToInt16(buffer, i) / 32768.0);
-            if (sample > peak) peak = sample;
+            var sample = format.Encoding == WaveFormatEncoding.IeeeFloat && step == 4 ? BitConverter.ToSingle(buffer, i)
+                : format.Encoding == WaveFormatEncoding.Pcm && step == 2 ? BitConverter.ToInt16(buffer, i) / 32768.0
+                : format.Encoding == WaveFormatEncoding.Pcm && step == 4 ? BitConverter.ToInt32(buffer, i) / 2147483648.0
+                : format.Encoding == WaveFormatEncoding.Pcm && step == 3 ? ((buffer[i] | buffer[i + 1] << 8 | buffer[i + 2] << 16) << 8 >> 8) / 8388608.0
+                : format.Encoding == WaveFormatEncoding.Pcm && step == 1 ? (buffer[i] - 128) / 128.0 : 0;
+            if (double.IsFinite(sample)) peak = Math.Max(peak, Math.Abs(sample));
         }
-        return peak;
+        return Math.Min(peak, 1);
     }
 
     private void OnStopped(object? sender, StoppedEventArgs e)
     {
         lock (gate)
         {
-            if (disposed || State == RecordingState.Stopping) return;
-            if (e.Exception is not null)
-            {
-                // The device vanished or failed mid-recording. Everything already written stays on disk and usable.
-                interruptionReason = e.Exception.Message;
-                State = RecordingState.Interrupted;
-                FailureReason = "Recording stopped unexpectedly: " + e.Exception.Message + " What was captured up to that point was kept.";
-            }
+            if (sender != capture || disposed || State is not (RecordingState.Recording or RecordingState.Paused)) return;
+            interruptionReason = e.Exception?.Message ?? "The device stopped without a stop request.";
+            State = RecordingState.Interrupted; PeakLevel = 0;
+            FailureReason = "Recording stopped unexpectedly: " + interruptionReason + " Keep the recorded take before starting another.";
         }
         Announce();
     }
@@ -151,23 +180,17 @@ public sealed class NAudioCaptureEngine : ICaptureEngine
     public void Pause()
     {
         ObjectDisposedException.ThrowIf(disposed, this);
-        lock (gate)
-        {
-            if (State != RecordingState.Recording) return;
-            State = RecordingState.Paused; pausedAt = DateTime.UtcNow; PeakLevel = 0;
-        }
+        lock (gate) { if (State != RecordingState.Recording) return; State = RecordingState.Paused; PeakLevel = 0; }
         Announce();
     }
-
     public void Resume()
     {
         ObjectDisposedException.ThrowIf(disposed, this);
         lock (gate)
         {
             if (State != RecordingState.Paused) return;
-            // The gap is recorded at the position where it happened, with the wall-clock time the recording resumed.
-            gaps.Add(new CaptureGap(RecordedMicroseconds, DateTime.UtcNow.ToString("yyyy-MM-dd'T'HH:mm:ss'Z'")));
-            pausedAt = null; State = RecordingState.Recording;
+            gaps.Add(new CaptureGap(recordedMicroseconds, DateTime.UtcNow.ToString("yyyy-MM-dd'T'HH:mm:ss'Z'")));
+            State = RecordingState.Recording;
         }
         Announce();
     }
@@ -175,38 +198,45 @@ public sealed class NAudioCaptureEngine : ICaptureEngine
     public RecordingResult Stop()
     {
         ObjectDisposedException.ThrowIf(disposed, this);
-        RecordingResult result;
         lock (gate)
         {
-            if (State is not (RecordingState.Recording or RecordingState.Paused or RecordingState.Interrupted))
-                throw new InvalidOperationException("Nothing is being recorded.");
-            var interrupted = State == RecordingState.Interrupted;
+            if (State is not (RecordingState.Recording or RecordingState.Paused or RecordingState.Interrupted)) throw new InvalidOperationException("Nothing is being recorded.");
             State = RecordingState.Stopping;
-            try { capture?.StopRecording(); } catch (Exception) { }
-            var duration = RecordedMicroseconds;
-            CleanUp();
+        }
+        Exception? failure = null;
+        try { ReleaseCapture(); } catch (Exception e) { failure = e; }
+        lock (gate)
+        {
+            try { writer?.Flush(); } catch (Exception e) { failure ??= e; }
+            finally
+            {
+                try { writer?.Dispose(); } catch (Exception e) { failure ??= e; }
+                writer = null; PeakLevel = 0;
+            }
+            if (failure is not null) interruptionReason = "Capture finalization failed; inspect the retained file: " + failure.Message;
             State = RecordingState.Completed;
-            result = new RecordingResult(destination!, duration, mode, deviceName, gaps.ToList(), interrupted, interruptionReason);
+            FailureReason = interruptionReason;
         }
         Announce();
-        return result;
+        return new RecordingResult(destination!, recordedMicroseconds, mode, deviceName, gaps.ToList(), interruptionReason is not null, interruptionReason);
     }
 
-    private void CleanUp()
+    private void ReleaseCapture()
     {
-        if (capture is not null) { capture.DataAvailable -= OnData; capture.RecordingStopped -= OnStopped; try { capture.Dispose(); } catch (Exception) { } capture = null; }
-        if (writer is not null) { try { writer.Flush(); writer.Dispose(); } catch (Exception) { } writer = null; }
-        PeakLevel = 0;
+        IWaveIn? input; IDisposable? owner;
+        lock (gate)
+        {
+            input = capture; capture = null; owner = deviceOwner; deviceOwner = null;
+            if (input is not null) { input.DataAvailable -= OnData; input.RecordingStopped -= OnStopped; }
+        }
+        // Dispose may join a native producer with a queued callback; gate must be free.
+        try { input?.Dispose(); } finally { owner?.Dispose(); }
     }
 
     public void Dispose()
     {
-        lock (gate)
-        {
-            if (disposed) return;
-            disposed = true;
-            try { capture?.StopRecording(); } catch (Exception) { }
-            CleanUp();
-        }
+        if (disposed) return;
+        if (State is RecordingState.Recording or RecordingState.Paused or RecordingState.Interrupted) Stop();
+        disposed = true;
     }
 }

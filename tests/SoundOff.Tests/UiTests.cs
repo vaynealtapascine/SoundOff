@@ -444,7 +444,7 @@ public sealed class UiTests
         {
             Click(window, "OpenButton"); await Idle(window);
             var labels = window.GetVisualDescendants().OfType<TextBlock>().Select(t => t.Text ?? "").ToArray();
-            Assert.Contains(labels, text => text.Contains("any stored intervals are synthetic, not measured"));
+            Assert.Contains(labels, text => text.Contains("SYNTHETIC DEMO") && text.Contains("Any timing is synthetic, not measured"));
             Assert.Contains(labels, text => text.Contains("Microsecond interval stored"));
             Assert.Contains(labels, text => text.EndsWith("· Untimed"));
             Assert.DoesNotContain(labels, text => text.Contains("Timing is unknown, not zero."));

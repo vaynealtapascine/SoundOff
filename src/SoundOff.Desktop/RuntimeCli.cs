@@ -56,8 +56,10 @@ public static class RuntimeCli
                 }
                 case ["--record", var seconds, var output, .. var rest]:
                 {
+                    if (rest.Length > 1 || (rest.Length == 1 && rest[0] is not ("microphone" or "system")))
+                    { Console.Error.WriteLine("Choose exactly system or microphone; an unknown mode never falls back to whole-computer capture."); return 2; }
                     var mode = rest.Length > 0 && rest[0] == "microphone" ? CaptureMode.Microphone : CaptureMode.SystemAudio;
-                    if (!double.TryParse(seconds, System.Globalization.CultureInfo.InvariantCulture, out var duration) || duration <= 0 || duration > 3600)
+                    if (!double.TryParse(seconds, System.Globalization.CultureInfo.InvariantCulture, out var duration) || !double.IsFinite(duration) || duration <= 0 || duration > 3600)
                     { Console.Error.WriteLine("Give a recording length in seconds between 0 and 3600."); return 2; }
                     using var capture = CaptureEngines.Create();
                     var devices = capture.Devices(mode);

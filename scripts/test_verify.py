@@ -13,6 +13,20 @@ import verify
 
 
 class VerificationTests(unittest.TestCase):
+    def test_adapter_evidence_distinguishes_unavailable_from_exercised_and_requires_every_record(self):
+        with tempfile.TemporaryDirectory() as directory, patch.object(verify, "ROOT", Path(directory)):
+            paths = verify.adapter_evidence_paths()
+            for name, path in zip(verify.ADAPTERS, paths):
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text(json.dumps({"adapter": name, "status": "unavailable", "reason": "test fixture: unavailable"}), encoding="utf-8")
+            evidence = verify.read_adapter_evidence()
+            self.assertTrue(all(item["status"] == "unavailable" for item in evidence.values()))
+            paths[0].write_text(json.dumps({"adapter": "inference", "status": "exercised", "reason": "test fixture, not real inference"}), encoding="utf-8")
+            self.assertEqual("exercised", verify.read_adapter_evidence()["inference"]["status"])
+            paths[1].unlink()
+            with self.assertRaisesRegex(RuntimeError, "Missing fresh capture"):
+                verify.read_adapter_evidence()
+
     def test_trx_requires_matching_nonempty_passed_results(self):
         from xml.etree import ElementTree as ET
 
@@ -45,6 +59,9 @@ class VerificationTests(unittest.TestCase):
             trx.parent.mkdir(parents=True)
             trx.write_text('<TestRun xmlns="http://microsoft.com/schemas/VisualStudio/TeamTest/2010">'
                            '<ResultSummary><Counters total="54" passed="54" /></ResultSummary></TestRun>', encoding="utf-8")
+            stale = root / "tests/SoundOff.Tests/bin/Release/net8.0/adapter-evidence-inference.json"
+            stale.parent.mkdir(parents=True)
+            stale.write_text('{"status":"exercised"}', encoding="utf-8")
 
             def no_tests_executed(command, **_):
                 # A launcher can exit zero without discovering tests; only the old TRX exists.
@@ -59,6 +76,7 @@ class VerificationTests(unittest.TestCase):
             report = json.loads((artifacts / "result.json").read_text(encoding="utf-8"))
             self.assertEqual("failed", report["status"])
             self.assertIn("TRX", report["error"])
+            self.assertFalse(stale.exists(), "Old real-inference evidence must not survive the next test invocation")
 
 
 if __name__ == "__main__":

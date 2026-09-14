@@ -67,6 +67,7 @@ public sealed partial class MainWindow
 
     private void TogglePlay()
     {
+        if (Recording) return;
         if (playback.Status == PlaybackStatus.Playing) playback.Pause(); else playback.Play();
         RefreshPlaybackHighlight(force: true);
     }
@@ -108,7 +109,8 @@ public sealed partial class MainWindow
         transportBar.IsVisible = duration > 0 || playback.Status == PlaybackStatus.Failed;
         var playing = playback.Status == PlaybackStatus.Playing;
         playPause.Content = playing ? "Pause" : "Play";
-        playPause.IsEnabled = skipBack.IsEnabled = skipForward.IsEnabled = positionSlider.IsEnabled = duration > 0;
+        playPause.IsEnabled = duration > 0 && !Recording;
+        skipBack.IsEnabled = skipForward.IsEnabled = positionSlider.IsEnabled = duration > 0;
         positionText.Text = duration > 0 ? $"{TimeText.Format(position)} / {TimeText.Format(duration)}" : "";
         if (duration > 0)
         {

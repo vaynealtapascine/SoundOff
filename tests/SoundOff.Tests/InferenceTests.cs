@@ -84,6 +84,7 @@ public sealed class InferenceTests
     [Theory]
     [InlineData("inf-wrong-job")][InlineData("inf-sequence-gap")][InlineData("inf-failed")][InlineData("inf-missing-artifact")]
     [InlineData("inf-bad-sha")][InlineData("inf-bad-schema")][InlineData("inf-wrong-audio")][InlineData("inf-extra-after-completed")]
+    [InlineData("inf-wrong-digest")][InlineData("inf-outside-audio")][InlineData("inf-word-outside-segment")]
     public async Task Invalid_worker_behaviour_is_refused_and_leaves_no_artifact(string mode)
     {
         using var folder = new TestDirectory(); var output = Path.Combine(folder.Root, "run.json");
@@ -127,6 +128,7 @@ public sealed class InferenceTests
         {
             var error = await Assert.ThrowsAnyAsync<Exception>(() => client.TranscribeAsync(Clip, output, Path.Combine(folder.Root, "real.log"), "small", "cpu", "en", false, null, null, CancellationToken.None));
             Assert.True(error is InvalidOperationException or InvalidDataException, error.ToString()); Assert.False(File.Exists(output));
+            AdapterEvidence.Write("inference", false, "Runtime or small pack unavailable; only the failure path was asserted.");
             return;
         }
         var stages = new List<string>();
@@ -141,5 +143,6 @@ public sealed class InferenceTests
         Assert.True(document.Provenance.IsModel);
         Assert.Contains("transcribe", stages); Assert.Contains("align", stages);
         File.WriteAllText(Path.Combine(AppContext.BaseDirectory, "real-inference-evidence.json"), File.ReadAllText(output));
+        AdapterEvidence.Write("inference", true, "Real WhisperX recognition and alignment on the repository's synthetic English TTS audio, not a corpus benchmark.", new { completion.Artifact.ProviderLabel, completion.Artifact.Engine, completion.Artifact.Timings });
     }
 }

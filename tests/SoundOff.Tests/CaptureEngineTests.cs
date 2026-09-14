@@ -4,6 +4,7 @@ using Xunit;
 
 namespace SoundOff.Tests;
 
+[Collection("Native audio")]
 public sealed class CaptureEngineTests
 {
     [Fact] public void Disk_space_and_writability_are_checked_before_a_recording_starts()
@@ -36,12 +37,19 @@ public sealed class CaptureEngineTests
     {
         using var folder = new TestDirectory();
         using var engine = CaptureEngines.Create();
-        if (engine is UnavailableCaptureEngine || engine.Devices(CaptureMode.SystemAudio).Count == 0) return;
+        var devices = engine.Devices(CaptureMode.SystemAudio);
+        if (!OperatingSystem.IsWindows() || devices.Count == 0)
+        { AdapterEvidence.Write("capture", false, engine.FailureReason ?? "No output endpoint for loopback."); return; }
+        // WASAPI need not deliver packets on an idle endpoint. Render silence on exactly the endpoint
+        // under test so this test does not depend on another app playing or a previous playback test.
+        using var enumerator = new NAudio.CoreAudioApi.MMDeviceEnumerator();
+        using var endpoint = enumerator.GetDevice(devices[0].Id);
+        using var silence = new NAudio.Wave.WasapiOut(endpoint, NAudio.CoreAudioApi.AudioClientShareMode.Shared, false, 100);
+        silence.Init(new NAudio.Wave.SilenceProvider(endpoint.AudioClient.MixFormat)); silence.Play();
         var target = Path.Combine(folder.Root, "system.wav");
-        try { engine.Start(CaptureMode.SystemAudio, null, target); }
-        catch (IOException) { return; }   // no usable render endpoint on this machine
+        engine.Start(CaptureMode.SystemAudio, devices[0].Id, target); // a present but broken adapter must fail, not skip
         Assert.Equal(RecordingState.Recording, engine.State);
-        await Task.Delay(900);
+        await RequireRecordedProgress(engine, 0);
         var midway = engine.RecordedMicroseconds;
         Assert.True(midway > 0, "the recording clock did not advance");
         // The file is valid and playable while still recording, not only after a clean stop.
@@ -55,7 +63,7 @@ public sealed class CaptureEngineTests
         await Task.Delay(400);
         Assert.Equal(paused, engine.RecordedMicroseconds);   // paused time is excluded, not recorded as silence
         engine.Resume();
-        await Task.Delay(400);
+        await RequireRecordedProgress(engine, paused);
         Assert.True(engine.RecordedMicroseconds > paused);
 
         var result = engine.Stop();
@@ -71,6 +79,7 @@ public sealed class CaptureEngineTests
         var final = await MediaTools.ProbeAsync(target, CancellationToken.None);
         Assert.InRange(final.DurationSeconds * 1_000_000, result.DurationMicroseconds * 0.85, result.DurationMicroseconds * 1.15);
         Assert.Throws<InvalidOperationException>(() => engine.Stop());
+        AdapterEvidence.Write("capture", true, "Real Windows output-endpoint loopback with a silence keep-alive, growing WAV probe, pause/resume and stop. No microphone or privacy-permission test.", new { result.DurationMicroseconds, result.DeviceName, result.Mode, result.Gaps });
     }
 
     [Fact] public void Starting_twice_is_refused_and_an_unusable_destination_fails_before_any_device_is_opened()
@@ -82,16 +91,27 @@ public sealed class CaptureEngineTests
         Directory.CreateDirectory(blocked);   // a directory where the file should go
         Assert.ThrowsAny<Exception>(() => engine.Start(CaptureMode.SystemAudio, null, blocked));
         Assert.True(engine.State is RecordingState.Failed or RecordingState.Idle);
-        if (engine.Devices(CaptureMode.SystemAudio).Count == 0) return;
+        var devices = engine.Devices(CaptureMode.SystemAudio);
+        if (devices.Count == 0) return;
         var target = Path.Combine(folder.Root, "take.wav");
-        try { engine.Start(CaptureMode.SystemAudio, null, target); }
-        catch (IOException) { return; }
+        engine.Start(CaptureMode.SystemAudio, devices[0].Id, target);
         try
         {
             Assert.Throws<InvalidOperationException>(() => engine.Start(CaptureMode.SystemAudio, null, Path.Combine(folder.Root, "second.wav")));
             Assert.False(File.Exists(Path.Combine(folder.Root, "second.wav")));
         }
         finally { engine.Stop(); }
+    }
+
+    private static async Task RequireRecordedProgress(ICaptureEngine engine, long origin)
+    {
+        var clock = System.Diagnostics.Stopwatch.StartNew();
+        while (engine.RecordedMicroseconds <= origin + 100_000 && clock.Elapsed < TimeSpan.FromSeconds(5))
+        {
+            Assert.True(engine.State == RecordingState.Recording, engine.FailureReason);
+            await Task.Delay(20);
+        }
+        Assert.True(engine.RecordedMicroseconds > origin + 100_000, "Present loopback endpoint did not deliver buffers within 5 s.");
     }
 
     [Fact] public void An_unknown_device_id_is_refused_by_name()

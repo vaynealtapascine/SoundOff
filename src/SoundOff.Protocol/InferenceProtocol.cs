@@ -80,7 +80,7 @@ public sealed class InferenceWorkerClient
     public const int Version = 2;
     public const string Provider = "whisperx";
     public const long MaxArtifactBytes = 256L * 1024 * 1024;
-    public const long MaxDiagnosticBytes = 4L * 1024 * 1024;
+
     private readonly Func<ProcessStartInfo> startInfo;
     private readonly TimeSpan liveness;
     private readonly TimeSpan cancelGrace;
@@ -169,15 +169,20 @@ public sealed class InferenceWorkerClient
         if (artifact.Version != Version || artifact.Provider != Provider) throw new InvalidDataException("The result artifact is not a protocol-2 WhisperX result.");
         if (artifact.Engine.Model != command.Model || artifact.Engine.Device != command.Device) throw new InvalidDataException("The result artifact describes a different engine configuration than requested.");
         if (!string.Equals(Path.GetFullPath(artifact.Audio.Path), command.AudioPath, StringComparison.OrdinalIgnoreCase)) throw new InvalidDataException("The result artifact refers to a different audio file.");
-        if (artifact.Audio.DurationSeconds <= 0 || double.IsNaN(artifact.Audio.DurationSeconds) || artifact.Audio.Sha256.Length != 64) throw new InvalidDataException("The result artifact has an invalid audio description.");
+        if (artifact.Audio.DurationSeconds <= 0 || !Finite(artifact.Audio.DurationSeconds) || artifact.Audio.DurationSeconds >= long.MaxValue / 1_000_000.0
+            || artifact.Audio.Sha256.Length != 64 || !artifact.Audio.Sha256.All(Uri.IsHexDigit)) throw new InvalidDataException("The result artifact has an invalid audio description.");
+        using (var audio = File.OpenRead(command.AudioPath))
+            if (!string.Equals(Convert.ToHexString(SHA256.HashData(audio)), artifact.Audio.Sha256, StringComparison.OrdinalIgnoreCase))
+                throw new InvalidDataException("The result artifact audio digest does not match the input recording.");
+        if (artifact.Timings.Values.Any(t => !Finite(t) || t < 0)) throw new InvalidDataException("Invalid stage timing.");
         foreach (var segment in artifact.Segments)
         {
-            if (!Finite(segment.Start) || !Finite(segment.End) || segment.Start < 0 || segment.End < segment.Start) throw new InvalidDataException("A segment has an invalid interval.");
+            if (!Finite(segment.Start) || !Finite(segment.End) || segment.Start < 0 || segment.End < segment.Start || segment.End > artifact.Audio.DurationSeconds + 0.1) throw new InvalidDataException("A segment has an invalid interval.");
             if (segment.Words.IsDefault) throw new InvalidDataException("A segment is missing its word list.");
             foreach (var word in segment.Words)
             {
                 if ((word.Start is null) != (word.End is null)) throw new InvalidDataException("A word has half an interval.");
-                if (word.Start is { } s && word.End is { } e && (!Finite(s) || !Finite(e) || s < 0 || e < s)) throw new InvalidDataException("A word has an invalid interval.");
+                if (word.Start is { } s && word.End is { } e && (!Finite(s) || !Finite(e) || s < segment.Start || e < s || e > segment.End)) throw new InvalidDataException("A word has an invalid interval.");
                 if (word.Score is { } score && !Finite(score)) throw new InvalidDataException("A word has an invalid score.");
             }
         }
@@ -195,23 +200,31 @@ public sealed class InferenceWorkerClient
         if (!process.Start()) throw new IOException("Could not start the inference worker.");
         using var killed = new CancellationTokenSource();
         var cancelHandled = false;
+        // Drain immediately, including while writing the request, and observe shutdown on every path.
+        var diagnostics = DrainAsync(process.StandardError.BaseStream, killed.Token);
         try
         {
             // A child that exits before reading breaks the pipe: a worker that refused the request, not an app I/O fault.
-            try { await WorkerProtocol.WriteLineAsync(process.StandardInput.BaseStream, command, killed.Token); }
+            using var requestDeadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, killed.Token);
+            requestDeadline.CancelAfter(liveness);
+            try { await WorkerProtocol.WriteLineAsync(process.StandardInput.BaseStream, command, requestDeadline.Token); }
+            catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested) { throw new TimeoutException("The inference worker did not accept the command in time."); }
             catch (IOException e) { throw new InvalidDataException("The inference worker ended before accepting the command.", e); }
-            var diagnostics = DrainAsync(process.StandardError.BaseStream, killed.Token);
             var reader = new JsonLineReader<InferenceMessage>(process.StandardOutput.BaseStream);
             long expectedSequence = 1;
             var graceEnds = DateTime.MaxValue;
-            using var userCancel = cancellationToken.Register(() => { }); // keeps the token observable below
+
             while (true)
             {
                 if (cancellationToken.IsCancellationRequested && !cancelHandled)
                 {
                     // Ask politely once; if the stage does not yield within the grace period the child is killed.
                     cancelHandled = true; graceEnds = DateTime.UtcNow + cancelGrace;
-                    try { await WorkerProtocol.WriteLineAsync(process.StandardInput.BaseStream, new { version = Version, type = "cancel", jobId = job }, killed.Token); } catch (IOException) { }
+                    using var cancelDeadline = CancellationTokenSource.CreateLinkedTokenSource(killed.Token);
+                    cancelDeadline.CancelAfter(cancelGrace);
+                    try { await WorkerProtocol.WriteLineAsync(process.StandardInput.BaseStream, new { version = Version, type = "cancel", jobId = job }, cancelDeadline.Token); }
+                    catch (IOException) { }
+                    catch (OperationCanceledException) { throw new OperationCanceledException("The inference worker did not accept cancellation and was stopped.", cancellationToken); }
                 }
                 using var idle = CancellationTokenSource.CreateLinkedTokenSource(killed.Token);
                 var wait = cancelHandled ? graceEnds - DateTime.UtcNow : liveness;
@@ -245,10 +258,21 @@ public sealed class InferenceWorkerClient
                     case "completed":
                         if (message.JobId != job) throw new InvalidDataException("Completion for a different job.");
                         process.StandardInput.Close();
-                        await process.WaitForExitAsync(killed.Token);
-                        await diagnostics;
+                        using (var finalDeadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, killed.Token))
+                        {
+                            finalDeadline.CancelAfter(liveness);
+                            try
+                            {
+                                // Read before waiting for exit: a post-completion stdout flood must not fill the pipe.
+                                if (await reader.ReadAsync(finalDeadline.Token) is not null) throw new InvalidDataException("Unexpected message after completion.");
+                                await process.WaitForExitAsync(finalDeadline.Token);
+                                await diagnostics.WaitAsync(finalDeadline.Token);
+                                cancellationToken.ThrowIfCancellationRequested();
+                            }
+                            catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+                            { throw new TimeoutException("The inference worker did not exit after completion."); }
+                        }
                         if (process.ExitCode != 0) throw new InvalidDataException($"The inference worker exited unsuccessfully ({process.ExitCode}) after reporting completion.");
-                        if (await reader.ReadAsync(killed.Token) is not null) throw new InvalidDataException("Unexpected message after completion.");
                         return message;
                     default: throw new InvalidDataException("Unknown worker message type: " + message.Type);
                 }
@@ -258,24 +282,23 @@ public sealed class InferenceWorkerClient
         {
             if (!process.HasExited)
             {
-                if (cancelHandled) { try { await process.WaitForExitAsync(new CancellationTokenSource(cancelGrace).Token); } catch (OperationCanceledException) { } }
                 Kill(process);
             }
             killed.Cancel();
             await process.WaitForExitAsync();
+            await diagnostics;
         }
     }
 
     private static async Task DrainAsync(Stream stream, CancellationToken token)
     {
-        // Bounded and discarded: the worker keeps its own log file; nothing from stderr is copied into the app.
-        var buffer = new byte[8192]; long total = 0;
+        // Fixed memory, discarded continuously: stopping the drain at a byte limit can deadlock the child.
+        var buffer = new byte[8192];
         try
         {
             while (true)
             {
                 var count = await stream.ReadAsync(buffer, token); if (count == 0) return;
-                total += count; if (total > MaxDiagnosticBytes) return;
             }
         }
         catch (OperationCanceledException) { }
@@ -324,7 +347,7 @@ public static class InferenceImport
             if (segmentText.Length == 0) continue;
             var speaker = SpeakerFor(segment.Speaker);
             var segmentStart = Micro(segment.Start); var segmentEnd = Micro(segment.End);
-            var newParagraph = text.Length == 0 || speaker != currentSpeaker || (end is { } previousEnd && segmentStart - previousEnd >= ParagraphGapMicroseconds)
+            var newParagraph = text.Length == 0 || speaker != currentSpeaker || (end is { } previousEnd && (segmentStart < previousEnd || segmentStart - previousEnd >= ParagraphGapMicroseconds))
                 || text.Length + 1 + segmentText.Length > ParagraphTargetLength;
             if (newParagraph) { Flush(); currentSpeaker = speaker; }
             if (text.Length > 0) text.Append(' ');
