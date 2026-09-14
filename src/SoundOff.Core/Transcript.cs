@@ -66,7 +66,8 @@ public static class DocumentRules
             Fail("The legacy fixture declares unknown timing; it cannot contain timed blocks.");
     }
 
-    internal static void Text(string? text, int limit, bool allowEmpty)
+    // General text rule shared by document fields and the desktop's own small JSON files.
+    public static void Text(string? text, int limit, bool allowEmpty)
     {
         if (text is null || text.Length > limit || (!allowEmpty && string.IsNullOrWhiteSpace(text)) || text.Contains('\0'))
             Fail("Text is empty, too long, or contains a null character.");

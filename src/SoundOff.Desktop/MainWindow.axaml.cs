@@ -30,6 +30,8 @@ public sealed partial class MainWindow : Window
     private readonly ComboBox themeChoice;
     private readonly CheckBox reducedMotionChoice;
     private bool applyingSettings;
+    private readonly RecentProjectsStore recent;
+    private readonly StackPanel recentHost;
     private readonly TextBox findInput, replaceInput;
     private readonly Button findNext, replaceOne, replaceAll;
     private readonly TextBlock findStatus;
@@ -57,6 +59,7 @@ public sealed partial class MainWindow : Window
         discard.Click += (_, _) => { Render(); SavedStatus(); };
         export.Click += async (_, _) => await GuardAsync(ExportAsync);
         copy.Click += async (_, _) => await GuardAsync(CopyAsync);
+        recent = settings.RecentProjects; recentHost = this.FindControl<StackPanel>("RecentHost")!;
         findInput = this.FindControl<TextBox>("FindInput")!; replaceInput = this.FindControl<TextBox>("ReplaceInput")!;
         findNext = this.FindControl<Button>("FindNextButton")!; replaceOne = this.FindControl<Button>("ReplaceButton")!;
         replaceAll = this.FindControl<Button>("ReplaceAllButton")!; findStatus = this.FindControl<TextBlock>("FindStatus")!;
@@ -82,8 +85,39 @@ public sealed partial class MainWindow : Window
             confirmingClose = false;
         };
         Closed += (_, _) => { lifetime.Cancel(); store?.Dispose(); };
-        Render();
+        Render(); RenderRecents();
         if (settingsProblem is not null) status.Text = settingsProblem + " " + status.Text;
+    }
+
+    private void RememberCurrent()
+    {
+        if (store is null || snapshot is null) return;
+        try { recent.Record(store.PathName, snapshot.Title); }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        { status.Text += $" (The recent-project list could not be updated: {e.Message})"; }
+        RenderRecents();
+    }
+    private void RenderRecents()
+    {
+        recentHost.Children.Clear();
+        var (list, problem) = recent.Load();
+        if (problem is not null) recentHost.Children.Add(Label(problem));
+        if (list.Projects.Count == 0) { recentHost.Children.Add(Label("No recent projects.")); return; }
+        foreach (var entry in list.Projects)
+        {
+            var exists = File.Exists(entry.Path);
+            var row = new StackPanel { Spacing = 4 }; row.Classes.Add("recent");
+            row.Children.Add(new TextBlock { Text = entry.Title, FontWeight = FontWeight.SemiBold, TextWrapping = TextWrapping.Wrap });
+            row.Children.Add(new TextBlock { Text = exists ? entry.Path : "MISSING · " + entry.Path, FontSize = 11, TextWrapping = TextWrapping.Wrap });
+            var buttons = new WrapPanel { Orientation = Orientation.Horizontal };
+            buttons.Children.Add(Action("Open", "Open recent project " + entry.Title, () => GuardAsync(() => OpenPathAsync(entry.Path)), enabled: exists));
+            buttons.Children.Add(Action("Forget", "Forget recent project " + entry.Title, () =>
+            {
+                try { recent.Forget(entry.Path); } catch (Exception e) when (e is IOException or UnauthorizedAccessException) { status.Text = "Could not update the recent-project list: " + e.Message; }
+                RenderRecents(); return Task.CompletedTask;
+            }));
+            row.Children.Add(buttons); recentHost.Children.Add(row);
+        }
     }
 
     // Find/replace work on the draft text in the paragraph controls, never directly on the saved snapshot.
@@ -182,7 +216,7 @@ public sealed partial class MainWindow : Window
         var next = ProjectStore.Create(local, initial);
         try { var loaded = next.LoadFixture(initial.Revision, proposal); Replace(next, loaded); }
         catch { next.Dispose(); throw; }
-        SavedStatus();
+        SavedStatus(); RememberCurrent();
     }
 
     private async Task OpenAsync()
@@ -190,6 +224,12 @@ public sealed partial class MainWindow : Window
         if (!await MayReplaceAsync()) return;
         var local = await picker.OpenProjectAsync();
         if (local is null) return;
+        await OpenPathAsync(local, confirmed: true);
+    }
+    // confirmed: the draft-discard question was already answered before a picker was shown.
+    private async Task OpenPathAsync(string local, bool confirmed = false)
+    {
+        if (!confirmed && !await MayReplaceAsync()) return;
         RequireProjectExtension(local);
         lifetime.Token.ThrowIfCancellationRequested();
         if (store is not null && string.Equals(Path.GetFullPath(local), store.PathName, StringComparison.OrdinalIgnoreCase))
@@ -200,6 +240,7 @@ public sealed partial class MainWindow : Window
         SavedStatus();
         if (next.MigrationBackupPath is not null)
             status.Text += $" This project was upgraded from schema 1; the untouched original is kept at {next.MigrationBackupPath}.";
+        RememberCurrent();
     }
 
     private void Replace(ProjectStore next, Transcript document)
@@ -217,8 +258,10 @@ public sealed partial class MainWindow : Window
     }
     private void Save()
     {
-        snapshot = store!.Apply(snapshot!.Revision, DraftEdits());
+        var title = snapshot!.Title;
+        snapshot = store!.Apply(snapshot.Revision, DraftEdits());
         Render(); SavedStatus();
+        if (snapshot.Title != title) RememberCurrent();
     }
     private async Task ExportAsync()
     {
@@ -352,7 +395,7 @@ public sealed partial class MainWindow : Window
         redo.IsEnabled = !busy && !dirty && store?.CanRedo == true;
         export.IsEnabled = copy.IsEnabled = !busy && snapshot is not null && snapshot.Provenance != Provenance.Empty;
         findNext.IsEnabled = replaceOne.IsEnabled = replaceAll.IsEnabled = !busy && snapshot is not null && snapshot.Blocks.Length != 0;
-        documentHost.IsEnabled = speakerHost.IsEnabled = !busy;
+        documentHost.IsEnabled = speakerHost.IsEnabled = recentHost.IsEnabled = !busy;
     }
 
     private async Task<bool> ConfirmAsync(string title, string message, string affirmative)

@@ -20,6 +20,8 @@ public sealed class SettingsStore(string path)
 {
     public const int MaxBytes = 64 * 1024;
     public string PathName { get; } = Path.GetFullPath(path);
+    // The recent-project listing lives beside the settings file.
+    public RecentProjectsStore RecentProjects => new(Path.Combine(Path.GetDirectoryName(PathName)!, "recent-projects.json"));
     public static string DefaultPath =>
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData, Environment.SpecialFolderOption.DoNotVerify), "SoundOff", "settings.json");
 
