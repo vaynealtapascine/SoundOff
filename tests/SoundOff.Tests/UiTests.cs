@@ -36,6 +36,46 @@ public sealed class UiTests
         public Task<string?> ExportSubtitlesAsync() => Task.FromResult(Subtitles);
     }
 
+    private static TextBox[] TimingBoxes(MainWindow window) => window.GetVisualDescendants().OfType<TextBox>().Where(t => t.Classes.Contains("timing")).ToArray();
+
+    [AvaloniaFact] public async Task Manual_timing_is_part_of_the_draft_survives_only_when_retyped_and_unlocks_srt_export()
+    {
+        using var folder = new TestDirectory(); var srtPath = Path.Combine(folder.Root, "manual.srt"); var txtPath = Path.Combine(folder.Root, "t.txt");
+        var window = new MainWindow(new Picker(folder.Project, txtPath) { Subtitles = srtPath }, folder.Settings); window.Show();
+        try
+        {
+            Click(window, "DemoButton"); await Idle(window);
+            var timing = TimingBoxes(window); Assert.Equal(6, timing.Length); Assert.All(timing, t => Assert.Equal("", t.Text));
+            timing[0].Text = "1"; Assert.True(Button(window, "SaveButton").IsEnabled);
+            Click(window, "SaveButton"); await Idle(window);
+            Assert.Contains("NOT SAVED", Status(window)); Assert.Contains("Paragraph 1 timing: Enter both a start and an end", Status(window));
+            Assert.Equal("1", TimingBoxes(window)[0].Text);
+            Click(window, "ExportButton"); await Idle(window); Assert.Contains("UNSAVED DRAFT", File.ReadAllText(txtPath)); // text rescue ignores timing boxes
+            timing = TimingBoxes(window); timing[1].Text = "2.5"; timing[2].Text = "0:00:02"; timing[3].Text = "0:00:04"; timing[4].Text = "4"; timing[5].Text = "1:00:00";
+            Click(window, "SaveButton"); await Idle(window); Assert.Contains("Saved · revision 2", Status(window));
+            timing = TimingBoxes(window); Assert.Equal("0:00:01.000000", timing[0].Text); Assert.Equal("0:00:02.500000", timing[1].Text); Assert.Equal("1:00:00.000000", timing[5].Text);
+            Assert.Contains(window.GetVisualDescendants().OfType<TextBlock>(), t => (t.Text ?? "").Contains("Microsecond interval stored"));
+            Assert.True(Button(window, "SrtButton").IsEnabled);
+            Click(window, "SrtButton"); await Idle(window);
+            Assert.Contains("Exported 2 SRT cue(s) from saved revision 2; 1 overlap(s) combined", Status(window));
+            Assert.StartsWith("1\n00:00:01,000 --> 00:00:04,000\n", File.ReadAllText(srtPath));
+            Blocks(window)[2].Text = "changed words"; Click(window, "SaveButton"); await Idle(window);
+            Assert.Contains("Saved · revision 3", Status(window)); Assert.False(Button(window, "SrtButton").IsEnabled); // untouched timing boxes do not re-anchor edited text
+            Assert.Equal("", TimingBoxes(window)[4].Text);
+            Blocks(window)[2].Text = "changed again"; timing = TimingBoxes(window); timing[4].Text = "10"; timing[5].Text = "11";
+            Click(window, "SaveButton"); await Idle(window); Assert.True(Button(window, "SrtButton").IsEnabled); // retyped timing is an explicit anchor
+            timing = TimingBoxes(window); timing[4].Text = ""; timing[5].Text = ""; Click(window, "SaveButton"); await Idle(window);
+            Assert.Contains("Saved · revision 5", Status(window)); Assert.False(Button(window, "SrtButton").IsEnabled);
+            timing = TimingBoxes(window); timing[1].Text = "0.5"; Click(window, "SaveButton"); await Idle(window);
+            Assert.Contains("Paragraph 1 timing: The end must be later than the start", Status(window)); Click(window, "DiscardButton");
+            Assert.Equal("0:00:02.500000", TimingBoxes(window)[1].Text);
+        }
+        finally { Click(window, "DiscardButton"); window.Close(); }
+        using var store = ProjectStore.Open(folder.Project); var saved = store.Read();
+        Assert.Equal(5, saved.Revision); Assert.Equal(new TimeRange(1_000_000, 2_500_000), saved.Blocks[0].Timing); Assert.Equal(new TimeRange(2_000_000, 4_000_000), saved.Blocks[1].Timing);
+        Assert.Null(saved.Blocks[2].Timing); Assert.Equal("changed again", saved.Blocks[2].Text); Assert.Equal(Provenance.Synthetic, saved.Provenance);
+    }
+
     [AvaloniaFact] public async Task Srt_export_is_disabled_with_a_reason_for_untimed_projects_and_writes_combined_cues_for_timed_ones()
     {
         using var folder = new TestDirectory(); var timedProject = Path.Combine(folder.Root, "Timed.soundoff.sqlite");

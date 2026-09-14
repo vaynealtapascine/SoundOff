@@ -19,6 +19,7 @@ public sealed partial class MainWindow : Window
     private readonly Dictionary<Guid, TextBox> speakerInputs = [];
     private readonly Dictionary<Guid, TextBox> blockInputs = [];
     private readonly Dictionary<Guid, ComboBox> blockSpeakerInputs = [];
+    private readonly Dictionary<Guid, (TextBox Start, TextBox End)> blockTimingInputs = [];
     private readonly CancellationTokenSource lifetime = new();
     private bool dirty, busy, rendering, allowClose, confirmingClose;
     private readonly StackPanel documentHost, speakerHost;
@@ -148,10 +149,30 @@ public sealed partial class MainWindow : Window
     {
         store?.Dispose(); store = next; snapshot = document; Render();
     }
-    private EditBatch DraftEdits() => new(speakerInputs.ToDictionary(p => p.Key, p => p.Value.Text ?? ""),
+    // Timing boxes count only when their text differs from the saved timing: an untouched box is not a re-anchoring, so an
+    // edited paragraph still loses its timing unless the user types timing in the same draft. Text rescue ignores timing.
+    private EditBatch DraftEdits(bool includeTiming = true) => new(speakerInputs.ToDictionary(p => p.Key, p => p.Value.Text ?? ""),
         blockInputs.ToDictionary(p => p.Key, p => p.Value.Text ?? ""), blockSpeakerInputs.ToDictionary(p => p.Key, p => SpeakerChoice(p.Key)),
-        titleInput?.Text ?? snapshot?.Title);
-    private string ExportText() => dirty ? TextExport.RenderDraft(snapshot!, DraftEdits()) : TextExport.Render(snapshot!);
+        titleInput?.Text ?? snapshot?.Title, includeTiming ? ChangedTimings() : null);
+    private static string TimingText(TimeRange? timing, bool start) => timing is null ? "" : TimeText.Format(start ? timing.StartMicroseconds : timing.EndMicroseconds);
+    private bool TimingTouched(Guid blockId)
+    {
+        var (startBox, endBox) = blockTimingInputs[blockId]; var block = snapshot!.Blocks.Single(b => b.Id == blockId);
+        return (startBox.Text ?? "") != TimingText(block.Timing, true) || (endBox.Text ?? "") != TimingText(block.Timing, false);
+    }
+    private Dictionary<Guid, TimeRange?> ChangedTimings()
+    {
+        var result = new Dictionary<Guid, TimeRange?>();
+        foreach (var (id, (startBox, endBox)) in blockTimingInputs)
+        {
+            if (!TimingTouched(id)) continue;
+            try { result[id] = TimeText.ParseRange(startBox.Text, endBox.Text); }
+            catch (InvalidDataException e)
+            { throw new InvalidDataException($"Paragraph {snapshot!.Blocks.IndexOf(snapshot.Blocks.Single(b => b.Id == id)) + 1} timing: {e.Message}", e); }
+        }
+        return result;
+    }
+    private string ExportText() => dirty ? TextExport.RenderDraft(snapshot!, DraftEdits(includeTiming: false)) : TextExport.Render(snapshot!);
     private static void RequireProjectExtension(string local)
     {
         if (!local.EndsWith(".soundoff.sqlite", StringComparison.OrdinalIgnoreCase))
@@ -247,7 +268,7 @@ public sealed partial class MainWindow : Window
     private void Render()
     {
         rendering = true; dirty = false; titleInput = null; documentHost.Children.Clear(); speakerHost.Children.Clear();
-        speakerInputs.Clear(); blockInputs.Clear(); blockSpeakerInputs.Clear();
+        speakerInputs.Clear(); blockInputs.Clear(); blockSpeakerInputs.Clear(); blockTimingInputs.Clear();
         path.Text = store?.PathName ?? "No project file is created until you explicitly load a demo and choose its location.";
         if (snapshot is null || snapshot.Provenance == Provenance.Empty)
         {
@@ -292,6 +313,13 @@ public sealed partial class MainWindow : Window
                 AutomationProperties.SetName(choice, $"Speaker for paragraph {ordinal}"); choice.SelectionChanged += (_, _) => RecomputeDraft();
                 blockSpeakerInputs.Add(id, choice); header.Children.Add(choice);
                 header.Children.Add(new TextBlock { Text = "· " + (block.Timing is null ? "Untimed" : "Microsecond interval stored"), FontWeight = FontWeight.SemiBold, VerticalAlignment = VerticalAlignment.Center });
+                var startBox = new TextBox { Text = TimingText(block.Timing, true), Watermark = "start h:mm:ss.ffffff", Width = 160, IsUndoEnabled = false };
+                var endBox = new TextBox { Text = TimingText(block.Timing, false), Watermark = "end h:mm:ss.ffffff", Width = 160, IsUndoEnabled = false };
+                startBox.Classes.Add("timing"); endBox.Classes.Add("timing");
+                AutomationProperties.SetName(startBox, $"Start time of paragraph {ordinal}"); AutomationProperties.SetName(endBox, $"End time of paragraph {ordinal}");
+                ToolTip.SetTip(startBox, "Manual timing is synthetic, not measured. Leave both boxes blank for untimed."); ToolTip.SetTip(endBox, "Manual timing is synthetic, not measured. Leave both boxes blank for untimed.");
+                startBox.PropertyChanged += OnDraftChanged; endBox.PropertyChanged += OnDraftChanged;
+                blockTimingInputs.Add(id, (startBox, endBox)); header.Children.Add(startBox); header.Children.Add(endBox);
                 group.Children.Add(header);
                 var input = new TextBox { Text = block.Text, AcceptsReturn = true, TextWrapping = TextWrapping.Wrap, MaxLength = DocumentRules.MaxBlockLength, IsUndoEnabled = false };
                 input.Classes.Add("transcript"); AutomationProperties.SetName(input, "Transcript block by " + name);
@@ -330,7 +358,8 @@ public sealed partial class MainWindow : Window
         dirty = (titleInput is not null && titleInput.Text != snapshot.Title) ||
                 speakerInputs.Any(p => p.Value.Text != snapshot.Speakers.Single(s => s.Id == p.Key).Name) ||
                 blockInputs.Any(p => p.Value.Text != snapshot.Blocks.Single(b => b.Id == p.Key).Text) ||
-                blockSpeakerInputs.Any(p => SpeakerChoice(p.Key) != snapshot.Blocks.Single(b => b.Id == p.Key).SpeakerId);
+                blockSpeakerInputs.Any(p => SpeakerChoice(p.Key) != snapshot.Blocks.Single(b => b.Id == p.Key).SpeakerId) ||
+                blockTimingInputs.Keys.Any(TimingTouched);
         if (dirty) status.Text = $"UNSAVED DRAFT based on revision {snapshot.Revision}. Save edits to commit; Export/Copy can rescue a draft.";
         else SavedStatus();
         UpdateControls();
