@@ -88,6 +88,8 @@ public sealed partial class MainWindow : Window
             confirmingClose = false;
         };
         Closed += (_, _) => { lifetime.Cancel(); store?.Dispose(); };
+        // Tunnelling so the shortcuts work while a paragraph has focus; each one only triggers an enabled button's action.
+        AddHandler(KeyDownEvent, OnShortcut, Avalonia.Interactivity.RoutingStrategies.Tunnel);
         Render(); RenderRecents();
         if (settingsProblem is not null) status.Text = settingsProblem + " " + status.Text;
     }
@@ -146,6 +148,22 @@ public sealed partial class MainWindow : Window
             }));
             row.Children.Add(buttons); recentHost.Children.Add(row);
         }
+    }
+
+    // Ctrl+S save, Ctrl+Z undo, Ctrl+Y redo, Ctrl+F find, F3 find next. Paragraph controls have their own undo disabled,
+    // so Ctrl+Z never silently discards typed text: while a draft exists the undo/redo shortcuts do nothing.
+    private void OnShortcut(object? sender, Avalonia.Input.KeyEventArgs e)
+    {
+        var control = e.KeyModifiers == Avalonia.Input.KeyModifiers.Control;
+        Button? target = (e.Key, control) switch
+        {
+            (Avalonia.Input.Key.S, true) => save, (Avalonia.Input.Key.Z, true) => undo, (Avalonia.Input.Key.Y, true) => redo,
+            (Avalonia.Input.Key.F3, false) when e.KeyModifiers == Avalonia.Input.KeyModifiers.None => findNext, _ => null
+        };
+        if (control && e.Key == Avalonia.Input.Key.F) { findInput.Focus(); findInput.SelectAll(); e.Handled = true; return; }
+        if (target is null || !target.IsEnabled) return;
+        e.Handled = true;
+        target.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent));
     }
 
     // Find/replace work on the draft text in the paragraph controls, never directly on the saved snapshot.

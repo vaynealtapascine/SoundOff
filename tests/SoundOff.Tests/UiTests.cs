@@ -112,6 +112,37 @@ public sealed class UiTests
         using var store = ProjectStore.Open(folder.Project); Assert.Equal(13, store.Read().Revision); Assert.Single(store.Read().Blocks);
     }
 
+    private static void Key(Control target, Avalonia.Input.Key key, Avalonia.Input.KeyModifiers modifiers = Avalonia.Input.KeyModifiers.None) =>
+        target.RaiseEvent(new Avalonia.Input.KeyEventArgs { RoutedEvent = Avalonia.Input.InputElement.KeyDownEvent, Key = key, KeyModifiers = modifiers, Source = target });
+
+    [AvaloniaFact] public async Task Keyboard_shortcuts_trigger_only_enabled_actions_even_while_a_paragraph_has_focus()
+    {
+        using var folder = new TestDirectory();
+        var window = new MainWindow(new Picker(folder.Project, Path.Combine(folder.Root, "t.txt")), folder.Settings); window.Show();
+        try
+        {
+            Click(window, "DemoButton"); await Idle(window);
+            var block = Blocks(window)[0]; block.Focus();
+            block.Text = "Shortcut draft 👩🏽‍💻";
+            Key(block, Avalonia.Input.Key.Z, Avalonia.Input.KeyModifiers.Control); await Idle(window);
+            Assert.Equal("Shortcut draft 👩🏽‍💻", Blocks(window)[0].Text); Assert.Contains("UNSAVED DRAFT", Status(window)); // undo is disabled while a draft exists
+            Key(block, Avalonia.Input.Key.S, Avalonia.Input.KeyModifiers.Control); await Idle(window);
+            Assert.Contains("Saved · revision 2", Status(window)); Assert.Equal("Shortcut draft 👩🏽‍💻", Blocks(window)[0].Text);
+            Key(window, Avalonia.Input.Key.Z, Avalonia.Input.KeyModifiers.Control); await Idle(window);
+            Assert.Contains("Saved · revision 3", Status(window)); Assert.StartsWith("This is an authored", Blocks(window)[0].Text);
+            Key(window, Avalonia.Input.Key.Y, Avalonia.Input.KeyModifiers.Control); await Idle(window);
+            Assert.Contains("Saved · revision 4", Status(window)); Assert.Equal("Shortcut draft 👩🏽‍💻", Blocks(window)[0].Text);
+            Key(window, Avalonia.Input.Key.S, Avalonia.Input.KeyModifiers.None); await Idle(window);
+            Assert.Contains("Saved · revision 4", Status(window)); // plain S is not a shortcut
+            window.FindControl<TextBox>("FindInput")!.Text = "synthetic";
+            Key(window, Avalonia.Input.Key.F3); Assert.Equal("Match 1 of 1 · paragraph 3.", window.FindControl<TextBlock>("FindStatus")!.Text); // paragraph 1 no longer contains the word
+            Key(window, Avalonia.Input.Key.F, Avalonia.Input.KeyModifiers.Control);
+            Assert.True(window.FindControl<TextBox>("FindInput")!.IsFocused);
+        }
+        finally { Click(window, "DiscardButton"); window.Close(); }
+        using var store = ProjectStore.Open(folder.Project); Assert.Equal(4, store.Read().Revision);
+    }
+
     [AvaloniaFact] public async Task Command_line_project_path_is_opened_after_the_window_shows_and_a_missing_one_is_reported()
     {
         using var folder = new TestDirectory();
