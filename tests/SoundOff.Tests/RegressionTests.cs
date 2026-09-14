@@ -27,7 +27,9 @@ public sealed class RegressionTests
         using var folder = new TestDirectory();
         var earlier = SyntheticFixture.Create(Guid.NewGuid(), 0) with { Provenance = Provenance.LegacySynthetic };
         using (var store = ProjectStore.Create(folder.Project, earlier)) { }
+        StorageTests.DowngradeToSchemaOne(folder.Project);
         using var reopened = ProjectStore.Open(folder.Project);
+        Assert.NotNull(reopened.MigrationBackupPath);
         Assert.Equal(DocumentJson.Serialize(earlier), DocumentJson.Serialize(reopened.Read()));
         Assert.Contains("All timing is unknown", TextExport.Render(reopened.Read()));
         Assert.Throws<InvalidDataException>(() => DocumentRules.Validate(earlier with { Blocks = [earlier.Blocks[0] with { Timing = new TimeRange(1, 2) }] }));
@@ -107,7 +109,7 @@ public sealed class RegressionTests
         Assert.Contains("Any timing is synthetic, not measured", TextExport.Render(restored));
     }
 
-    [Theory][InlineData("undo_stack")][InlineData("revision_history")]
+    [Theory][InlineData("undo_stack")][InlineData("revision_history")][InlineData("redo_stack")]
     public void Incomplete_schema_is_refused_before_ui_replacement_and_releases_lock(string table)
     {
         using var folder = new TestDirectory(); using (var store = ProjectStore.Create(folder.Project)) { }

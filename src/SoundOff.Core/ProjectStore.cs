@@ -8,21 +8,26 @@ public sealed class ProjectLockedException() : IOException("This project is alre
 // ownership is the live exclusive OS handle, not its contents, PID or age.
 public sealed class ProjectStore : IDisposable
 {
-    public const int SchemaVersion = 1;
+    public const int SchemaVersion = 2;
     private readonly FileStream writerLock;
     private readonly SqliteConnection connection;
     private readonly object gate = new();
     private bool disposed;
     internal Action? BeforeCommit { get; set; }
     public string PathName { get; }
+    // Set when Open upgraded an older schema; the untouched pre-migration copy is kept beside the project.
+    public string? MigrationBackupPath { get; private set; }
+
+    private enum CommitKind { Edit, Undo, Redo }
 
     private ProjectStore(string path, FileStream lease, SqliteConnection database)
     { PathName = path; writerLock = lease; connection = database; }
 
-    public static ProjectStore Create(string path, Transcript? initial = null) => OpenInternal(path, initial ?? Transcript.CreateEmpty());
-    public static ProjectStore Open(string path) => OpenInternal(path, null);
+    public static ProjectStore Create(string path, Transcript? initial = null) => OpenInternal(path, initial ?? Transcript.CreateEmpty(), null);
+    public static ProjectStore Open(string path) => OpenInternal(path, null, null);
+    internal static ProjectStore Open(string path, Action? beforeMigrationCommit) => OpenInternal(path, null, beforeMigrationCommit);
 
-    private static ProjectStore OpenInternal(string path, Transcript? initial)
+    private static ProjectStore OpenInternal(string path, Transcript? initial, Action? beforeMigrationCommit)
     {
         path = Path.GetFullPath(path);
         if (initial is not null && initial.Revision != 0) throw new InvalidDataException("A new project starts at revision zero.");
@@ -49,12 +54,15 @@ public sealed class ProjectStore : IDisposable
             if (initial is null)
             {
                 using var version = db.CreateCommand(); version.CommandText = "PRAGMA user_version";
-                if (Convert.ToInt32(version.ExecuteScalar()) != SchemaVersion)
-                    throw new InvalidDataException("Unsupported project schema. v0.1 opens only schema 1; the file was not migrated.");
+                var found = Convert.ToInt32(version.ExecuteScalar());
+                if (found != SchemaVersion && found != 1)
+                    throw new InvalidDataException($"Unsupported project schema {found}. This build opens schema 1 (with a backed-up upgrade) and schema {SchemaVersion}; the file was not changed.");
                 // Refuse incomplete schema before changing journal mode or replacing the UI's current project.
                 store.Read();
                 store.Execute("SELECT revision,parent_revision,operation,snapshot FROM revision_history LIMIT 0");
                 store.Execute("SELECT id,previous_json FROM undo_stack LIMIT 0");
+                if (found == SchemaVersion) store.Execute("SELECT id,next_json FROM redo_stack LIMIT 0");
+                else store.MigrateFromSchemaOne(beforeMigrationCommit);
             }
             // Result-producing PRAGMAs/SELECTs must not hide later statements in ExecuteNonQuery.
             store.Execute("PRAGMA journal_mode=DELETE");
@@ -67,7 +75,8 @@ public sealed class ProjectStore : IDisposable
                     CREATE TABLE current_document (singleton INTEGER PRIMARY KEY CHECK(singleton=1), revision INTEGER NOT NULL, json TEXT NOT NULL);
                     CREATE TABLE revision_history (revision INTEGER PRIMARY KEY, parent_revision INTEGER, operation TEXT NOT NULL, snapshot TEXT NOT NULL);
                     CREATE TABLE undo_stack (id INTEGER PRIMARY KEY AUTOINCREMENT, previous_json TEXT NOT NULL);
-                    PRAGMA user_version=1;
+                    CREATE TABLE redo_stack (id INTEGER PRIMARY KEY AUTOINCREMENT, next_json TEXT NOT NULL);
+                    PRAGMA user_version=2;
                     """, transaction);
                 var json = DocumentJson.Serialize(initial);
                 store.Execute("INSERT INTO current_document VALUES(1,0,$json); INSERT INTO revision_history VALUES(0,NULL,'create',$json);",
@@ -83,6 +92,28 @@ public sealed class ProjectStore : IDisposable
             if (created) File.Delete(path);
             throw;
         }
+    }
+
+    // Schema 1 -> 2 adds the redo stack. A consistent SQLite backup is written and flushed first and is never
+    // overwritten; the upgrade itself is one transaction, so an interruption leaves a readable schema-1 file.
+    private void MigrateFromSchemaOne(Action? beforeCommit)
+    {
+        var stamp = DateTime.UtcNow.ToString("yyyyMMdd'T'HHmmss'Z'");
+        var backup = PathName + ".schema1-" + stamp + ".backup";
+        while (File.Exists(backup)) backup = PathName + ".schema1-" + stamp + "-" + Guid.NewGuid().ToString("N")[..8] + ".backup";
+        using (var copy = new SqliteConnection(new SqliteConnectionStringBuilder { DataSource = backup, Mode = SqliteOpenMode.ReadWriteCreate, Pooling = false }.ToString()))
+        {
+            copy.Open();
+            connection.BackupDatabase(copy);
+            using var check = copy.CreateCommand(); check.CommandText = "PRAGMA user_version";
+            if (Convert.ToInt32(check.ExecuteScalar()) != 1) throw new InvalidDataException("Migration backup did not reproduce the schema-1 project.");
+        }
+        using (var flush = new FileStream(backup, FileMode.Open, FileAccess.ReadWrite, FileShare.None)) flush.Flush(true);
+        using var transaction = connection.BeginTransaction();
+        Execute("CREATE TABLE redo_stack (id INTEGER PRIMARY KEY AUTOINCREMENT, next_json TEXT NOT NULL); PRAGMA user_version=2;", transaction);
+        beforeCommit?.Invoke();
+        transaction.Commit();
+        MigrationBackupPath = backup;
     }
 
     public Transcript Read()
@@ -103,10 +134,15 @@ public sealed class ProjectStore : IDisposable
         return document;
     }
 
-    public bool CanUndo
+    public bool CanUndo => HasRows("undo_stack");
+    public bool CanRedo => HasRows("redo_stack");
+    private bool HasRows(string table)
     {
-        get { lock (gate) { ThrowIfDisposed(); using var command = connection.CreateCommand();
-            command.CommandText = "SELECT EXISTS(SELECT 1 FROM undo_stack)"; return Convert.ToInt32(command.ExecuteScalar()) == 1; } }
+        lock (gate)
+        {
+            ThrowIfDisposed(); using var command = connection.CreateCommand();
+            command.CommandText = "SELECT EXISTS(SELECT 1 FROM " + table + ")"; return Convert.ToInt32(command.ExecuteScalar()) == 1;
+        }
     }
 
     public Transcript LoadFixture(long expectedRevision, Transcript proposal) => Commit(expectedRevision, "load-synthetic-fixture", previous =>
@@ -117,12 +153,13 @@ public sealed class ProjectStore : IDisposable
         if (DocumentJson.Serialize(proposal) != DocumentJson.Serialize(expected))
             throw new InvalidDataException("The fixture proposal does not match its declared deterministic provider.");
         return proposal;
-    }, false);
+    }, CommitKind.Edit);
 
-    public Transcript Apply(long expectedRevision, EditBatch edits) => Commit(expectedRevision, "manual-edit", previous => TranscriptEdits.Apply(previous, edits), false);
-    public Transcript Undo(long expectedRevision) => Commit(expectedRevision, "undo", previous => previous, true);
+    public Transcript Apply(long expectedRevision, EditBatch edits) => Commit(expectedRevision, "manual-edit", previous => TranscriptEdits.Apply(previous, edits), CommitKind.Edit);
+    public Transcript Undo(long expectedRevision) => Commit(expectedRevision, "undo", previous => previous, CommitKind.Undo);
+    public Transcript Redo(long expectedRevision) => Commit(expectedRevision, "redo", previous => previous, CommitKind.Redo);
 
-    private Transcript Commit(long expectedRevision, string operation, Func<Transcript, Transcript> transform, bool undo)
+    private Transcript Commit(long expectedRevision, string operation, Func<Transcript, Transcript> transform, CommitKind kind)
     {
         lock (gate)
         {
@@ -131,24 +168,39 @@ public sealed class ProjectStore : IDisposable
             var previous = ReadInside(transaction);
             if (previous.Revision != expectedRevision) throw new RevisionConflictException(expectedRevision, previous.Revision);
             Transcript candidate;
-            long undoId = 0;
-            if (undo)
+            long stackId = 0;
+            if (kind != CommitKind.Edit)
             {
+                var (table, column) = kind == CommitKind.Undo ? ("undo_stack", "previous_json") : ("redo_stack", "next_json");
                 using var command = connection.CreateCommand(); command.Transaction = transaction;
-                command.CommandText = "SELECT id, CASE WHEN length(CAST(previous_json AS BLOB)) <= $limit THEN previous_json ELSE NULL END FROM undo_stack ORDER BY id DESC LIMIT 1";
+                command.CommandText = $"SELECT id, CASE WHEN length(CAST({column} AS BLOB)) <= $limit THEN {column} ELSE NULL END FROM {table} ORDER BY id DESC LIMIT 1";
                 command.Parameters.AddWithValue("$limit", DocumentRules.MaxSnapshotBytes);
                 using var row = command.ExecuteReader();
-                if (!row.Read()) throw new InvalidOperationException("There is no saved edit to undo.");
-                if (row.IsDBNull(1)) throw new InvalidDataException("Undo snapshot exceeds the size limit.");
-                undoId = row.GetInt64(0); candidate = DocumentJson.Deserialize(row.GetString(1));
+                if (!row.Read()) throw new InvalidOperationException(kind == CommitKind.Undo ? "There is no saved edit to undo." : "There is no undone edit to redo.");
+                if (row.IsDBNull(1)) throw new InvalidDataException("History snapshot exceeds the size limit.");
+                stackId = row.GetInt64(0); candidate = DocumentJson.Deserialize(row.GetString(1));
             }
             else candidate = transform(previous);
             if (candidate.ProjectId != previous.ProjectId) throw new InvalidDataException("An edit cannot replace the project identity.");
-            if (!undo && DocumentJson.Serialize(candidate) == DocumentJson.Serialize(previous)) return previous;
+            var previousJson = DocumentJson.Serialize(previous);
+            if (kind == CommitKind.Edit && DocumentJson.Serialize(candidate) == previousJson) return previous;
             candidate = candidate with { Revision = checked(previous.Revision + 1) };
             var json = DocumentJson.Serialize(candidate);
-            if (undo) Execute("DELETE FROM undo_stack WHERE id=$id", transaction, ("$id", undoId));
-            else Execute("INSERT INTO undo_stack(previous_json) VALUES($json)", transaction, ("$json", DocumentJson.Serialize(previous)));
+            switch (kind)
+            {
+                case CommitKind.Undo:
+                    Execute("DELETE FROM undo_stack WHERE id=$id", transaction, ("$id", stackId));
+                    Execute("INSERT INTO redo_stack(next_json) VALUES($json)", transaction, ("$json", previousJson));
+                    break;
+                case CommitKind.Redo:
+                    Execute("DELETE FROM redo_stack WHERE id=$id", transaction, ("$id", stackId));
+                    Execute("INSERT INTO undo_stack(previous_json) VALUES($json)", transaction, ("$json", previousJson));
+                    break;
+                default:
+                    // A new forward edit invalidates every undone state; those states remain inspectable in revision_history.
+                    Execute("INSERT INTO undo_stack(previous_json) VALUES($json); DELETE FROM redo_stack;", transaction, ("$json", previousJson));
+                    break;
+            }
             var updated = Execute("UPDATE current_document SET revision=$next,json=$json WHERE singleton=1 AND revision=$expected", transaction,
                 ("$next", candidate.Revision), ("$json", json), ("$expected", expectedRevision));
             if (updated != 1) throw new RevisionConflictException(expectedRevision, ReadInside(transaction).Revision);

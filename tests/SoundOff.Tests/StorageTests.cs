@@ -9,6 +9,79 @@ public sealed class StorageTests
     private static Transcript Load(ProjectStore store)
     { var empty = store.Read(); return store.LoadFixture(empty.Revision, SyntheticFixture.Create(empty.ProjectId, empty.Revision)); }
     private static EditBatch Rename(Transcript doc, string name) => new(new Dictionary<Guid, string> { [doc.Speakers[0].Id] = name }, new Dictionary<Guid, string>());
+    internal static long UserVersion(string path)
+    {
+        using var sql = new SqliteConnection($"Data Source={path};Pooling=False;Mode=ReadOnly"); sql.Open();
+        using var command = sql.CreateCommand(); command.CommandText = "PRAGMA user_version"; return (long)command.ExecuteScalar()!;
+    }
+    // Produces the exact table set the v0.1 build created, for upgrade tests.
+    internal static void DowngradeToSchemaOne(string path)
+    {
+        using var sql = new SqliteConnection($"Data Source={path};Pooling=False"); sql.Open();
+        using var command = sql.CreateCommand(); command.CommandText = "DROP TABLE redo_stack; PRAGMA user_version=1;"; command.ExecuteNonQuery();
+    }
+    private static long Count(string path, string table)
+    {
+        using var sql = new SqliteConnection($"Data Source={path};Pooling=False;Mode=ReadOnly"); sql.Open();
+        using var command = sql.CreateCommand(); command.CommandText = "SELECT count(*) FROM " + table; return (long)command.ExecuteScalar()!;
+    }
+
+    [Fact] public void Redo_restores_undone_state_survives_reopen_and_is_cleared_by_a_new_edit()
+    {
+        using var folder = new TestDirectory(); long revision;
+        using (var store = ProjectStore.Create(folder.Project))
+        {
+            Assert.False(store.CanRedo);
+            var original = Load(store);
+            var edit = store.Apply(original.Revision, Rename(original, "First"));
+            var undone = store.Undo(edit.Revision); Assert.Equal("Demo speaker A", undone.Speakers[0].Name);
+            Assert.True(store.CanRedo); Assert.True(store.CanUndo);
+            revision = undone.Revision;
+        }
+        using (var store = ProjectStore.Open(folder.Project))
+        {
+            Assert.True(store.CanRedo);
+            Assert.Throws<RevisionConflictException>(() => store.Redo(revision - 1));
+            var redone = store.Redo(revision); Assert.Equal("First", redone.Speakers[0].Name); Assert.Equal(revision + 1, redone.Revision);
+            Assert.False(store.CanRedo); Assert.True(store.CanUndo);
+            var undoAgain = store.Undo(redone.Revision); Assert.Equal("Demo speaker A", undoAgain.Speakers[0].Name); Assert.True(store.CanRedo);
+            var empty = store.Undo(undoAgain.Revision); Assert.Empty(empty.Blocks); Assert.False(store.CanUndo);
+            var reloaded = store.Redo(empty.Revision); Assert.Equal(3, reloaded.Blocks.Length); Assert.Equal(Provenance.Synthetic, reloaded.Provenance);
+            Assert.True(store.CanRedo);
+            var fresh = store.Apply(reloaded.Revision, Rename(reloaded, "Second"));
+            Assert.False(store.CanRedo); Assert.Throws<InvalidOperationException>(() => store.Redo(fresh.Revision));
+            Assert.Equal("Second", store.Read().Speakers[0].Name);
+        }
+        // create, load, edit, undo, redo, undo, undo, redo, edit: every step is a revision; nothing is rewritten.
+        Assert.Equal(9L, Count(folder.Project, "revision_history")); Assert.Equal(0L, Count(folder.Project, "redo_stack"));
+    }
+
+    [Fact] public void Schema_one_project_upgrades_with_a_backup_and_an_interrupted_upgrade_stays_schema_one()
+    {
+        using var folder = new TestDirectory(); string beforeUpgrade;
+        using (var store = ProjectStore.Create(folder.Project))
+        { var doc = Load(store); beforeUpgrade = DocumentJson.Serialize(store.Apply(doc.Revision, Rename(doc, "Before upgrade"))); }
+        DowngradeToSchemaOne(folder.Project); Assert.Equal(1L, UserVersion(folder.Project));
+        Assert.Throws<IOException>(() => ProjectStore.Open(folder.Project, () => throw new IOException("Injected interruption before the upgrade commit")));
+        Assert.Equal(1L, UserVersion(folder.Project));
+        var backups = Directory.GetFiles(folder.Root, "*.schema1-*.backup"); var first = Assert.Single(backups);
+        Assert.Equal(1L, UserVersion(first));
+        string? backup;
+        using (var store = ProjectStore.Open(folder.Project))
+        {
+            backup = store.MigrationBackupPath; Assert.NotNull(backup); Assert.NotEqual(first, backup); Assert.True(File.Exists(backup));
+            Assert.Equal(1L, UserVersion(backup)); Assert.Equal(beforeUpgrade, DocumentJson.Serialize(store.Read()));
+            Assert.True(store.CanUndo); Assert.False(store.CanRedo);
+            var undone = store.Undo(store.Read().Revision); Assert.True(store.CanRedo);
+            Assert.Equal("Before upgrade", store.Redo(undone.Revision).Speakers[0].Name);
+        }
+        Assert.Equal(2L, UserVersion(folder.Project)); Assert.Equal(1L, UserVersion(backup!));
+        using (var store = ProjectStore.Open(folder.Project)) Assert.Null(store.MigrationBackupPath);
+        Assert.Equal(2, Directory.GetFiles(folder.Root, "*.schema1-*.backup").Length);
+        using var sql = new SqliteConnection($"Data Source={backup};Pooling=False;Mode=ReadOnly"); sql.Open();
+        using var command = sql.CreateCommand(); command.CommandText = "SELECT json FROM current_document";
+        Assert.Equal(beforeUpgrade, (string)command.ExecuteScalar()!);
+    }
 
     [Fact] public void Transactional_edit_undo_and_history_survive_reopen()
     {
