@@ -10,3 +10,4 @@
 /DOCUMENT-VALIDATION.json -text
 /PACKAGE-MANIFEST.json -text
 /plan-sources.json -text
+*.py text eol=lf
