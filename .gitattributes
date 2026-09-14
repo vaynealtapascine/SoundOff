@@ -4,3 +4,9 @@
 *.csproj text eol=lf
 *.json text eol=lf
 *.md text eol=lf
+# Original planning-package bytes (including CRLF) are part of its historical hashes.
+# These blobs predate the text attributes; normalizing them dirties a fresh checkout.
+/ARCHITECTURE.md -text
+/DOCUMENT-VALIDATION.json -text
+/PACKAGE-MANIFEST.json -text
+/plan-sources.json -text
