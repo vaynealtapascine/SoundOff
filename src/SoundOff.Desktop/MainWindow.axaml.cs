@@ -22,7 +22,7 @@ public sealed partial class MainWindow : Window
     private bool dirty, busy, rendering, allowClose, confirmingClose;
     private readonly StackPanel documentHost, speakerHost;
     private readonly TextBlock status, path;
-    private readonly Button demo, open, save, undo, discard, export, copy;
+    private readonly Button demo, open, save, undo, redo, discard, export, copy;
 
     public MainWindow() : this(null) { }
     public MainWindow(IProjectPicker? picker)
@@ -34,12 +34,14 @@ public sealed partial class MainWindow : Window
         status = this.FindControl<TextBlock>("StatusText")!; path = this.FindControl<TextBlock>("PathText")!;
         demo = this.FindControl<Button>("DemoButton")!; open = this.FindControl<Button>("OpenButton")!;
         save = this.FindControl<Button>("SaveButton")!; undo = this.FindControl<Button>("UndoButton")!;
+        redo = this.FindControl<Button>("RedoButton")!;
         discard = this.FindControl<Button>("DiscardButton")!; export = this.FindControl<Button>("ExportButton")!;
         copy = this.FindControl<Button>("CopyButton")!;
         demo.Click += async (_, _) => await GuardAsync(LoadDemoAsync);
         open.Click += async (_, _) => await GuardAsync(OpenAsync);
         save.Click += async (_, _) => await GuardAsync(() => { Save(); return Task.CompletedTask; });
         undo.Click += async (_, _) => await GuardAsync(() => { snapshot = store!.Undo(snapshot!.Revision); Render(); SavedStatus(); return Task.CompletedTask; });
+        redo.Click += async (_, _) => await GuardAsync(() => { snapshot = store!.Redo(snapshot!.Revision); Render(); SavedStatus(); return Task.CompletedTask; });
         discard.Click += (_, _) => { Render(); SavedStatus(); };
         export.Click += async (_, _) => await GuardAsync(ExportAsync);
         copy.Click += async (_, _) => await GuardAsync(CopyAsync);
@@ -112,6 +114,8 @@ public sealed partial class MainWindow : Window
         try { Replace(next, next.Read()); }
         catch { next.Dispose(); throw; }
         SavedStatus();
+        if (next.MigrationBackupPath is not null)
+            status.Text += $" This project was upgraded from schema 1; the untouched original is kept at {next.MigrationBackupPath}.";
     }
 
     private void Replace(ProjectStore next, Transcript document)
@@ -200,12 +204,13 @@ public sealed partial class MainWindow : Window
         else SavedStatus();
         UpdateControls();
     }
-    private void SavedStatus() => status.Text = snapshot is null ? "No project open." : $"Saved · revision {snapshot.Revision} · Synthetic/empty project only. Undo is persistent across reopen.";
+    private void SavedStatus() => status.Text = snapshot is null ? "No project open." : $"Saved · revision {snapshot.Revision} · Synthetic/empty project only. Undo and redo are persistent across reopen.";
     private void UpdateControls()
     {
         demo.IsEnabled = open.IsEnabled = !busy;
         save.IsEnabled = discard.IsEnabled = !busy && dirty;
         undo.IsEnabled = !busy && !dirty && store?.CanUndo == true;
+        redo.IsEnabled = !busy && !dirty && store?.CanRedo == true;
         export.IsEnabled = copy.IsEnabled = !busy && snapshot is not null && snapshot.Blocks.Length != 0;
         documentHost.IsEnabled = speakerHost.IsEnabled = !busy;
     }

@@ -66,6 +66,47 @@ public sealed class UiTests
         using var reopened = ProjectStore.Open(folder.Project); Assert.Equal("Demo speaker A", reopened.Read().Speakers[0].Name);
     }
 
+    [AvaloniaFact] public async Task Redo_button_restores_undone_revision_and_is_unavailable_while_a_draft_exists()
+    {
+        using var folder = new TestDirectory();
+        var window = new MainWindow(new Picker(folder.Project, Path.Combine(folder.Root, "text.txt"))); window.Show();
+        try
+        {
+            Click(window, "DemoButton"); await Idle(window); Assert.False(Button(window, "RedoButton").IsEnabled);
+            var speaker = window.FindControl<StackPanel>("SpeakerHost")!.Children.OfType<TextBox>().First();
+            speaker.Text = "Redo me 👩🏽‍💻"; Click(window, "SaveButton"); await Idle(window); Assert.Contains("Saved · revision 2", Status(window));
+            Assert.False(Button(window, "RedoButton").IsEnabled);
+            Click(window, "UndoButton"); await Idle(window); Assert.Contains("Saved · revision 3", Status(window));
+            Assert.True(Button(window, "RedoButton").IsEnabled);
+            speaker = window.FindControl<StackPanel>("SpeakerHost")!.Children.OfType<TextBox>().First();
+            Assert.Equal("Demo speaker A", speaker.Text);
+            speaker.Text = "Typing disables redo"; Assert.False(Button(window, "RedoButton").IsEnabled); Assert.False(Button(window, "UndoButton").IsEnabled);
+            Click(window, "DiscardButton"); Assert.True(Button(window, "RedoButton").IsEnabled);
+            Click(window, "RedoButton"); await Idle(window); Assert.Contains("Saved · revision 4", Status(window));
+            Assert.Equal("Redo me 👩🏽‍💻", window.FindControl<StackPanel>("SpeakerHost")!.Children.OfType<TextBox>().First().Text);
+            Assert.False(Button(window, "RedoButton").IsEnabled); Assert.True(Button(window, "UndoButton").IsEnabled);
+        }
+        finally { window.Close(); }
+        using var store = ProjectStore.Open(folder.Project); Assert.Equal(4, store.Read().Revision); Assert.Equal("Redo me 👩🏽‍💻", store.Read().Speakers[0].Name);
+    }
+
+    [AvaloniaFact] public async Task Opening_a_schema_one_project_reports_the_upgrade_backup()
+    {
+        using var folder = new TestDirectory();
+        using (var store = ProjectStore.Create(folder.Project, SyntheticFixture.Create(Guid.NewGuid(), 0))) { }
+        StorageTests.DowngradeToSchemaOne(folder.Project);
+        var window = new MainWindow(new Picker(folder.Project, Path.Combine(folder.Root, "text.txt"))); window.Show();
+        try
+        {
+            Click(window, "OpenButton"); await Idle(window);
+            Assert.Contains("Saved · revision 0", Status(window)); Assert.Contains("upgraded from schema 1", Status(window));
+            Assert.Contains(".schema1-", Status(window));
+            Click(window, "OpenButton"); await Idle(window); Assert.DoesNotContain("upgraded", Status(window));
+        }
+        finally { window.Close(); }
+        Assert.Single(Directory.GetFiles(folder.Root, "*.schema1-*.backup"));
+    }
+
     [AvaloniaFact] public async Task Immediate_copy_after_text_input_includes_the_unsaved_draft()
     {
         using var folder = new TestDirectory();

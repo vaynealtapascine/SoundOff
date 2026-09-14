@@ -22,6 +22,7 @@
       <Button x:Name="OpenButton" Content="Open project…" Margin="0,0,8,8" />
       <Button x:Name="SaveButton" Content="Save edits" Margin="0,0,8,8" />
       <Button x:Name="UndoButton" Content="Undo saved edit" Margin="0,0,8,8" />
+      <Button x:Name="RedoButton" Content="Redo undone edit" Margin="0,0,8,8" />
       <Button x:Name="DiscardButton" Content="Discard draft" Margin="0,0,8,8" />
       <Button x:Name="ExportButton" Content="Export TXT…" Margin="0,0,8,8" />
       <Button x:Name="CopyButton" Content="Copy text" Margin="0,0,8,8" />
