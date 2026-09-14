@@ -102,19 +102,30 @@ public sealed class ProjectStore : IDisposable
         var stamp = DateTime.UtcNow.ToString("yyyyMMdd'T'HHmmss'Z'");
         var backup = PathName + ".schema1-" + stamp + ".backup";
         while (File.Exists(backup)) backup = PathName + ".schema1-" + stamp + "-" + Guid.NewGuid().ToString("N")[..8] + ".backup";
-        using (var copy = new SqliteConnection(new SqliteConnectionStringBuilder { DataSource = backup, Mode = SqliteOpenMode.ReadWriteCreate, Pooling = false }.ToString()))
-        {
-            copy.Open();
-            connection.BackupDatabase(copy);
-            using var check = copy.CreateCommand(); check.CommandText = "PRAGMA user_version";
-            if (Convert.ToInt32(check.ExecuteScalar()) != 1) throw new InvalidDataException("Migration backup did not reproduce the schema-1 project.");
-        }
-        using (var flush = new FileStream(backup, FileMode.Open, FileAccess.ReadWrite, FileShare.None)) flush.Flush(true);
+        CopyDatabase(backup, expectedUserVersion: 1);
         using var transaction = connection.BeginTransaction();
         Execute("CREATE TABLE redo_stack (id INTEGER PRIMARY KEY AUTOINCREMENT, next_json TEXT NOT NULL); PRAGMA user_version=2;", transaction);
         beforeCommit?.Invoke();
         transaction.Commit();
         MigrationBackupPath = backup;
+    }
+
+    // Consistent copy through SQLite's online backup API (never a raw file copy), flushed, never overwriting.
+    public void BackupTo(string destination)
+    {
+        lock (gate) { ThrowIfDisposed(); CopyDatabase(Path.GetFullPath(destination), SchemaVersion); }
+    }
+    private void CopyDatabase(string destination, int expectedUserVersion)
+    {
+        if (File.Exists(destination)) throw new IOException("A file already exists at the backup destination.");
+        using (var copy = new SqliteConnection(new SqliteConnectionStringBuilder { DataSource = destination, Mode = SqliteOpenMode.ReadWriteCreate, Pooling = false }.ToString()))
+        {
+            copy.Open();
+            connection.BackupDatabase(copy);
+            using var check = copy.CreateCommand(); check.CommandText = "PRAGMA user_version";
+            if (Convert.ToInt32(check.ExecuteScalar()) != expectedUserVersion) throw new InvalidDataException("The database copy did not reproduce the expected schema.");
+        }
+        using var flush = new FileStream(destination, FileMode.Open, FileAccess.ReadWrite, FileShare.None); flush.Flush(true);
     }
 
     public Transcript Read()
