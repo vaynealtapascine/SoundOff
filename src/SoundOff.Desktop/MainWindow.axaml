@@ -14,7 +14,7 @@
         </ComboBox>
         <CheckBox x:Name="ReducedMotionChoice" Content="Reduced motion" IsChecked="True"
                   AutomationProperties.Name="Reduced motion" />
-        <TextBlock Text="Appearance choices last for this window." FontSize="11" />
+        <TextBlock Text="Appearance choices are saved locally for future launches." FontSize="11" />
       </StackPanel>
     </Grid>
     <WrapPanel Grid.Row="1" Orientation="Horizontal">

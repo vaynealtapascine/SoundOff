@@ -25,11 +25,17 @@ public sealed partial class MainWindow : Window
     private readonly TextBlock status, path;
     private readonly Button demo, open, save, undo, redo, discard, export, copy;
 
-    public MainWindow() : this(null) { }
-    public MainWindow(IProjectPicker? picker)
+    private readonly SettingsStore settings;
+    private readonly ComboBox themeChoice;
+    private readonly CheckBox reducedMotionChoice;
+    private bool applyingSettings;
+
+    public MainWindow() : this(null, new SettingsStore(SettingsStore.DefaultPath)) { }
+    public MainWindow(IProjectPicker? picker, SettingsStore settings)
     {
         AvaloniaXamlLoader.Load(this);
         this.picker = picker ?? new LocalProjectPicker(this);
+        this.settings = settings;
         documentHost = this.FindControl<StackPanel>("DocumentHost")!;
         speakerHost = this.FindControl<StackPanel>("SpeakerHost")!;
         status = this.FindControl<TextBlock>("StatusText")!; path = this.FindControl<TextBlock>("PathText")!;
@@ -46,14 +52,15 @@ public sealed partial class MainWindow : Window
         discard.Click += (_, _) => { Render(); SavedStatus(); };
         export.Click += async (_, _) => await GuardAsync(ExportAsync);
         copy.Click += async (_, _) => await GuardAsync(CopyAsync);
-        this.FindControl<ComboBox>("ThemeChoice")!.SelectionChanged += (_, _) =>
-        {
-            RequestedThemeVariant = this.FindControl<ComboBox>("ThemeChoice")!.SelectedIndex switch
-            { 1 => ThemeVariant.Light, 2 => ThemeVariant.Dark, _ => ThemeVariant.Default };
-        };
-        var reducedMotion = this.FindControl<CheckBox>("ReducedMotionChoice")!;
-        reducedMotion.IsCheckedChanged += (_, _) => Classes.Set("reducedMotion", reducedMotion.IsChecked == true);
-        Classes.Set("reducedMotion", reducedMotion.IsChecked == true);
+        themeChoice = this.FindControl<ComboBox>("ThemeChoice")!; reducedMotionChoice = this.FindControl<CheckBox>("ReducedMotionChoice")!;
+        var (appearance, settingsProblem) = settings.Load();
+        applyingSettings = true;
+        themeChoice.SelectedIndex = Array.IndexOf(AppearanceSettings.Themes, appearance.Theme);
+        reducedMotionChoice.IsChecked = appearance.ReducedMotion;
+        applyingSettings = false;
+        themeChoice.SelectionChanged += (_, _) => ApplyAppearance(persist: true);
+        reducedMotionChoice.IsCheckedChanged += (_, _) => ApplyAppearance(persist: true);
+        ApplyAppearance(persist: false);
         Closing += async (_, e) =>
         {
             if (!dirty || allowClose) return;
@@ -66,6 +73,20 @@ public sealed partial class MainWindow : Window
         };
         Closed += (_, _) => { lifetime.Cancel(); store?.Dispose(); };
         Render();
+        if (settingsProblem is not null) status.Text = settingsProblem + " " + status.Text;
+    }
+
+    // The window always reflects the choice; persistence failure is reported, never fatal.
+    private void ApplyAppearance(bool persist)
+    {
+        var index = Math.Clamp(themeChoice.SelectedIndex, 0, AppearanceSettings.Themes.Length - 1);
+        RequestedThemeVariant = index switch { 1 => ThemeVariant.Light, 2 => ThemeVariant.Dark, _ => ThemeVariant.Default };
+        var reduced = reducedMotionChoice.IsChecked == true;
+        Classes.Set("reducedMotion", reduced);
+        if (!persist || applyingSettings) return;
+        try { settings.Save(new AppearanceSettings(AppearanceSettings.CurrentVersion, AppearanceSettings.Themes[index], reduced)); }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        { status.Text = $"Appearance applies to this window but could not be saved to {settings.PathName}: {e.Message}"; }
     }
 
     private async Task GuardAsync(Func<Task> action)

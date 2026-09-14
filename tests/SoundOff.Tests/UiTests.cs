@@ -46,7 +46,7 @@ public sealed class UiTests
     [AvaloniaFact] public async Task Actual_controls_cover_empty_demo_edit_save_copy_export_reopen_and_undo()
     {
         using var folder = new TestDirectory(); var export = Path.Combine(folder.Root, "UI Unicode.txt");
-        var picker = new Picker(folder.Project, export); var window = new MainWindow(picker); window.Show();
+        var picker = new Picker(folder.Project, export); var window = new MainWindow(picker, folder.Settings); window.Show();
         try
         {
             Assert.Contains(window.GetVisualDescendants().OfType<TextBlock>(), t => t.Text == "No transcript loaded");
@@ -63,7 +63,7 @@ public sealed class UiTests
             var copied = await TopLevel.GetTopLevel(window)!.Clipboard!.TryGetTextAsync(); Assert.Contains("José 👩🏽‍💻", copied); Assert.Contains("SYNTHETIC DEMO", copied);
             Click(window, "ExportButton"); await Idle(window); Assert.Equal(copied, File.ReadAllText(export));
             window.Close();
-            window = new MainWindow(picker); window.Show(); Click(window, "OpenButton"); await Idle(window);
+            window = new MainWindow(picker, folder.Settings); window.Show(); Click(window, "OpenButton"); await Idle(window);
             Assert.Contains("Saved · revision 2", Status(window));
             Assert.Equal("José 👩🏽‍💻", SpeakerBox(window).Text);
             Click(window, "UndoButton"); await Idle(window); Assert.Contains("Saved · revision 3", Status(window));
@@ -76,7 +76,7 @@ public sealed class UiTests
     [AvaloniaFact] public async Task Paragraph_actions_commit_the_draft_and_the_change_as_one_undoable_revision()
     {
         using var folder = new TestDirectory();
-        var window = new MainWindow(new Picker(folder.Project, Path.Combine(folder.Root, "text.txt"))); window.Show();
+        var window = new MainWindow(new Picker(folder.Project, Path.Combine(folder.Root, "text.txt")), folder.Settings); window.Show();
         try
         {
             Click(window, "DemoButton"); await Idle(window);
@@ -115,7 +115,7 @@ public sealed class UiTests
     [AvaloniaFact] public async Task Split_at_a_paragraph_edge_fails_visibly_and_keeps_the_draft()
     {
         using var folder = new TestDirectory();
-        var window = new MainWindow(new Picker(folder.Project, Path.Combine(folder.Root, "text.txt"))); window.Show();
+        var window = new MainWindow(new Picker(folder.Project, Path.Combine(folder.Root, "text.txt")), folder.Settings); window.Show();
         try
         {
             Click(window, "DemoButton"); await Idle(window);
@@ -134,7 +134,7 @@ public sealed class UiTests
     [AvaloniaFact] public async Task Speakers_can_be_added_reassigned_from_the_paragraph_and_removed_when_unused()
     {
         using var folder = new TestDirectory();
-        var window = new MainWindow(new Picker(folder.Project, Path.Combine(folder.Root, "text.txt"))); window.Show();
+        var window = new MainWindow(new Picker(folder.Project, Path.Combine(folder.Root, "text.txt")), folder.Settings); window.Show();
         try
         {
             Click(window, "DemoButton"); await Idle(window);
@@ -163,7 +163,7 @@ public sealed class UiTests
     [AvaloniaFact] public async Task Redo_button_restores_undone_revision_and_is_unavailable_while_a_draft_exists()
     {
         using var folder = new TestDirectory();
-        var window = new MainWindow(new Picker(folder.Project, Path.Combine(folder.Root, "text.txt"))); window.Show();
+        var window = new MainWindow(new Picker(folder.Project, Path.Combine(folder.Root, "text.txt")), folder.Settings); window.Show();
         try
         {
             Click(window, "DemoButton"); await Idle(window); Assert.False(Button(window, "RedoButton").IsEnabled);
@@ -189,7 +189,7 @@ public sealed class UiTests
         using var folder = new TestDirectory();
         using (var store = ProjectStore.Create(folder.Project, SyntheticFixture.Create(Guid.NewGuid(), 0))) { }
         StorageTests.DowngradeToSchemaOne(folder.Project);
-        var window = new MainWindow(new Picker(folder.Project, Path.Combine(folder.Root, "text.txt"))); window.Show();
+        var window = new MainWindow(new Picker(folder.Project, Path.Combine(folder.Root, "text.txt")), folder.Settings); window.Show();
         try
         {
             Click(window, "OpenButton"); await Idle(window);
@@ -204,7 +204,7 @@ public sealed class UiTests
     [AvaloniaFact] public async Task Immediate_copy_after_text_input_includes_the_unsaved_draft()
     {
         using var folder = new TestDirectory();
-        var window = new MainWindow(new Picker(folder.Project, Path.Combine(folder.Root, "draft.txt"))); window.Show();
+        var window = new MainWindow(new Picker(folder.Project, Path.Combine(folder.Root, "draft.txt")), folder.Settings); window.Show();
         try
         {
             Click(window, "DemoButton"); await Idle(window);
@@ -224,7 +224,7 @@ public sealed class UiTests
     [AvaloniaFact] public async Task Immediate_close_after_speaker_input_requires_discard_confirmation()
     {
         using var folder = new TestDirectory();
-        var window = new MainWindow(new Picker(folder.Project, Path.Combine(folder.Root, "draft.txt"))); window.Show();
+        var window = new MainWindow(new Picker(folder.Project, Path.Combine(folder.Root, "draft.txt")), folder.Settings); window.Show();
         try
         {
             Click(window, "DemoButton"); await Idle(window);
@@ -253,7 +253,7 @@ public sealed class UiTests
         using var folder = new TestDirectory(); var fixture = SyntheticFixture.Create(Guid.NewGuid(), 0);
         fixture = fixture with { Blocks = fixture.Blocks.SetItem(0, fixture.Blocks[0] with { Timing = new TimeRange(1, 2) }) };
         using (var store = ProjectStore.Create(folder.Project, fixture)) { }
-        var window = new MainWindow(new Picker(folder.Project, Path.Combine(folder.Root, "text.txt"))); window.Show();
+        var window = new MainWindow(new Picker(folder.Project, Path.Combine(folder.Root, "text.txt")), folder.Settings); window.Show();
         try
         {
             Click(window, "OpenButton"); await Idle(window);
@@ -269,7 +269,7 @@ public sealed class UiTests
     [AvaloniaFact] public async Task Invalid_draft_stays_visible_and_discard_restores_saved_state()
     {
         using var folder = new TestDirectory(); var output = Path.Combine(folder.Root, "draft.txt");
-        var window = new MainWindow(new Picker(folder.Project, output)); window.Show();
+        var window = new MainWindow(new Picker(folder.Project, output), folder.Settings); window.Show();
         try
         {
             Click(window, "DemoButton"); await Idle(window);
@@ -285,7 +285,7 @@ public sealed class UiTests
 
     [AvaloniaFact] public void Themes_and_reduced_motion_affect_real_controls_and_template_parts()
     {
-        var window = new MainWindow(); window.Show();
+        using var folder = new TestDirectory(); var window = new MainWindow(null, folder.Settings); window.Show();
         try
         {
             Assert.DoesNotContain(window.GetVisualDescendants().OfType<Button>(), b => (b.Content?.ToString() ?? "").Contains("Transcribe", StringComparison.OrdinalIgnoreCase));
@@ -308,14 +308,14 @@ public sealed class UiTests
     [AvaloniaFact] public async Task Project_and_export_extensions_cannot_be_confused()
     {
         using var folder = new TestDirectory(); var badProject = Path.Combine(folder.Root, "not-a-project.txt");
-        var window = new MainWindow(new Picker(badProject, folder.Project)); window.Show();
+        var window = new MainWindow(new Picker(badProject, folder.Project), folder.Settings); window.Show();
         try
         {
             Click(window, "DemoButton"); await Idle(window);
             Assert.Contains("Project filenames must end in .soundoff.sqlite", Status(window)); Assert.False(File.Exists(badProject));
         }
         finally { window.Close(); }
-        window = new MainWindow(new Picker(folder.Project, folder.Project)); window.Show();
+        window = new MainWindow(new Picker(folder.Project, folder.Project), folder.Settings); window.Show();
         try
         {
             Click(window, "DemoButton"); await Idle(window);
@@ -330,7 +330,7 @@ public sealed class UiTests
     [AvaloniaFact] public async Task Unsaved_draft_export_is_labelled_and_does_not_commit()
     {
         using var folder = new TestDirectory(); var output = Path.Combine(folder.Root, "draft.txt");
-        var window = new MainWindow(new Picker(folder.Project, output)); window.Show();
+        var window = new MainWindow(new Picker(folder.Project, output), folder.Settings); window.Show();
         try
         {
             Click(window, "DemoButton"); await Idle(window);
