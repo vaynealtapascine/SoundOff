@@ -141,10 +141,10 @@ public sealed class RevisionConflictException(long expected, long actual)
 // A draft: renamed speakers, replaced paragraph texts and reassigned paragraph speakers, all keyed by stable ID.
 // Reassigning a speaker is a speaker correction, not a text change: timing and the manual-text flag are untouched.
 public sealed record EditBatch(IReadOnlyDictionary<Guid, string> SpeakerNames, IReadOnlyDictionary<Guid, string> BlockTexts,
-    IReadOnlyDictionary<Guid, Guid>? BlockSpeakers = null)
+    IReadOnlyDictionary<Guid, Guid>? BlockSpeakers = null, string? Title = null)
 {
     public static EditBatch None { get; } = new(ImmutableDictionary<Guid, string>.Empty, ImmutableDictionary<Guid, string>.Empty);
-    public bool IsEmpty => SpeakerNames.Count == 0 && BlockTexts.Count == 0 && (BlockSpeakers?.Count ?? 0) == 0;
+    public bool IsEmpty => SpeakerNames.Count == 0 && BlockTexts.Count == 0 && (BlockSpeakers?.Count ?? 0) == 0 && Title is null;
     internal void RequireKnownTargets(Transcript source)
     {
         if (SpeakerNames.Keys.Any(id => !source.Speakers.Any(s => s.Id == id)) ||
@@ -163,6 +163,7 @@ public static class TranscriptEdits
         edits.RequireKnownTargets(source);
         var result = source with
         {
+            Title = edits.Title ?? source.Title,
             Speakers = source.Speakers.Select(s => edits.SpeakerNames.TryGetValue(s.Id, out var name) ? s with { Name = name } : s).ToImmutableArray(),
             Blocks = source.Blocks.Select(b =>
             {

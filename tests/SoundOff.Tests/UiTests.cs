@@ -112,6 +112,26 @@ public sealed class UiTests
         using var store = ProjectStore.Open(folder.Project); Assert.Equal(13, store.Read().Revision); Assert.Single(store.Read().Blocks);
     }
 
+    [AvaloniaFact] public async Task Project_title_is_edited_as_part_of_the_draft_and_exported()
+    {
+        using var folder = new TestDirectory(); var export = Path.Combine(folder.Root, "title.txt");
+        var window = new MainWindow(new Picker(folder.Project, export), folder.Settings); window.Show();
+        try
+        {
+            Click(window, "DemoButton"); await Idle(window);
+            var title = window.GetVisualDescendants().OfType<TextBox>().Single(t => t.Classes.Contains("title"));
+            Assert.Equal("Synthetic demo — editing practice", title.Text);
+            title.Text = "Meeting notes 👩🏽‍💻"; Assert.True(Button(window, "SaveButton").IsEnabled); Assert.Contains("UNSAVED DRAFT", Status(window));
+            Click(window, "ExportButton"); await Idle(window); Assert.StartsWith("Meeting notes 👩🏽‍💻\n", File.ReadAllText(export));
+            Click(window, "SaveButton"); await Idle(window); Assert.Contains("Saved · revision 2", Status(window));
+            title = window.GetVisualDescendants().OfType<TextBox>().Single(t => t.Classes.Contains("title"));
+            title.Text = ""; Click(window, "SaveButton"); await Idle(window); Assert.Contains("NOT SAVED", Status(window));
+            Click(window, "DiscardButton"); Assert.Contains("Saved · revision 2", Status(window));
+        }
+        finally { window.Close(); }
+        using var store = ProjectStore.Open(folder.Project); Assert.Equal("Meeting notes 👩🏽‍💻", store.Read().Title); Assert.Equal(2, store.Read().Revision);
+    }
+
     [AvaloniaFact] public async Task Split_at_a_paragraph_edge_fails_visibly_and_keeps_the_draft()
     {
         using var folder = new TestDirectory();

@@ -19,8 +19,10 @@ public static class TextExport
         draft.RequireKnownTargets(snapshot);
         foreach (var name in draft.SpeakerNames.Values) DocumentRules.Text(name, 100, true);
         foreach (var text in draft.BlockTexts.Values) DocumentRules.Text(text, DocumentRules.MaxBlockLength, true);
+        if (draft.Title is not null) DocumentRules.Text(draft.Title, 200, true);
         var frozen = snapshot with
         {
+            Title = draft.Title ?? snapshot.Title,
             Speakers = snapshot.Speakers.Select(s => draft.SpeakerNames.TryGetValue(s.Id, out var name) ? s with { Name = name } : s).ToImmutableArray(),
             Blocks = snapshot.Blocks.Select(b => (draft.BlockTexts.TryGetValue(b.Id, out var text) ? b with { Text = text } : b) with { SpeakerId = draft.SpeakerOf(b) }).ToImmutableArray()
         };

@@ -23,6 +23,7 @@ public sealed partial class MainWindow : Window
     private bool dirty, busy, rendering, allowClose, confirmingClose;
     private readonly StackPanel documentHost, speakerHost;
     private readonly TextBlock status, path;
+    private TextBox? titleInput;
     private readonly Button demo, open, save, undo, redo, discard, export, copy;
 
     private readonly SettingsStore settings;
@@ -145,7 +146,8 @@ public sealed partial class MainWindow : Window
         store?.Dispose(); store = next; snapshot = document; Render();
     }
     private EditBatch DraftEdits() => new(speakerInputs.ToDictionary(p => p.Key, p => p.Value.Text ?? ""),
-        blockInputs.ToDictionary(p => p.Key, p => p.Value.Text ?? ""), blockSpeakerInputs.ToDictionary(p => p.Key, p => SpeakerChoice(p.Key)));
+        blockInputs.ToDictionary(p => p.Key, p => p.Value.Text ?? ""), blockSpeakerInputs.ToDictionary(p => p.Key, p => SpeakerChoice(p.Key)),
+        titleInput?.Text ?? snapshot?.Title);
     private string ExportText() => dirty ? TextExport.RenderDraft(snapshot!, DraftEdits()) : TextExport.Render(snapshot!);
     private static void RequireProjectExtension(string local)
     {
@@ -191,7 +193,7 @@ public sealed partial class MainWindow : Window
 
     private void Render()
     {
-        rendering = true; dirty = false; documentHost.Children.Clear(); speakerHost.Children.Clear();
+        rendering = true; dirty = false; titleInput = null; documentHost.Children.Clear(); speakerHost.Children.Clear();
         speakerInputs.Clear(); blockInputs.Clear(); blockSpeakerInputs.Clear();
         path.Text = store?.PathName ?? "No project file is created until you explicitly load a demo and choose its location.";
         if (snapshot is null || snapshot.Provenance == Provenance.Empty)
@@ -205,7 +207,9 @@ public sealed partial class MainWindow : Window
         }
         else
         {
-            documentHost.Children.Add(new TextBlock { Text = snapshot.Title, FontSize = 24, TextWrapping = TextWrapping.Wrap });
+            titleInput = new TextBox { Text = snapshot.Title, FontSize = 24, MaxLength = 200, Watermark = "Project title", IsUndoEnabled = false };
+            titleInput.Classes.Add("title"); AutomationProperties.SetName(titleInput, "Project title"); titleInput.PropertyChanged += OnDraftChanged;
+            documentHost.Children.Add(titleInput);
             documentHost.Children.Add(Label(snapshot.Provenance.Notice));
             documentHost.Children.Add(Label("Edit whole paragraphs below. Save edits commits one undoable revision; typing is an unsaved draft. " +
                 "Paragraph and speaker actions save the draft together with their change as one revision. " +
@@ -270,7 +274,8 @@ public sealed partial class MainWindow : Window
     private void RecomputeDraft()
     {
         if (rendering || snapshot is null || lifetime.IsCancellationRequested) return;
-        dirty = speakerInputs.Any(p => p.Value.Text != snapshot.Speakers.Single(s => s.Id == p.Key).Name) ||
+        dirty = (titleInput is not null && titleInput.Text != snapshot.Title) ||
+                speakerInputs.Any(p => p.Value.Text != snapshot.Speakers.Single(s => s.Id == p.Key).Name) ||
                 blockInputs.Any(p => p.Value.Text != snapshot.Blocks.Single(b => b.Id == p.Key).Text) ||
                 blockSpeakerInputs.Any(p => SpeakerChoice(p.Key) != snapshot.Blocks.Single(b => b.Id == p.Key).SpeakerId);
         if (dirty) status.Text = $"UNSAVED DRAFT based on revision {snapshot.Revision}. Save edits to commit; Export/Copy can rescue a draft.";

@@ -104,6 +104,19 @@ public sealed class OperationTests
         Assert.Throws<InvalidDataException>(() => Apply(crowded, new AddSpeaker(Guid.NewGuid(), "33rd")));
     }
 
+    [Fact] public void Title_is_part_of_the_draft_and_validated_like_other_text()
+    {
+        var source = Fixture();
+        var renamed = TranscriptEdits.Apply(source, EditBatch.None with { Title = "Renamed 👩🏽‍💻 title" });
+        Assert.Equal("Renamed 👩🏽‍💻 title", renamed.Title); Assert.Equal(source.Blocks.ToArray(), renamed.Blocks.ToArray());
+        Assert.Equal(DocumentJson.Serialize(source), DocumentJson.Serialize(TranscriptEdits.Apply(source, EditBatch.None with { Title = source.Title })));
+        Assert.Throws<InvalidDataException>(() => TranscriptEdits.Apply(source, EditBatch.None with { Title = " " }));
+        Assert.Throws<InvalidDataException>(() => TranscriptEdits.Apply(source, EditBatch.None with { Title = new string('t', 201) }));
+        Assert.StartsWith("Draft title\n", TextExport.RenderDraft(source, EditBatch.None with { Title = "Draft title" }));
+        Assert.StartsWith("\n", TextExport.RenderDraft(source, EditBatch.None with { Title = "" }));
+        Assert.False(EditBatch.None.IsEmpty == (EditBatch.None with { Title = "x" }).IsEmpty);
+    }
+
     [Fact] public void Draft_export_reflects_reassigned_speakers_without_committing()
     {
         var source = Fixture(); var before = DocumentJson.Serialize(source);
