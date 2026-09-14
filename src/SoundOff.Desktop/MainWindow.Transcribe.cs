@@ -92,6 +92,7 @@ public sealed partial class MainWindow
         status.Text = "Copying and probing the recording… The original file is not modified.";
         var asset = await MediaImport.ImportAsync(store!, media, lifetime.Token);
         RenderTranscribe(); SavedStatus();
+        await SyncPlaybackSourceAsync();
         status.Text = $"Imported {asset.OriginalName} ({(asset.DurationMicroseconds is { } d ? TimeText.Format(d) : "?")}). " + status.Text;
     }
 

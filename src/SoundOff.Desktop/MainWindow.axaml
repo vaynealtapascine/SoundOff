@@ -1,7 +1,7 @@
 <Window xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         x:Class="SoundOff.Desktop.MainWindow" Title="SoundOff — private fixture editor"
         Width="1180" Height="860" MinWidth="880" MinHeight="680">
-  <Grid RowDefinitions="Auto,Auto,*,Auto" Margin="24" RowSpacing="16">
+  <Grid RowDefinitions="Auto,Auto,*,Auto,Auto" Margin="24" RowSpacing="16">
     <Grid ColumnDefinitions="*,Auto">
       <StackPanel Spacing="6">
         <TextBlock Text="SoundOff" Classes="heading" />
@@ -31,6 +31,22 @@
       <Button x:Name="ImportBundleButton" Content="Import bundle…" Margin="0,0,8,8" />
       <TextBlock Text="Ctrl+S save · Ctrl+Z undo · Ctrl+Y redo · Ctrl+F find · F3 find next" FontSize="11" VerticalAlignment="Center" Margin="4,0,0,8" />
     </WrapPanel>
+    <Border Grid.Row="4" x:Name="TransportBar" BorderThickness="0,1,0,0" BorderBrush="{DynamicResource SystemControlForegroundBaseMediumLowBrush}" Padding="0,12,0,0" IsVisible="False">
+      <StackPanel Spacing="6">
+        <WrapPanel Orientation="Horizontal">
+          <Button x:Name="PlayPauseButton" Content="Play" MinWidth="92" Margin="0,0,8,8" />
+          <Button x:Name="SkipBackButton" Content="◀ 5s" Margin="0,0,8,8" AutomationProperties.Name="Skip back five seconds" />
+          <Button x:Name="SkipForwardButton" Content="5s ▶" Margin="0,0,8,8" AutomationProperties.Name="Skip forward five seconds" />
+          <TextBlock x:Name="PositionText" VerticalAlignment="Center" Margin="0,0,12,8" />
+          <ToggleButton x:Name="FollowButton" Content="Follow playback" IsChecked="True" Margin="0,0,8,8"
+                        AutomationProperties.Name="Follow playback while it plays" />
+          <TextBlock Text="Volume" VerticalAlignment="Center" Margin="0,0,6,8" />
+          <Slider x:Name="VolumeSlider" Minimum="0" Maximum="1" Value="1" Width="110" Margin="0,0,8,0" AutomationProperties.Name="Volume" />
+        </WrapPanel>
+        <Slider x:Name="PositionSlider" Minimum="0" Maximum="1000" Value="0" AutomationProperties.Name="Playback position" />
+        <TextBlock x:Name="PlaybackText" TextWrapping="Wrap" FontSize="12" />
+      </StackPanel>
+    </Border>
     <Grid Grid.Row="2" ColumnDefinitions="*,270" ColumnSpacing="20">
       <ScrollViewer HorizontalScrollBarVisibility="Disabled">
         <StackPanel x:Name="DocumentHost" Spacing="16" MaxWidth="850" HorizontalAlignment="Stretch" />

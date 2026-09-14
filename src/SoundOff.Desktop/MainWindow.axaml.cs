@@ -20,6 +20,8 @@ public sealed partial class MainWindow : Window
     private readonly Dictionary<Guid, TextBox> blockInputs = [];
     private readonly Dictionary<Guid, ComboBox> blockSpeakerInputs = [];
     private readonly Dictionary<Guid, (TextBox Start, TextBox End)> blockTimingInputs = [];
+    private readonly Dictionary<Guid, Border> blockCards = [];
+    private readonly Dictionary<Guid, WrapPanel> blockRibbons = [];
     private readonly CancellationTokenSource lifetime = new();
     private bool dirty, busy, rendering, allowClose, confirmingClose;
     private readonly StackPanel documentHost, speakerHost;
@@ -30,13 +32,14 @@ public sealed partial class MainWindow : Window
     public MainWindow() : this(null, new SettingsStore(SettingsStore.DefaultPath)) { }
     // initialProject: a project path given on the command line, opened once the window is shown; failures are shown, never fatal.
     // inference: the worker client (tests inject a protocol-speaking stand-in and a temporary runtime location).
-    public MainWindow(IProjectPicker? picker, SettingsStore settings, string? initialProject = null, InferenceWorkerClient? inference = null)
+    public MainWindow(IProjectPicker? picker, SettingsStore settings, string? initialProject = null, InferenceWorkerClient? inference = null, IPlaybackEngine? playbackEngine = null)
     {
         if (initialProject is not null) Opened += async (_, _) => await GuardAsync(() => OpenPathAsync(initialProject, confirmed: true));
         AvaloniaXamlLoader.Load(this);
         this.picker = picker ?? new LocalProjectPicker(this);
         this.settings = settings;
         InitializeTranscribe(inference);
+        InitializePlayback(playbackEngine);
         documentHost = this.FindControl<StackPanel>("DocumentHost")!;
         speakerHost = this.FindControl<StackPanel>("SpeakerHost")!;
         status = this.FindControl<TextBlock>("StatusText")!; path = this.FindControl<TextBlock>("PathText")!;
@@ -83,7 +86,7 @@ public sealed partial class MainWindow : Window
             if (proceed) { allowClose = true; Close(); }
             confirmingClose = false;
         };
-        Closed += (_, _) => { lifetime.Cancel(); store?.Dispose(); };
+        Closed += (_, _) => { lifetime.Cancel(); DisposePlayback(); store?.Dispose(); };
         // Tunnelling so the shortcuts work while a paragraph has focus; each one only triggers an enabled button's action.
         AddHandler(KeyDownEvent, OnShortcut, Avalonia.Interactivity.RoutingStrategies.Tunnel);
         Render(); RenderRecents();
@@ -151,6 +154,7 @@ public sealed partial class MainWindow : Window
     private void Replace(ProjectStore next, Transcript document)
     {
         store?.Dispose(); store = next; snapshot = document; Render();
+        _ = SyncPlaybackSourceAsync();
     }
     // Timing boxes count only when their text differs from the saved timing: an untouched box is not a re-anchoring, so an
     // edited paragraph still loses its timing unless the user types timing in the same draft. Text rescue ignores timing.
@@ -271,7 +275,7 @@ public sealed partial class MainWindow : Window
     private void Render()
     {
         rendering = true; dirty = false; titleInput = null; documentHost.Children.Clear(); speakerHost.Children.Clear();
-        speakerInputs.Clear(); blockInputs.Clear(); blockSpeakerInputs.Clear(); blockTimingInputs.Clear();
+        speakerInputs.Clear(); blockInputs.Clear(); blockSpeakerInputs.Clear(); blockTimingInputs.Clear(); blockCards.Clear(); blockRibbons.Clear();
         path.Text = store?.PathName ?? "No project file is created until you explicitly load a demo and choose its location.";
         if (snapshot is null || snapshot.Provenance == Provenance.Empty)
         {
@@ -323,24 +327,30 @@ public sealed partial class MainWindow : Window
                 ToolTip.SetTip(startBox, "Manual timing is synthetic, not measured. Leave both boxes blank for untimed."); ToolTip.SetTip(endBox, "Manual timing is synthetic, not measured. Leave both boxes blank for untimed.");
                 startBox.PropertyChanged += OnDraftChanged; endBox.PropertyChanged += OnDraftChanged;
                 blockTimingInputs.Add(id, (startBox, endBox)); header.Children.Add(startBox); header.Children.Add(endBox);
+                var play = Action("Play from here", $"Play paragraph {ordinal} from its start", () => { SeekToBlock(id); return Task.CompletedTask; }, enabled: block.Timing is not null);
+                ToolTip.SetTip(play, block.Timing is null ? "This paragraph has no timing, so there is nowhere to seek to." : "Moves the playhead to this paragraph without starting playback.");
+                header.Children.Add(play);
                 group.Children.Add(header);
                 var input = new TextBox { Text = block.Text, AcceptsReturn = true, TextWrapping = TextWrapping.Wrap, MaxLength = DocumentRules.MaxBlockLength, IsUndoEnabled = false };
                 input.Classes.Add("transcript"); AutomationProperties.SetName(input, "Transcript block by " + name);
                 input.PropertyChanged += OnDraftChanged; blockInputs.Add(id, input); group.Children.Add(input);
+                // Filled only while this paragraph is the active one, so a long document never builds thousands of word buttons.
+                var ribbon = new WrapPanel { Orientation = Orientation.Horizontal }; ribbon.Classes.Add("ribbon");
+                blockRibbons.Add(id, ribbon); group.Children.Add(ribbon);
                 var actions = new WrapPanel { Orientation = Orientation.Horizontal };
                 actions.Children.Add(Action("Split at cursor", $"Split paragraph {ordinal} at cursor", () => CommitStructuralAsync(new SplitBlock(id, input.CaretIndex, Guid.NewGuid()))));
                 actions.Children.Add(Action("Merge with next", $"Merge paragraph {ordinal} with next", () => CommitStructuralAsync(new MergeWithNext(id)), enabled: index + 1 < snapshot.Blocks.Length));
                 actions.Children.Add(Action("Insert paragraph after", $"Insert paragraph after {ordinal}", () => CommitStructuralAsync(new InsertBlock(id, Guid.NewGuid(), SpeakerChoice(id), ""))));
                 actions.Children.Add(Action("Delete paragraph", $"Delete paragraph {ordinal}", () => CommitStructuralAsync(new DeleteBlock(id))));
                 group.Children.Add(actions);
-                var card = new Border { Child = group }; card.Classes.Add("card"); documentHost.Children.Add(card);
+                var card = new Border { Child = group }; card.Classes.Add("card"); blockCards.Add(id, card); documentHost.Children.Add(card);
             }
             if (snapshot.Blocks.Length == 0) documentHost.Children.Add(Label("Every paragraph was deleted. Undo restores them, or add a new paragraph below."));
             documentHost.Children.Add(Action("Add paragraph at end", "Add paragraph at end",
                 () => CommitStructuralAsync(new InsertBlock(snapshot.Blocks.Length == 0 ? null : snapshot.Blocks[^1].Id, Guid.NewGuid(), snapshot.Speakers[0].Id, "")),
                 enabled: snapshot.Speakers.Length > 0 && snapshot.Blocks.Length < DocumentRules.MaxBlocks));
         }
-        rendering = false; RenderHistory(); RenderTranscribe(); UpdateControls();
+        rendering = false; RenderHistory(); RenderTranscribe(); RefreshPlaybackHighlight(force: true); UpdateControls();
     }
     private static TextBlock Label(string text) => new() { Text = text, TextWrapping = TextWrapping.Wrap };
     private string NewSpeakerName()
@@ -358,6 +368,7 @@ public sealed partial class MainWindow : Window
     private void RecomputeDraft()
     {
         if (rendering || snapshot is null || lifetime.IsCancellationRequested) return;
+        SuspendFollow();
         dirty = (titleInput is not null && titleInput.Text != snapshot.Title) ||
                 speakerInputs.Any(p => p.Value.Text != snapshot.Speakers.Single(s => s.Id == p.Key).Name) ||
                 blockInputs.Any(p => p.Value.Text != snapshot.Blocks.Single(b => b.Id == p.Key).Text) ||
