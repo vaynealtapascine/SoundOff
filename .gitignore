@@ -1,0 +1,8 @@
+**/bin/
+**/obj/
+artifacts/
+TestResults/
+.vs/
+*.user
+*.soundoff.sqlite*
+**/__pycache__/

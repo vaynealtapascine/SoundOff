@@ -2,7 +2,6 @@
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <TargetFramework>net8.0</TargetFramework>
-    <ApplicationIcon />
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
@@ -13,13 +12,16 @@
     <PackageReference Include="Avalonia" Version="11.3.20" />
     <PackageReference Include="Avalonia.Desktop" Version="11.3.20" />
     <PackageReference Include="Avalonia.Themes.Fluent" Version="11.3.20" />
-  </ItemGroup>
-  <ItemGroup>
     <ProjectReference Include="..\SoundOff.Core\SoundOff.Core.csproj" />
     <ProjectReference Include="..\SoundOff.Protocol\SoundOff.Protocol.csproj" />
+    <ProjectReference Include="..\SoundOff.Worker\SoundOff.Worker.csproj" ReferenceOutputAssembly="false" />
   </ItemGroup>
-  <ItemGroup>
-    <AvaloniaResource Include="App.axaml" />
-    <AvaloniaResource Include="MainWindow.axaml" />
-  </ItemGroup>
+  <Target Name="CopyFixtureWorker" AfterTargets="Build">
+    <ItemGroup><WorkerFiles Include="$(MSBuildProjectDirectory)/../SoundOff.Worker/bin/$(Configuration)/net8.0/**/*" /></ItemGroup>
+    <Copy SourceFiles="@(WorkerFiles)" DestinationFiles="@(WorkerFiles->'$(OutDir)worker/%(RecursiveDir)%(Filename)%(Extension)')" />
+  </Target>
+  <Target Name="PublishFixtureWorker" AfterTargets="Publish">
+    <ItemGroup><PublishWorkerFiles Include="$(OutDir)worker/**/*" /></ItemGroup>
+    <Copy SourceFiles="@(PublishWorkerFiles)" DestinationFiles="@(PublishWorkerFiles->'$(PublishDir)worker/%(RecursiveDir)%(Filename)%(Extension)')" />
+  </Target>
 </Project>

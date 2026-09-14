@@ -1,0 +1,16 @@
+<Application xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="SoundOff.Desktop.App" RequestedThemeVariant="Default">
+  <Application.Styles>
+    <FluentTheme />
+    <!-- Real designer entry points: spacing, readable width, typography, panel width. -->
+    <Style Selector="Button"><Setter Property="MinHeight" Value="36" /><Setter Property="Padding" Value="14,8" /></Style>
+    <Style Selector="TextBlock.heading"><Setter Property="FontSize" Value="28" /><Setter Property="FontWeight" Value="SemiBold" /></Style>
+    <Style Selector="TextBox.transcript"><Setter Property="FontSize" Value="18" /><Setter Property="Padding" Value="14" /><Setter Property="MinHeight" Value="120" /></Style>
+    <Style Selector="Border.card"><Setter Property="CornerRadius" Value="10" /><Setter Property="Padding" Value="20" /><Setter Property="BorderThickness" Value="1" /><Setter Property="BorderBrush" Value="{DynamicResource SystemControlForegroundBaseMediumLowBrush}" /></Style>
+    <!-- Include template parts: disabling only the outer Button misses Fluent transitions. -->
+    <Style Selector="Window.reducedMotion :is(Control), Window.reducedMotion :is(TemplatedControl) /template/ :is(Control)">
+      <Setter Property="Transitions" Value="{x:Null}" />
+    </Style>
+  </Application.Styles>
+</Application>

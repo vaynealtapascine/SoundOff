@@ -1,20 +1,20 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <TargetFramework>net8.0</TargetFramework>
-    <IsPackable>false</IsPackable>
-    <IsTestProject>true</IsTestProject>
-    <ImplicitUsings>enable</ImplicitUsings>
-    <Nullable>enable</Nullable>
-    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <OutputType>Exe</OutputType><GenerateProgramFile>false</GenerateProgramFile>
+    <TargetFramework>net8.0</TargetFramework><IsPackable>false</IsPackable><IsTestProject>true</IsTestProject>
+    <ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable><TreatWarningsAsErrors>true</TreatWarningsAsErrors>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
     <PackageReference Include="xunit" Version="2.9.2" />
     <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2" />
-  </ItemGroup>
-  <ItemGroup>
+    <PackageReference Include="Avalonia.Headless.XUnit" Version="11.3.20" />
     <ProjectReference Include="..\..\src\SoundOff.Core\SoundOff.Core.csproj" />
     <ProjectReference Include="..\..\src\SoundOff.Protocol\SoundOff.Protocol.csproj" />
-    <ProjectReference Include="..\..\src\SoundOff.Worker\SoundOff.Worker.csproj" />
+    <ProjectReference Include="..\..\src\SoundOff.Desktop\SoundOff.Desktop.csproj" />
   </ItemGroup>
+  <Target Name="CopyFixtureWorker" AfterTargets="Build">
+    <ItemGroup><WorkerFiles Include="$(MSBuildProjectDirectory)/../../src/SoundOff.Worker/bin/$(Configuration)/net8.0/**/*" /></ItemGroup>
+    <Copy SourceFiles="@(WorkerFiles)" DestinationFiles="@(WorkerFiles->'$(OutDir)worker/%(RecursiveDir)%(Filename)%(Extension)')" />
+  </Target>
 </Project>
