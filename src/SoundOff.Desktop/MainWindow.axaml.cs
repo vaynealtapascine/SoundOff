@@ -39,8 +39,10 @@ public sealed partial class MainWindow : Window
     private (int Paragraph, int Offset, int Length)? lastFind;
 
     public MainWindow() : this(null, new SettingsStore(SettingsStore.DefaultPath)) { }
-    public MainWindow(IProjectPicker? picker, SettingsStore settings)
+    // initialProject: a project path given on the command line, opened once the window is shown; failures are shown, never fatal.
+    public MainWindow(IProjectPicker? picker, SettingsStore settings, string? initialProject = null)
     {
+        if (initialProject is not null) Opened += async (_, _) => await GuardAsync(() => OpenPathAsync(initialProject, confirmed: true));
         AvaloniaXamlLoader.Load(this);
         this.picker = picker ?? new LocalProjectPicker(this);
         this.settings = settings;

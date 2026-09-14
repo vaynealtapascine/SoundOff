@@ -112,6 +112,28 @@ public sealed class UiTests
         using var store = ProjectStore.Open(folder.Project); Assert.Equal(13, store.Read().Revision); Assert.Single(store.Read().Blocks);
     }
 
+    [AvaloniaFact] public async Task Command_line_project_path_is_opened_after_the_window_shows_and_a_missing_one_is_reported()
+    {
+        using var folder = new TestDirectory();
+        using (var store = ProjectStore.Create(folder.Project, SyntheticFixture.Create(Guid.NewGuid(), 0))) { }
+        var window = new MainWindow(new Picker(folder.Project, Path.Combine(folder.Root, "t.txt")), folder.Settings, folder.Project); window.Show();
+        try
+        {
+            await Idle(window); Assert.Contains("Saved · revision 0", Status(window)); Assert.Equal(3, Blocks(window).Length);
+            Assert.Equal(folder.Project, window.FindControl<TextBlock>("PathText")!.Text);
+        }
+        finally { window.Close(); }
+        var missing = Path.Combine(folder.Root, "missing.soundoff.sqlite");
+        window = new MainWindow(new Picker(folder.Project, Path.Combine(folder.Root, "t.txt")), folder.Settings, missing); window.Show();
+        try
+        {
+            await Idle(window); Assert.Contains("Operation failed. Project does not exist.", Status(window));
+            Assert.Contains(window.GetVisualDescendants().OfType<TextBlock>(), t => t.Text == "No transcript loaded");
+            Assert.False(File.Exists(missing)); Assert.False(File.Exists(missing + ".writer.lock"));
+        }
+        finally { window.Close(); }
+    }
+
     [AvaloniaFact] public async Task Project_title_is_edited_as_part_of_the_draft_and_exported()
     {
         using var folder = new TestDirectory(); var export = Path.Combine(folder.Root, "title.txt");
