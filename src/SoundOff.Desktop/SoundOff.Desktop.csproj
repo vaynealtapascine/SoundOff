@@ -12,6 +12,8 @@
     <PackageReference Include="Avalonia" Version="11.3.20" />
     <PackageReference Include="Avalonia.Desktop" Version="11.3.20" />
     <PackageReference Include="Avalonia.Themes.Fluent" Version="11.3.20" />
+    <PackageReference Include="NAudio.Core" Version="2.4.0" />
+    <PackageReference Include="NAudio.WinMM" Version="2.4.0" />
     <ProjectReference Include="..\SoundOff.Core\SoundOff.Core.csproj" />
     <ProjectReference Include="..\SoundOff.Protocol\SoundOff.Protocol.csproj" />
     <ProjectReference Include="..\SoundOff.Worker\SoundOff.Worker.csproj" ReferenceOutputAssembly="false" />

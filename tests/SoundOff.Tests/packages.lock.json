@@ -215,6 +215,19 @@
           "Newtonsoft.Json": "13.0.3"
         }
       },
+      "NAudio.Core": {
+        "type": "Transitive",
+        "resolved": "2.4.0",
+        "contentHash": "VDXi1Wp1CUFgMxYyyajaG8sM9c9v5Mf2AdJkYUnksqwENSqVlrXsPe9l/mG55pNIv9eMYXGHiIxVuhS7+a3BQg=="
+      },
+      "NAudio.WinMM": {
+        "type": "Transitive",
+        "resolved": "2.4.0",
+        "contentHash": "mipx4Wx/C2c/ajptYaInJyakSq+33TjfQWSjFuOoq7JnU2E7nIkZj6pf9Qx4AwExPQ094Gn9R/jt52agiETkwQ==",
+        "dependencies": {
+          "NAudio.Core": "2.4.0"
+        }
+      },
       "Newtonsoft.Json": {
         "type": "Transitive",
         "resolved": "13.0.3",
@@ -365,6 +378,8 @@
           "Avalonia": "[11.3.20, )",
           "Avalonia.Desktop": "[11.3.20, )",
           "Avalonia.Themes.Fluent": "[11.3.20, )",
+          "NAudio.Core": "[2.4.0, )",
+          "NAudio.WinMM": "[2.4.0, )",
           "SoundOff.Core": "[1.0.0, )",
           "SoundOff.Protocol": "[1.0.0, )"
         }

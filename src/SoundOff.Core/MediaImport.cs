@@ -29,6 +29,47 @@ public static class MediaTools
         return tool;
     }
 
+    // A regenerable playback proxy: 16-bit PCM mono at 22.05 kHz, the same decoder the transcription worker uses, so the
+    // proxy's time base matches the source exactly. Resampling changes sample rate, never duration, so stored timing stays valid.
+    public const int ProxySampleRate = 22050;
+    public static async Task DecodeToPcmAsync(string sourcePath, string destinationPath, CancellationToken cancellationToken)
+    {
+        var staging = destinationPath + "." + Guid.NewGuid().ToString("N")[..8] + ".tmp";
+        var info = new ProcessStartInfo(Ffmpeg) { UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true, RedirectStandardError = true };
+        // -f wav is explicit because the staging name ends in .tmp and ffmpeg would otherwise infer the format from it.
+        foreach (var arg in new[] { "-nostdin", "-v", "error", "-i", Path.GetFullPath(sourcePath), "-vn", "-ac", "1", "-ar", ProxySampleRate.ToString(), "-c:a", "pcm_s16le", "-f", "wav", "-y", staging })
+            info.ArgumentList.Add(arg);
+        using var process = new Process { StartInfo = info };
+        try
+        {
+            try { if (!process.Start()) throw new IOException("ffmpeg could not be started."); }
+            catch (System.ComponentModel.Win32Exception e) { throw new IOException("ffmpeg is not available. Install FFmpeg or set SOUNDOFF_FFMPEG_DIR.", e); }
+            var error = process.StandardError.ReadToEndAsync(cancellationToken);
+            await process.WaitForExitAsync(cancellationToken);
+            if (process.ExitCode != 0) throw new InvalidDataException("The recording could not be decoded for playback: " + Truncate((await error).Trim(), 300));
+            File.Move(staging, destinationPath, overwrite: true);
+        }
+        catch
+        {
+            try { if (!process.HasExited) process.Kill(entireProcessTree: true); } catch (InvalidOperationException) { }
+            throw;
+        }
+        finally { if (File.Exists(staging)) File.Delete(staging); }
+    }
+
+    // Test helper: produces a compressed file so the proxy path can be exercised against a real encoder.
+    internal static async Task DecodeToMp3ForTestAsync(string sourcePath, string destinationPath)
+    {
+        var info = new ProcessStartInfo(Ffmpeg) { UseShellExecute = false, CreateNoWindow = true, RedirectStandardError = true };
+        foreach (var arg in new[] { "-nostdin", "-v", "error", "-i", Path.GetFullPath(sourcePath), "-c:a", "libmp3lame", "-y", Path.GetFullPath(destinationPath) })
+            info.ArgumentList.Add(arg);
+        using var process = new Process { StartInfo = info };
+        process.Start();
+        var error = await process.StandardError.ReadToEndAsync();
+        await process.WaitForExitAsync();
+        if (process.ExitCode != 0) throw new InvalidDataException("ffmpeg could not produce the test mp3: " + error);
+    }
+
     public static async Task<MediaProbe> ProbeAsync(string path, CancellationToken cancellationToken)
     {
         var info = new ProcessStartInfo(Ffprobe) { UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true, RedirectStandardError = true };
