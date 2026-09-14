@@ -23,6 +23,25 @@ PROJECTS.append(ROOT / "tests" / "SoundOff.Tests")
 ARTIFACTS = ROOT / "artifacts" / "verification"
 
 
+def read_test_counters(path: Path) -> dict[str, str]:
+    if not path.is_file():
+        raise RuntimeError("Test command did not produce a fresh TRX report")
+    tree = ET.parse(path)
+    namespace = "{http://microsoft.com/schemas/VisualStudio/TeamTest/2010}"
+    summary = tree.find(f"{namespace}ResultSummary")
+    counters = tree.find(f".//{namespace}Counters")
+    results = tree.findall(f".//{namespace}UnitTestResult")
+    if summary is None or summary.get("outcome") != "Completed" or counters is None:
+        raise RuntimeError("TRX omitted completed run summary/counters")
+    counts = counters.attrib
+    total = int(counts["total"])
+    if (total < 1 or int(counts["passed"]) != total or int(counts["executed"]) != total
+            or len(results) != total or any(result.get("outcome") != "Passed" for result in results)
+            or any(int(counts.get(key, "0")) != 0 for key in ("failed", "error", "timeout", "aborted", "notExecuted"))):
+        raise RuntimeError("Not every discovered test passed; TRX counters/results must agree")
+    return counts
+
+
 def native_window_smoke(environment: dict[str, str]) -> dict:
     """Observe and close only the freshly started, empty native Windows window."""
     if os.name != "nt":
@@ -89,6 +108,7 @@ def main() -> int:
             report["cleaned"] = "Only the five solution projects' bin/obj directories"
         commands = [
             ("environment", ["dotnet", "--info"]),
+            ("verifier-tests", [sys.executable, "-m", "unittest", "discover", "-s", "scripts", "-p", "test_verify.py", "-v"]),
             ("restore", ["dotnet", "restore", "SoundOff.sln", "--force", "--no-cache", "--locked-mode"]),
             ("build", ["dotnet", "build", "SoundOff.sln", "-c", "Release", "--no-restore", "-t:Rebuild"]),
             ("tests", ["dotnet", "test", "SoundOff.sln", "-c", "Release", "--no-build", "--no-restore",
@@ -97,6 +117,9 @@ def main() -> int:
             ("desktop", ["dotnet", "src/SoundOff.Desktop/bin/Release/net8.0/SoundOff.Desktop.dll", "--self-test", "--output", "artifacts/self-test"]),
         ]
         for label, command in commands:
+            if label == "tests":
+                # A zero-exit launcher that discovers nothing must not reuse a previous passing run.
+                (ROOT / "artifacts/test-results/SoundOff.Tests.trx").unlink(missing_ok=True)
             result = subprocess.run(command, cwd=ROOT, env=environment, stdout=subprocess.PIPE,
                                     stderr=subprocess.STDOUT, text=True, encoding="utf-8", errors="replace", timeout=180)
             log = ARTIFACTS / f"{label}.log"
@@ -105,18 +128,14 @@ def main() -> int:
             print(f"[{label}] exit={result.returncode}\n{result.stdout}", flush=True)
             if result.returncode != 0:
                 raise RuntimeError(f"{label} failed; see {log}")
+            if label == "tests":
+                report["testCounters"] = read_test_counters(ROOT / "artifacts/test-results/SoundOff.Tests.trx")
             if label in ("worker", "desktop"):
                 details = json.loads(result.stdout)
                 if details["status"] != "passed" or (label == "worker" and details["inference"] is not False):
                     raise RuntimeError(f"Invalid {label} self-test result")
                 report[label] = details
-        tree = ET.parse(ROOT / "artifacts/test-results/SoundOff.Tests.trx")
-        counters = tree.find(".//{http://microsoft.com/schemas/VisualStudio/TeamTest/2010}Counters")
-        if counters is None:
-            raise RuntimeError("TRX omitted counters")
-        report["testCounters"] = counters.attrib
-        if int(counters.attrib["total"]) < 1 or counters.attrib["passed"] != counters.attrib["total"]:
-            raise RuntimeError("Not every discovered test passed")
+
         if args.desktop_smoke:
             report["nativeDesktopSmoke"] = native_window_smoke(environment)
         report["status"] = "passed"
