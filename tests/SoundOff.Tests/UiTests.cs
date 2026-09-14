@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
@@ -31,6 +32,41 @@ public sealed class UiTests
         public Task<string?> ExportTextAsync(bool isDraft) => Task.FromResult<string?>(export);
         public Task<string?> ExportBundleAsync() => Task.FromResult(Bundle);
         public Task<string?> ImportBundleAsync() => Task.FromResult(Bundle);
+        public string? Subtitles { get; set; }
+        public Task<string?> ExportSubtitlesAsync() => Task.FromResult(Subtitles);
+    }
+
+    [AvaloniaFact] public async Task Srt_export_is_disabled_with_a_reason_for_untimed_projects_and_writes_combined_cues_for_timed_ones()
+    {
+        using var folder = new TestDirectory(); var timedProject = Path.Combine(folder.Root, "Timed.soundoff.sqlite");
+        var fixture = SyntheticFixture.Create(Guid.NewGuid(), 0);
+        long[][] timings = [[1_000_000, 3_500_000], [3_000_000, 5_000_000], [6_000_000, 7_000_000]];
+        using (var store = ProjectStore.Create(timedProject, fixture with { Blocks = fixture.Blocks.Select((b, i) => b with { Timing = new TimeRange(timings[i][0], timings[i][1]) }).ToImmutableArray() })) { }
+        var picker = new Picker(folder.Project, Path.Combine(folder.Root, "t.txt")) { Subtitles = Path.Combine(folder.Root, "Timed.srt") };
+        var window = new MainWindow(picker, folder.Settings); window.Show();
+        try
+        {
+            Assert.False(Button(window, "SrtButton").IsEnabled);
+            Click(window, "DemoButton"); await Idle(window);
+            Assert.False(Button(window, "SrtButton").IsEnabled); Assert.Contains("Every paragraph needs timing", (string)ToolTip.GetTip(Button(window, "SrtButton"))!);
+        }
+        finally { window.Close(); }
+        window = new MainWindow(new Picker(timedProject, Path.Combine(folder.Root, "t.txt")) { Subtitles = picker.Subtitles }, folder.Settings); window.Show();
+        try
+        {
+            Click(window, "OpenButton"); await Idle(window);
+            Assert.True(Button(window, "SrtButton").IsEnabled);
+            Click(window, "SrtButton"); await Idle(window);
+            Assert.Contains("Exported 2 SRT cue(s) from saved revision 0; 1 overlap(s) combined", Status(window)); Assert.Contains("synthetic, not measured", Status(window));
+            var srt = File.ReadAllText(picker.Subtitles!);
+            Assert.StartsWith("1\n00:00:01,000 --> 00:00:05,000\nDemo speaker A: ", srt); Assert.Contains("\n2\n00:00:06,000 --> 00:00:07,000\n", srt);
+            Blocks(window)[0].Text = "edited draft"; Click(window, "SrtButton"); await Idle(window);
+            Assert.Contains("The unsaved draft is not included", Status(window)); Click(window, "DiscardButton");
+            window.GetVisualDescendants().OfType<TextBox>().First(t => t.Classes.Contains("transcript")).Text = "now untimed";
+            Click(window, "SaveButton"); await Idle(window);
+            Assert.False(Button(window, "SrtButton").IsEnabled); // the edited paragraph lost its timing
+        }
+        finally { Click(window, "DiscardButton"); window.Close(); }
     }
 
     [AvaloniaFact] public async Task Bundles_export_only_the_saved_revision_and_import_into_a_new_project()

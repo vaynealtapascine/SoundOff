@@ -11,6 +11,7 @@ public interface IProjectPicker
     Task<string?> ExportTextAsync(bool isDraft);
     Task<string?> ExportBundleAsync() => Task.FromResult<string?>(null);
     Task<string?> ImportBundleAsync() => Task.FromResult<string?>(null);
+    Task<string?> ExportSubtitlesAsync() => Task.FromResult<string?>(null);
 }
 public sealed class LocalProjectPicker(Window owner) : IProjectPicker
 {
@@ -34,6 +35,12 @@ public sealed class LocalProjectPicker(Window owner) : IProjectPicker
         Title = isDraft ? "Export UNSAVED DRAFT as UTF-8 text" : "Export saved revision as UTF-8 text",
         SuggestedFileName = "Synthetic demo.txt", DefaultExtension = "txt", ShowOverwritePrompt = true,
         FileTypeChoices = [new FilePickerFileType("Unicode plain text") { Patterns = ["*.txt"] }]
+    }));
+    public async Task<string?> ExportSubtitlesAsync() => PathOf(await owner.StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
+    {
+        Title = "Export saved revision as SRT subtitles (synthetic timing)",
+        SuggestedFileName = "Synthetic demo.srt", DefaultExtension = "srt", ShowOverwritePrompt = true,
+        FileTypeChoices = [new FilePickerFileType("SubRip subtitles") { Patterns = ["*.srt"] }]
     }));
     public async Task<string?> ExportBundleAsync() => PathOf(await owner.StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
     {

@@ -24,7 +24,7 @@ public sealed partial class MainWindow : Window
     private readonly StackPanel documentHost, speakerHost;
     private readonly TextBlock status, path;
     private TextBox? titleInput;
-    private readonly Button demo, open, save, undo, redo, discard, export, copy, exportBundle, importBundle;
+    private readonly Button demo, open, save, undo, redo, discard, export, copy, exportBundle, importBundle, srt;
 
     public MainWindow() : this(null, new SettingsStore(SettingsStore.DefaultPath)) { }
     // initialProject: a project path given on the command line, opened once the window is shown; failures are shown, never fatal.
@@ -43,6 +43,7 @@ public sealed partial class MainWindow : Window
         discard = this.FindControl<Button>("DiscardButton")!; export = this.FindControl<Button>("ExportButton")!;
         copy = this.FindControl<Button>("CopyButton")!;
         exportBundle = this.FindControl<Button>("ExportBundleButton")!; importBundle = this.FindControl<Button>("ImportBundleButton")!;
+        srt = this.FindControl<Button>("SrtButton")!; srt.Click += async (_, _) => await GuardAsync(ExportSrtAsync);
         exportBundle.Click += async (_, _) => await GuardAsync(ExportBundleAsync);
         importBundle.Click += async (_, _) => await GuardAsync(ImportBundleAsync);
         demo.Click += async (_, _) => await GuardAsync(LoadDemoAsync);
@@ -161,6 +162,23 @@ public sealed partial class MainWindow : Window
         if (!local.EndsWith(ProjectBundle.Extension, StringComparison.OrdinalIgnoreCase))
             throw new IOException($"Bundle filenames must end in {ProjectBundle.Extension}, never a project, text or media extension.");
     }
+    // SRT comes from the SAVED revision: editing text clears its timing, so a draft could never be timed anyway.
+    private async Task ExportSrtAsync()
+    {
+        var wasDirty = dirty; var revision = snapshot!.Revision;
+        var result = SubtitleExport.RenderSrt(snapshot, new SubtitleOptions(Overlap: OverlapPolicy.Combine));
+        var local = await picker.ExportSubtitlesAsync();
+        if (local is null) return;
+        lifetime.Token.ThrowIfCancellationRequested();
+        if (!local.EndsWith(".srt", StringComparison.OrdinalIgnoreCase))
+            throw new IOException("Subtitle exports must use .srt, never a project, text or media filename.");
+        TextExport.WriteAtomic(local, result.Srt, overwrite: true);
+        status.Text = $"Exported {result.CueCount} SRT cue(s) from saved revision {revision}"
+            + (result.CombinedOverlaps > 0 ? $"; {result.CombinedOverlaps} overlap(s) combined into shared cues" : "")
+            + (result.SkippedEmpty > 0 ? $"; {result.SkippedEmpty} empty paragraph(s) skipped" : "")
+            + ". Timing is synthetic, not measured." + (wasDirty ? " The unsaved draft is not included." : "");
+    }
+
     // The bundle holds the SAVED revision only; a draft is deliberately never bundled.
     private async Task ExportBundleAsync()
     {
@@ -326,6 +344,10 @@ public sealed partial class MainWindow : Window
         redo.IsEnabled = !busy && !dirty && store?.CanRedo == true;
         export.IsEnabled = copy.IsEnabled = !busy && snapshot is not null && snapshot.Provenance != Provenance.Empty;
         exportBundle.IsEnabled = !busy && store is not null; importBundle.IsEnabled = !busy;
+        var timed = snapshot is not null && snapshot.Blocks.Length != 0 && snapshot.Blocks.All(b => b.Timing is not null);
+        srt.IsEnabled = !busy && timed;
+        ToolTip.SetTip(srt, timed ? "One cue per timed paragraph of the saved revision; overlaps are combined into shared cues."
+            : "Every paragraph needs timing. The synthetic fixture has none, and this build measures no timing.");
         findNext.IsEnabled = replaceOne.IsEnabled = replaceAll.IsEnabled = !busy && snapshot is not null && snapshot.Blocks.Length != 0;
         documentHost.IsEnabled = speakerHost.IsEnabled = recentHost.IsEnabled = historyHost.IsEnabled = !busy;
     }
