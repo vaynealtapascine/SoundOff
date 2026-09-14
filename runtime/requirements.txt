@@ -1,0 +1,7 @@
+# Pinned WhisperX desktop worker stack. Installed by scripts/setup_runtime.py into a private venv under
+# %LOCALAPPDATA%\SoundOff\runtime. Windows wheels of torch 2.8 on PyPI are CPU builds; pass --gpu to the
+# setup script to swap in the CUDA 12.6 build from download.pytorch.org (about 3 GB more disk).
+whisperx==3.8.6
+torch==2.8.0
+torchaudio==2.8.0
+torchvision==0.23.0
