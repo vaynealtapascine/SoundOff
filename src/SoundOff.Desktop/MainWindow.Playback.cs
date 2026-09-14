@@ -48,7 +48,7 @@ public sealed partial class MainWindow
         volumeSlider.ValueChanged += (_, e) => playback.Volume = e.NewValue;
         playback.Changed += (_, _) => Dispatcher.UIThread.Post(() => RefreshPlaybackHighlight(force: true));
         // One timer reads the engine clock; the engine remains the single source of position.
-        clockTimer = new DispatcherTimer(TimeSpan.FromMilliseconds(100), DispatcherPriority.Background, (_, _) => RefreshPlaybackHighlight(force: false));
+        clockTimer = new DispatcherTimer(TimeSpan.FromMilliseconds(100), DispatcherPriority.Background, (_, _) => { RefreshPlaybackHighlight(force: false); RefreshRecording(); });
         clockTimer.Start();
     }
 

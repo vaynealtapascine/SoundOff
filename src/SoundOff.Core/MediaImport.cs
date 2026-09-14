@@ -150,5 +150,32 @@ public static class MediaImport
         finally { if (File.Exists(staging)) File.Delete(staging); }
     }
 
+    // Takes ownership of a file the app itself just wrote inside the project (a finished recording). It is probed and
+    // hashed in place and then renamed, so a long take is never stored twice just to satisfy the import contract.
+    public static async Task<MediaAsset> AdoptAsync(ProjectStore store, string ownedPath, string originalName, CancellationToken cancellationToken)
+    {
+        ownedPath = Path.GetFullPath(ownedPath);
+        var mediaDir = Path.Combine(store.MediaDirectory, "media");
+        if (!ownedPath.StartsWith(Path.GetFullPath(store.MediaDirectory), StringComparison.OrdinalIgnoreCase))
+            throw new InvalidDataException("Only a file already inside this project's media directory can be adopted.");
+        var source = new FileInfo(ownedPath);
+        if (!source.Exists || source.Length == 0) throw new InvalidDataException("The recording is missing or empty.");
+        var probe = await MediaTools.ProbeAsync(ownedPath, cancellationToken);
+        Directory.CreateDirectory(mediaDir);
+        string sha;
+        using (var stream = new FileStream(ownedPath, FileMode.Open, FileAccess.Read, FileShare.Read))
+            sha = Convert.ToHexString(await SHA256.HashDataAsync(stream, cancellationToken)).ToLowerInvariant();
+        var extension = Path.GetExtension(ownedPath).ToLowerInvariant();
+        if (extension.Length > 8 || extension.Any(c => !char.IsAsciiLetterOrDigit(c) && c != '.')) extension = ".media";
+        var relative = Path.Combine("media", sha[..16] + extension);
+        var destination = Path.Combine(store.MediaDirectory, relative);
+        if (File.Exists(destination)) File.Delete(ownedPath);   // identical bytes already owned
+        else File.Move(ownedPath, destination);
+        var asset = new MediaAsset(Guid.NewGuid().ToString("N"), originalName, relative, sha, source.Length,
+            InferenceImportMicro(probe.DurationSeconds), JsonSerializer.Serialize(probe, DocumentJson.Options), DateTime.UtcNow.ToString("yyyy-MM-dd'T'HH:mm:ss'Z'"));
+        store.AddMediaAsset(asset);
+        return asset;
+    }
+
     private static long InferenceImportMicro(double seconds) => (long)Math.Round(seconds * 1_000_000.0);
 }

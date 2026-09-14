@@ -32,7 +32,7 @@ public sealed partial class MainWindow : Window
     public MainWindow() : this(null, new SettingsStore(SettingsStore.DefaultPath)) { }
     // initialProject: a project path given on the command line, opened once the window is shown; failures are shown, never fatal.
     // inference: the worker client (tests inject a protocol-speaking stand-in and a temporary runtime location).
-    public MainWindow(IProjectPicker? picker, SettingsStore settings, string? initialProject = null, InferenceWorkerClient? inference = null, IPlaybackEngine? playbackEngine = null)
+    public MainWindow(IProjectPicker? picker, SettingsStore settings, string? initialProject = null, InferenceWorkerClient? inference = null, IPlaybackEngine? playbackEngine = null, ICaptureEngine? captureEngine = null)
     {
         if (initialProject is not null) Opened += async (_, _) => await GuardAsync(() => OpenPathAsync(initialProject, confirmed: true));
         AvaloniaXamlLoader.Load(this);
@@ -40,6 +40,7 @@ public sealed partial class MainWindow : Window
         this.settings = settings;
         InitializeTranscribe(inference);
         InitializePlayback(playbackEngine);
+        InitializeRecording(captureEngine);
         documentHost = this.FindControl<StackPanel>("DocumentHost")!;
         speakerHost = this.FindControl<StackPanel>("SpeakerHost")!;
         status = this.FindControl<TextBlock>("StatusText")!; path = this.FindControl<TextBlock>("PathText")!;
@@ -77,16 +78,24 @@ public sealed partial class MainWindow : Window
         ApplyAppearance(persist: false);
         Closing += async (_, e) =>
         {
-            if ((!dirty && !JobRunning) || allowClose) return;
+            if ((!dirty && !JobRunning && !Recording) || allowClose) return;
             e.Cancel = true;
             if (confirmingClose) return;
             confirmingClose = true;
-            var proceed = await StopJobForCloseAsync() && (!dirty ||
+            var proceed = await StopRecordingForCloseAsync() && await StopJobForCloseAsync() && (!dirty ||
                 await ConfirmAsync("Discard unsaved draft?", "Your saved revision remains on disk. Choose Cancel to keep editing or save/export the draft.", "Discard and close"));
             if (proceed) { allowClose = true; Close(); }
             confirmingClose = false;
         };
-        Closed += (_, _) => { lifetime.Cancel(); DisposePlayback(); store?.Dispose(); };
+        // The project's writer lock must be released even if an adapter's shutdown throws; otherwise the project
+        // could not be reopened until the process exits.
+        Closed += (_, _) =>
+        {
+            try { lifetime.Cancel(); } catch (Exception) { }
+            try { DisposePlayback(); } catch (Exception) { }
+            try { DisposeRecording(); } catch (Exception) { }
+            store?.Dispose(); store = null;
+        };
         // Tunnelling so the shortcuts work while a paragraph has focus; each one only triggers an enabled button's action.
         AddHandler(KeyDownEvent, OnShortcut, Avalonia.Interactivity.RoutingStrategies.Tunnel);
         Render(); RenderRecents();
@@ -393,7 +402,7 @@ public sealed partial class MainWindow : Window
             : "Every paragraph needs timing. The synthetic fixture has none, and this build measures no timing.");
         findNext.IsEnabled = replaceOne.IsEnabled = replaceAll.IsEnabled = !busy && snapshot is not null && snapshot.Blocks.Length != 0;
         documentHost.IsEnabled = speakerHost.IsEnabled = recentHost.IsEnabled = historyHost.IsEnabled = !busy;
-        UpdateTranscribeControls();
+        UpdateTranscribeControls(); RefreshRecording();
     }
 
     private async Task<bool> ConfirmAsync(string title, string message, string affirmative)

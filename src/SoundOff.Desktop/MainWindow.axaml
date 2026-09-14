@@ -61,6 +61,20 @@
               <Button x:Name="PreparePackButton" Content="Prepare model pack" Margin="0,0,8,8" />
             </WrapPanel>
             <TextBlock x:Name="MediaText" TextWrapping="Wrap" />
+            <TextBlock Text="Record" FontSize="16" FontWeight="SemiBold" />
+            <WrapPanel Orientation="Horizontal">
+              <ComboBox x:Name="CaptureModeChoice" SelectedIndex="0" MinWidth="150" Margin="0,0,8,8" AutomationProperties.Name="What to record">
+                <ComboBoxItem>Microphone</ComboBoxItem><ComboBoxItem>Whole computer</ComboBoxItem>
+              </ComboBox>
+              <ComboBox x:Name="CaptureDeviceChoice" MinWidth="180" Margin="0,0,8,8" AutomationProperties.Name="Recording device" />
+            </WrapPanel>
+            <WrapPanel Orientation="Horizontal">
+              <Button x:Name="RecordButton" Content="Record" Margin="0,0,8,8" />
+              <Button x:Name="PauseRecordButton" Content="Pause" Margin="0,0,8,8" />
+              <Button x:Name="StopRecordButton" Content="Stop" Margin="0,0,8,8" />
+            </WrapPanel>
+            <ProgressBar x:Name="LevelMeter" Minimum="0" Maximum="1" Height="6" AutomationProperties.Name="Input level" />
+            <TextBlock x:Name="RecordText" TextWrapping="Wrap" />
             <WrapPanel Orientation="Horizontal">
               <ComboBox x:Name="LanguageChoice" SelectedIndex="0" MinWidth="130" Margin="0,0,8,8" AutomationProperties.Name="Spoken language">
                 <ComboBoxItem>Detect language</ComboBoxItem><ComboBoxItem>English</ComboBoxItem><ComboBoxItem>Filipino</ComboBoxItem>
