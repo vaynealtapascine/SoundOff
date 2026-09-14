@@ -155,7 +155,13 @@ public sealed class ProjectStore : IDisposable
         return proposal;
     }, CommitKind.Edit);
 
-    public Transcript Apply(long expectedRevision, EditBatch edits) => Commit(expectedRevision, "manual-edit", previous => TranscriptEdits.Apply(previous, edits), CommitKind.Edit);
+    // The draft and any structural operations become ONE undoable revision, labelled by what it contained.
+    public Transcript Apply(long expectedRevision, EditBatch edits, params DocumentOperation[] operations)
+    {
+        var label = operations.Length == 0 ? "manual-edit"
+            : (edits.IsEmpty ? "" : "manual-edit+") + string.Join("+", operations.Select(o => o.Name).Distinct());
+        return Commit(expectedRevision, label, previous => TranscriptEdits.Apply(previous, edits, operations), CommitKind.Edit);
+    }
     public Transcript Undo(long expectedRevision) => Commit(expectedRevision, "undo", previous => previous, CommitKind.Undo);
     public Transcript Redo(long expectedRevision) => Commit(expectedRevision, "redo", previous => previous, CommitKind.Redo);
 

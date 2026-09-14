@@ -138,22 +138,48 @@ public static class DocumentJson
 public sealed class RevisionConflictException(long expected, long actual)
     : InvalidOperationException($"Revision conflict: expected {expected}, found {actual}. Your draft was not applied.");
 
-public sealed record EditBatch(IReadOnlyDictionary<Guid, string> SpeakerNames, IReadOnlyDictionary<Guid, string> BlockTexts);
+// A draft: renamed speakers, replaced paragraph texts and reassigned paragraph speakers, all keyed by stable ID.
+// Reassigning a speaker is a speaker correction, not a text change: timing and the manual-text flag are untouched.
+public sealed record EditBatch(IReadOnlyDictionary<Guid, string> SpeakerNames, IReadOnlyDictionary<Guid, string> BlockTexts,
+    IReadOnlyDictionary<Guid, Guid>? BlockSpeakers = null)
+{
+    public static EditBatch None { get; } = new(ImmutableDictionary<Guid, string>.Empty, ImmutableDictionary<Guid, string>.Empty);
+    public bool IsEmpty => SpeakerNames.Count == 0 && BlockTexts.Count == 0 && (BlockSpeakers?.Count ?? 0) == 0;
+    internal void RequireKnownTargets(Transcript source)
+    {
+        if (SpeakerNames.Keys.Any(id => !source.Speakers.Any(s => s.Id == id)) ||
+            BlockTexts.Keys.Any(id => !source.Blocks.Any(b => b.Id == id)) ||
+            BlockSpeakers is not null && (BlockSpeakers.Keys.Any(id => !source.Blocks.Any(b => b.Id == id)) ||
+                BlockSpeakers.Values.Any(id => !source.Speakers.Any(s => s.Id == id))))
+            throw new InvalidDataException("The edit targets a missing stable ID.");
+    }
+    internal Guid SpeakerOf(TranscriptBlock block) => BlockSpeakers is not null && BlockSpeakers.TryGetValue(block.Id, out var id) ? id : block.SpeakerId;
+}
 
 public static class TranscriptEdits
 {
     public static Transcript Apply(Transcript source, EditBatch edits)
     {
-        if (edits.SpeakerNames.Keys.Any(id => !source.Speakers.Any(s => s.Id == id)) ||
-            edits.BlockTexts.Keys.Any(id => !source.Blocks.Any(b => b.Id == id)))
-            throw new InvalidDataException("The edit targets a missing stable ID.");
+        edits.RequireKnownTargets(source);
         var result = source with
         {
             Speakers = source.Speakers.Select(s => edits.SpeakerNames.TryGetValue(s.Id, out var name) ? s with { Name = name } : s).ToImmutableArray(),
-            Blocks = source.Blocks.Select(b => edits.BlockTexts.TryGetValue(b.Id, out var text) && text != b.Text
-                ? b with { Text = text, Timing = null, ManuallyEdited = true } : b).ToImmutableArray()
+            Blocks = source.Blocks.Select(b =>
+            {
+                var block = b with { SpeakerId = edits.SpeakerOf(b) };
+                return edits.BlockTexts.TryGetValue(b.Id, out var text) && text != b.Text
+                    ? block with { Text = text, Timing = null, ManuallyEdited = true } : block;
+            }).ToImmutableArray()
         };
         DocumentRules.Validate(result);
+        return result;
+    }
+
+    // The draft is applied first, then each structural operation in order; every step is validated.
+    public static Transcript Apply(Transcript source, EditBatch edits, IReadOnlyList<DocumentOperation> operations)
+    {
+        var result = Apply(source, edits);
+        foreach (var operation in operations) result = operation.ApplyTo(result);
         return result;
     }
 }

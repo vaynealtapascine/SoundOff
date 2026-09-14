@@ -16,15 +16,13 @@ public static class TextExport
     public static string RenderDraft(Transcript snapshot, EditBatch draft)
     {
         DocumentRules.Validate(snapshot);
-        if (draft.SpeakerNames.Keys.Any(id => !snapshot.Speakers.Any(s => s.Id == id)) ||
-            draft.BlockTexts.Keys.Any(id => !snapshot.Blocks.Any(b => b.Id == id)))
-            throw new InvalidDataException("The draft targets a missing stable ID.");
+        draft.RequireKnownTargets(snapshot);
         foreach (var name in draft.SpeakerNames.Values) DocumentRules.Text(name, 100, true);
         foreach (var text in draft.BlockTexts.Values) DocumentRules.Text(text, DocumentRules.MaxBlockLength, true);
         var frozen = snapshot with
         {
             Speakers = snapshot.Speakers.Select(s => draft.SpeakerNames.TryGetValue(s.Id, out var name) ? s with { Name = name } : s).ToImmutableArray(),
-            Blocks = snapshot.Blocks.Select(b => draft.BlockTexts.TryGetValue(b.Id, out var text) ? b with { Text = text } : b).ToImmutableArray()
+            Blocks = snapshot.Blocks.Select(b => (draft.BlockTexts.TryGetValue(b.Id, out var text) ? b with { Text = text } : b) with { SpeakerId = draft.SpeakerOf(b) }).ToImmutableArray()
         };
         return RenderUnchecked(frozen, true);
     }
