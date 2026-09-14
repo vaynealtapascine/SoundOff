@@ -39,7 +39,7 @@ Launch the real Avalonia window:
 dotnet src/SoundOff.Desktop/bin/Release/net8.0/SoundOff.Desktop.dll
 ```
 
-Keep the generated `worker/` folder beside the desktop DLL. The desktop project builds and copies its worker automatically. Running just the desktop DLL without its dependencies/worker folder is not a supported deployment.
+A single `*.soundoff.sqlite` argument opens that project once the window is shown; a missing or unreadable project is reported in the status line rather than failing startup. Keep the generated `worker/` folder beside the desktop DLL. The desktop project builds and copies its worker automatically. Running just the desktop DLL without its dependencies/worker folder is not a supported deployment.
 
 ## Use the fixture editor
 
