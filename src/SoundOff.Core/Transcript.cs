@@ -141,17 +141,20 @@ public sealed class RevisionConflictException(long expected, long actual)
 
 // A draft: renamed speakers, replaced paragraph texts and reassigned paragraph speakers, all keyed by stable ID.
 // Reassigning a speaker is a speaker correction, not a text change: timing and the manual-text flag are untouched.
+// BlockTimings are explicit manual anchors (or null to clear); they apply after any text change, so a user who edits text
+// AND enters timing in the same draft keeps the timing they typed. Manually entered timing is still synthetic, never measured.
 public sealed record EditBatch(IReadOnlyDictionary<Guid, string> SpeakerNames, IReadOnlyDictionary<Guid, string> BlockTexts,
-    IReadOnlyDictionary<Guid, Guid>? BlockSpeakers = null, string? Title = null)
+    IReadOnlyDictionary<Guid, Guid>? BlockSpeakers = null, string? Title = null, IReadOnlyDictionary<Guid, TimeRange?>? BlockTimings = null)
 {
     public static EditBatch None { get; } = new(ImmutableDictionary<Guid, string>.Empty, ImmutableDictionary<Guid, string>.Empty);
-    public bool IsEmpty => SpeakerNames.Count == 0 && BlockTexts.Count == 0 && (BlockSpeakers?.Count ?? 0) == 0 && Title is null;
+    public bool IsEmpty => SpeakerNames.Count == 0 && BlockTexts.Count == 0 && (BlockSpeakers?.Count ?? 0) == 0 && Title is null && (BlockTimings?.Count ?? 0) == 0;
     internal void RequireKnownTargets(Transcript source)
     {
         if (SpeakerNames.Keys.Any(id => !source.Speakers.Any(s => s.Id == id)) ||
             BlockTexts.Keys.Any(id => !source.Blocks.Any(b => b.Id == id)) ||
             BlockSpeakers is not null && (BlockSpeakers.Keys.Any(id => !source.Blocks.Any(b => b.Id == id)) ||
-                BlockSpeakers.Values.Any(id => !source.Speakers.Any(s => s.Id == id))))
+                BlockSpeakers.Values.Any(id => !source.Speakers.Any(s => s.Id == id))) ||
+            BlockTimings is not null && BlockTimings.Keys.Any(id => !source.Blocks.Any(b => b.Id == id)))
             throw new InvalidDataException("The edit targets a missing stable ID.");
     }
     internal Guid SpeakerOf(TranscriptBlock block) => BlockSpeakers is not null && BlockSpeakers.TryGetValue(block.Id, out var id) ? id : block.SpeakerId;
@@ -169,8 +172,9 @@ public static class TranscriptEdits
             Blocks = source.Blocks.Select(b =>
             {
                 var block = b with { SpeakerId = edits.SpeakerOf(b) };
-                return edits.BlockTexts.TryGetValue(b.Id, out var text) && text != b.Text
-                    ? block with { Text = text, Timing = null, ManuallyEdited = true } : block;
+                if (edits.BlockTexts.TryGetValue(b.Id, out var text) && text != b.Text) block = block with { Text = text, Timing = null, ManuallyEdited = true };
+                if (edits.BlockTimings is not null && edits.BlockTimings.TryGetValue(b.Id, out var timing)) block = block with { Timing = timing };
+                return block;
             }).ToImmutableArray()
         };
         DocumentRules.Validate(result);
