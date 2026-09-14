@@ -39,6 +39,18 @@
             <StackPanel x:Name="SpeakerHost" Spacing="12" />
           </StackPanel></Border>
           <Border Classes="card"><StackPanel Spacing="10">
+            <TextBlock Text="Find in draft" FontSize="18" FontWeight="SemiBold" />
+            <TextBlock Text="Plain text, ignoring letter case. Replacements change only the unsaved draft until you save." TextWrapping="Wrap" />
+            <TextBox x:Name="FindInput" Watermark="Find text" AutomationProperties.Name="Find text" IsUndoEnabled="False" />
+            <TextBox x:Name="ReplaceInput" Watermark="Replace with" AutomationProperties.Name="Replace with" IsUndoEnabled="False" />
+            <WrapPanel Orientation="Horizontal">
+              <Button x:Name="FindNextButton" Content="Find next" Margin="0,0,8,8" />
+              <Button x:Name="ReplaceButton" Content="Replace selected" Margin="0,0,8,8" />
+              <Button x:Name="ReplaceAllButton" Content="Replace all" Margin="0,0,8,8" />
+            </WrapPanel>
+            <TextBlock x:Name="FindStatus" TextWrapping="Wrap" />
+          </StackPanel></Border>
+          <Border Classes="card"><StackPanel Spacing="10">
             <TextBlock Text="Scope &amp; privacy" FontSize="18" FontWeight="SemiBold" />
             <TextBlock Text="Demo content is authored and explicitly synthetic. No audio is accessed, no model is run, and the app has no network client." TextWrapping="Wrap" />
             <TextBlock Text="Deferred: audio/video import, recording, playback, WhisperX/model packs, measured timing, SRT, reprocessing, durable jobs, full-document editing, redo, portable bundles, tray, installers/packaging, and mobile." TextWrapping="Wrap" />

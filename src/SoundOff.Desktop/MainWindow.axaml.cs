@@ -30,6 +30,10 @@ public sealed partial class MainWindow : Window
     private readonly ComboBox themeChoice;
     private readonly CheckBox reducedMotionChoice;
     private bool applyingSettings;
+    private readonly TextBox findInput, replaceInput;
+    private readonly Button findNext, replaceOne, replaceAll;
+    private readonly TextBlock findStatus;
+    private (int Paragraph, int Offset, int Length)? lastFind;
 
     public MainWindow() : this(null, new SettingsStore(SettingsStore.DefaultPath)) { }
     public MainWindow(IProjectPicker? picker, SettingsStore settings)
@@ -53,6 +57,11 @@ public sealed partial class MainWindow : Window
         discard.Click += (_, _) => { Render(); SavedStatus(); };
         export.Click += async (_, _) => await GuardAsync(ExportAsync);
         copy.Click += async (_, _) => await GuardAsync(CopyAsync);
+        findInput = this.FindControl<TextBox>("FindInput")!; replaceInput = this.FindControl<TextBox>("ReplaceInput")!;
+        findNext = this.FindControl<Button>("FindNextButton")!; replaceOne = this.FindControl<Button>("ReplaceButton")!;
+        replaceAll = this.FindControl<Button>("ReplaceAllButton")!; findStatus = this.FindControl<TextBlock>("FindStatus")!;
+        findNext.Click += (_, _) => FindNext(); replaceOne.Click += (_, _) => ReplaceSelected(); replaceAll.Click += (_, _) => ReplaceAll();
+        findInput.KeyDown += (_, e) => { if (e.Key == Avalonia.Input.Key.Enter && findNext.IsEnabled) { FindNext(); e.Handled = true; } };
         themeChoice = this.FindControl<ComboBox>("ThemeChoice")!; reducedMotionChoice = this.FindControl<CheckBox>("ReducedMotionChoice")!;
         var (appearance, settingsProblem) = settings.Load();
         applyingSettings = true;
@@ -75,6 +84,58 @@ public sealed partial class MainWindow : Window
         Closed += (_, _) => { lifetime.Cancel(); store?.Dispose(); };
         Render();
         if (settingsProblem is not null) status.Text = settingsProblem + " " + status.Text;
+    }
+
+    // Find/replace work on the draft text in the paragraph controls, never directly on the saved snapshot.
+    private List<TextBox> ParagraphBoxes() => snapshot is null ? [] : snapshot.Blocks.Select(b => blockInputs[b.Id]).ToList();
+    private void FindNext()
+    {
+        var query = findInput.Text ?? ""; var boxes = ParagraphBoxes();
+        if (query.Length == 0) { findStatus.Text = "Enter text to find."; return; }
+        var matches = TextSearch.FindAll(boxes.Select(b => b.Text ?? "").ToList(), query);
+        if (matches.Count == 0) { lastFind = null; findStatus.Text = "No matches in the draft."; return; }
+        var (paragraph, offset) = (0, 0);
+        var focused = boxes.FindIndex(b => b.IsFocused);
+        if (focused >= 0) (paragraph, offset) = (focused, Math.Max(boxes[focused].SelectionStart, boxes[focused].SelectionEnd));
+        else if (lastFind is { } previous && previous.Paragraph < boxes.Count) (paragraph, offset) = (previous.Paragraph, previous.Offset + previous.Length);
+        var index = TextSearch.Next(matches, paragraph, offset); var match = matches[index];
+        var box = boxes[match.Paragraph];
+        box.Focus(); box.CaretIndex = match.Offset + query.Length; box.SelectionStart = match.Offset; box.SelectionEnd = match.Offset + query.Length;
+        box.BringIntoView();
+        lastFind = (match.Paragraph, match.Offset, query.Length);
+        findStatus.Text = $"Match {index + 1} of {matches.Count} · paragraph {match.Paragraph + 1}.";
+    }
+    private void ReplaceSelected()
+    {
+        var query = findInput.Text ?? ""; var boxes = ParagraphBoxes(); var replaced = false;
+        if (query.Length > 0 && lastFind is { } found && found.Paragraph < boxes.Count)
+        {
+            var box = boxes[found.Paragraph]; var text = box.Text ?? "";
+            var (start, end) = (Math.Min(box.SelectionStart, box.SelectionEnd), Math.Max(box.SelectionStart, box.SelectionEnd));
+            if (start == found.Offset && end == found.Offset + found.Length && TextSearch.MatchesAt(text, found.Offset, query))
+            {
+                var replacement = replaceInput.Text ?? "";
+                box.Text = text[..found.Offset] + replacement + text[end..];
+                box.CaretIndex = found.Offset + replacement.Length; lastFind = (found.Paragraph, found.Offset, replacement.Length); replaced = true;
+            }
+        }
+        FindNext();
+        if (replaced) findStatus.Text = "Replaced one occurrence in the draft. " + findStatus.Text;
+        else if (query.Length > 0) findStatus.Text = "Nothing was replaced: find a match first, then replace it. " + findStatus.Text;
+    }
+    private void ReplaceAll()
+    {
+        var query = findInput.Text ?? ""; var replacement = replaceInput.Text ?? "";
+        if (query.Length == 0) { findStatus.Text = "Enter text to find."; return; }
+        var total = 0; var paragraphs = 0;
+        foreach (var box in ParagraphBoxes())
+        {
+            var text = TextSearch.ReplaceAll(box.Text ?? "", query, replacement, out var count);
+            if (count == 0) continue;
+            box.Text = text; total += count; paragraphs++;
+        }
+        lastFind = null;
+        findStatus.Text = total == 0 ? "No matches in the draft." : $"Replaced {total} occurrence(s) in {paragraphs} paragraph(s) of the unsaved draft. Save edits to commit or Discard draft to revert.";
     }
 
     // The window always reflects the choice; persistence failure is reported, never fatal.
@@ -290,6 +351,7 @@ public sealed partial class MainWindow : Window
         undo.IsEnabled = !busy && !dirty && store?.CanUndo == true;
         redo.IsEnabled = !busy && !dirty && store?.CanRedo == true;
         export.IsEnabled = copy.IsEnabled = !busy && snapshot is not null && snapshot.Provenance != Provenance.Empty;
+        findNext.IsEnabled = replaceOne.IsEnabled = replaceAll.IsEnabled = !busy && snapshot is not null && snapshot.Blocks.Length != 0;
         documentHost.IsEnabled = speakerHost.IsEnabled = !busy;
     }
 
