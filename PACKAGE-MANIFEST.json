@@ -1,0 +1,45 @@
+{
+  "kind": "architecture draft; no application implementation or benchmark",
+  "files": [
+    {
+      "path": "README.md",
+      "bytes": 2556,
+      "sha256": "16861b014130cded128944aa0b9b5448470504a83592661a45637a9c693bea74"
+    },
+    {
+      "path": "ARCHITECTURE.md",
+      "bytes": 69625,
+      "sha256": "061a12c62579f769b757d8c5a5d704ebea457874c27617e55c0065fa380dd7f2"
+    },
+    {
+      "path": "LUNA-HANDOFF.md",
+      "bytes": 8377,
+      "sha256": "232440421d623c35d97df529f1dc938fb23472485609c87a6eb4701a5d21e93f"
+    },
+    {
+      "path": "ACCEPTANCE-MATRIX.csv",
+      "bytes": 17209,
+      "sha256": "e0bd48ecc7434092c62e42566901c63110879c929330f95d88214eba63b23037"
+    },
+    {
+      "path": "acceptance.json",
+      "bytes": 18771,
+      "sha256": "d387b99367112fe21dc1c4c8aaf79690cea41562866da5959a7806ee17abac6e"
+    },
+    {
+      "path": "plan-sources.json",
+      "bytes": 4298,
+      "sha256": "b506c4c78293805375003a3060583fcc229bb152cbf3cfbfd81ea198e230f9a8"
+    },
+    {
+      "path": "validate_documents.py",
+      "bytes": 4739,
+      "sha256": "dd7e2181664d8db16ccbd6f9f3f0decfeaf3a7ca9a951c62bed7236ef4e30a51"
+    },
+    {
+      "path": "DOCUMENT-VALIDATION.json",
+      "bytes": 348,
+      "sha256": "01f2f6a519c5e0eb6ecffe411850795abd36aec87718fac0376e6962e4b72264"
+    }
+  ]
+}

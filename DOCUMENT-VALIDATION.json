@@ -1,0 +1,13 @@
+{
+  "document_validation": "PASS",
+  "confirmed_requirements": 26,
+  "requirements_with_acceptance_coverage": 26,
+  "proposed_application_tests": 43,
+  "roadmap_phases": 9,
+  "decision_gates": 10,
+  "cited_sources": 25,
+  "csv_round_trip_rows": 43,
+  "application_tests_executed": 0,
+  "model_benchmarks_executed": 0,
+  "errors": []
+}

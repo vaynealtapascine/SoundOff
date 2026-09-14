@@ -1,0 +1,155 @@
+{
+  "version": 1,
+  "sources": [
+    {
+      "id": 1,
+      "url": "https://github.com/vaynealtapascine/DryCut/blob/2eb28f6ad8d1a9accea1f3aaf5eec6a055ab05b0/src/DryCut.Desktop/App.axaml",
+      "title": "",
+      "accessed": "2026-09-14"
+    },
+    {
+      "id": 2,
+      "url": "https://github.com/vaynealtapascine/DryCut/blob/2eb28f6ad8d1a9accea1f3aaf5eec6a055ab05b0/src/DryCut.Desktop/DryCut.Desktop.csproj",
+      "title": "",
+      "accessed": "2026-09-14"
+    },
+    {
+      "id": 3,
+      "url": "https://docs.avaloniaui.net/docs/supported-platforms",
+      "title": "",
+      "accessed": "2026-09-14"
+    },
+    {
+      "id": 4,
+      "url": "https://docs.avaloniaui.net/docs/app-development/accessibility",
+      "title": "",
+      "accessed": "2026-09-14"
+    },
+    {
+      "id": 5,
+      "url": "https://docs.avaloniaui.net/docs/input-interaction/text-input",
+      "title": "",
+      "accessed": "2026-09-14"
+    },
+    {
+      "id": 6,
+      "url": "https://v2.tauri.app/reference/webview-versions",
+      "title": "",
+      "accessed": "2026-09-14"
+    },
+    {
+      "id": 7,
+      "url": "https://v2.tauri.app/develop/plugins/develop-mobile",
+      "title": "",
+      "accessed": "2026-09-14"
+    },
+    {
+      "id": 8,
+      "url": "https://raw.githubusercontent.com/ggml-org/whisper.cpp/master/README.md",
+      "title": "",
+      "accessed": "2026-09-14"
+    },
+    {
+      "id": 9,
+      "url": "https://raw.githubusercontent.com/openai/whisper/main/model-card.md",
+      "title": "",
+      "accessed": "2026-09-14"
+    },
+    {
+      "id": 10,
+      "url": "https://huggingface.co/pyannote/speaker-diarization-community-1",
+      "title": "",
+      "accessed": "2026-09-14"
+    },
+    {
+      "id": 11,
+      "url": "https://raw.githubusercontent.com/m-bain/whisperX/main/README.md",
+      "title": "",
+      "accessed": "2026-09-14"
+    },
+    {
+      "id": 12,
+      "url": "https://raw.githubusercontent.com/ggml-org/whisper.cpp/master/examples/cli/cli.cpp",
+      "title": "",
+      "accessed": "2026-09-14"
+    },
+    {
+      "id": 13,
+      "url": "https://raw.githubusercontent.com/pyannote/pyannote-audio/develop/README.md",
+      "title": "",
+      "accessed": "2026-09-14"
+    },
+    {
+      "id": 14,
+      "url": "https://developer.apple.com/documentation/coreaudio/capturing-system-audio-with-core-audio-taps",
+      "title": "",
+      "accessed": "2026-09-14"
+    },
+    {
+      "id": 15,
+      "url": "https://learn.microsoft.com/en-us/samples/microsoft/windows-classic-samples/applicationloopbackaudio-sample",
+      "title": "",
+      "accessed": "2026-09-14"
+    },
+    {
+      "id": 16,
+      "url": "https://developer.android.com/media/platform/av-capture",
+      "title": "",
+      "accessed": "2026-09-14"
+    },
+    {
+      "id": 17,
+      "url": "https://docs.pipewire.org/page_man_pipewire-props_7.html",
+      "title": "",
+      "accessed": "2026-09-14"
+    },
+    {
+      "id": 18,
+      "url": "https://ffmpeg.org/legal.html",
+      "title": "",
+      "accessed": "2026-09-14"
+    },
+    {
+      "id": 19,
+      "url": "https://huggingface.co/Qwen/Qwen3-ASR-1.7B",
+      "title": "",
+      "accessed": "2026-09-14"
+    },
+    {
+      "id": 20,
+      "url": "https://huggingface.co/Qwen/Qwen3-ForcedAligner-0.6B/raw/main/README.md",
+      "title": "",
+      "accessed": "2026-09-14"
+    },
+    {
+      "id": 21,
+      "url": "https://v11.docs.avaloniaui.net/accelerate/community",
+      "title": "",
+      "accessed": "2026-09-14"
+    },
+    {
+      "id": 22,
+      "url": "https://github.com/AvaloniaUI/AvaloniaEdit",
+      "title": "",
+      "accessed": "2026-09-14"
+    },
+    {
+      "id": 23,
+      "url": "https://raw.githubusercontent.com/ggml-org/whisper.cpp/master/include/whisper.h",
+      "title": "",
+      "accessed": "2026-09-14"
+    },
+    {
+      "id": 24,
+      "url": "https://raw.githubusercontent.com/m-bain/whisperX/main/whisperx/alignment.py",
+      "title": "",
+      "accessed": "2026-09-14"
+    },
+    {
+      "id": 25,
+      "url": "https://raw.githubusercontent.com/m-bain/whisperX/main/pyproject.toml",
+      "title": "",
+      "accessed": "2026-09-14"
+    }
+  ]
+}
