@@ -74,8 +74,14 @@ public sealed class FixtureWorkerClient
 
     private static async Task<Transcript> ExchangeAsync(Process process, WorkerMessage request, CancellationToken token)
     {
-        await WorkerProtocol.WriteAsync(process.StandardInput.BaseStream, request, token);
-        process.StandardInput.Close();
+        // A child that exits before reading breaks the pipe. That is a worker that refused the request, not an app I/O
+        // fault, so it is reported as the protocol failure it is rather than as a raw broken-pipe error.
+        try
+        {
+            await WorkerProtocol.WriteAsync(process.StandardInput.BaseStream, request, token);
+            process.StandardInput.Close();
+        }
+        catch (IOException e) { throw new InvalidDataException("The fixture worker ended before accepting the request.", e); }
         var reader = new JsonLineReader(process.StandardOutput.BaseStream);
         var hello = await reader.ReadAsync(token) ?? throw new InvalidDataException("Worker exited without hello.");
         WorkerProtocol.ValidateIdentity(hello, request, "hello-fixture", 1);

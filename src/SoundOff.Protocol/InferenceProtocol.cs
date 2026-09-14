@@ -197,7 +197,9 @@ public sealed class InferenceWorkerClient
         var cancelHandled = false;
         try
         {
-            await WorkerProtocol.WriteLineAsync(process.StandardInput.BaseStream, command, killed.Token);
+            // A child that exits before reading breaks the pipe: a worker that refused the request, not an app I/O fault.
+            try { await WorkerProtocol.WriteLineAsync(process.StandardInput.BaseStream, command, killed.Token); }
+            catch (IOException e) { throw new InvalidDataException("The inference worker ended before accepting the command.", e); }
             var diagnostics = DrainAsync(process.StandardError.BaseStream, killed.Token);
             var reader = new JsonLineReader<InferenceMessage>(process.StandardOutput.BaseStream);
             long expectedSequence = 1;
