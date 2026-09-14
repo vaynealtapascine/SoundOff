@@ -4,12 +4,23 @@ namespace SoundOff.Core;
 
 public sealed class ProjectLockedException() : IOException("This project is already open for writing. Close its other editor and try again.");
 public sealed record RevisionInfo(long Revision, long? ParentRevision, string Operation);
+// One engine run over one owned asset. Status: running, completed, failed, cancelled. The artifact is the immutable engine output.
+public sealed record ProcessingRun(string Id, string AssetId, string StartedUtc, string? FinishedUtc, string Status, string OptionsJson,
+    string? ArtifactRelativePath, string? ArtifactSha256, string? Error, string? Provider);
 
 // One local writer, SQLite transactional revisions. The lock file is deliberately never deleted:
 // ownership is the live exclusive OS handle, not its contents, PID or age.
 public sealed class ProjectStore : IDisposable
 {
-    public const int SchemaVersion = 2;
+    public const int SchemaVersion = 3;
+    private const string SchemaThreeTables = """
+        CREATE TABLE media_assets (id TEXT PRIMARY KEY, original_name TEXT NOT NULL, relative_path TEXT NOT NULL, sha256 TEXT NOT NULL,
+            bytes INTEGER NOT NULL, duration_us INTEGER, probe_json TEXT NOT NULL, imported_utc TEXT NOT NULL);
+        CREATE TABLE processing_runs (id TEXT PRIMARY KEY, asset_id TEXT NOT NULL REFERENCES media_assets(id), started_utc TEXT NOT NULL,
+            finished_utc TEXT, status TEXT NOT NULL, options_json TEXT NOT NULL, artifact_relative_path TEXT, artifact_sha256 TEXT, error TEXT, provider TEXT);
+        """;
+    // Owned media and run artifacts live beside the project file so a project stays one movable pair.
+    public string MediaDirectory => PathName.EndsWith(".sqlite", StringComparison.OrdinalIgnoreCase) ? PathName[..^".sqlite".Length] + ".media" : PathName + ".media";
     private readonly FileStream writerLock;
     private readonly SqliteConnection connection;
     private readonly object gate = new();
@@ -56,14 +67,15 @@ public sealed class ProjectStore : IDisposable
             {
                 using var version = db.CreateCommand(); version.CommandText = "PRAGMA user_version";
                 var found = Convert.ToInt32(version.ExecuteScalar());
-                if (found != SchemaVersion && found != 1)
-                    throw new InvalidDataException($"Unsupported project schema {found}. This build opens schema 1 (with a backed-up upgrade) and schema {SchemaVersion}; the file was not changed.");
+                if (found < 1 || found > SchemaVersion)
+                    throw new InvalidDataException($"Unsupported project schema {found}. This build opens schemas 1 to {SchemaVersion} (older ones with a backed-up upgrade); the file was not changed.");
                 // Refuse incomplete schema before changing journal mode or replacing the UI's current project.
                 store.Read();
                 store.Execute("SELECT revision,parent_revision,operation,snapshot FROM revision_history LIMIT 0");
                 store.Execute("SELECT id,previous_json FROM undo_stack LIMIT 0");
-                if (found == SchemaVersion) store.Execute("SELECT id,next_json FROM redo_stack LIMIT 0");
-                else store.MigrateFromSchemaOne(beforeMigrationCommit);
+                if (found >= 2) store.Execute("SELECT id,next_json FROM redo_stack LIMIT 0");
+                if (found >= 3) { store.Execute("SELECT id,original_name,relative_path,sha256,bytes,duration_us,probe_json,imported_utc FROM media_assets LIMIT 0"); store.Execute("SELECT id,asset_id,status FROM processing_runs LIMIT 0"); }
+                if (found < SchemaVersion) store.Migrate(found, beforeMigrationCommit);
             }
             // Result-producing PRAGMAs/SELECTs must not hide later statements in ExecuteNonQuery.
             store.Execute("PRAGMA journal_mode=DELETE");
@@ -77,8 +89,7 @@ public sealed class ProjectStore : IDisposable
                     CREATE TABLE revision_history (revision INTEGER PRIMARY KEY, parent_revision INTEGER, operation TEXT NOT NULL, snapshot TEXT NOT NULL);
                     CREATE TABLE undo_stack (id INTEGER PRIMARY KEY AUTOINCREMENT, previous_json TEXT NOT NULL);
                     CREATE TABLE redo_stack (id INTEGER PRIMARY KEY AUTOINCREMENT, next_json TEXT NOT NULL);
-                    PRAGMA user_version=2;
-                    """, transaction);
+                    """ + SchemaThreeTables + "PRAGMA user_version=3;", transaction);
                 var json = DocumentJson.Serialize(initial);
                 store.Execute("INSERT INTO current_document VALUES(1,0,$json); INSERT INTO revision_history VALUES(0,NULL,'create',$json);",
                     transaction, ("$json", json));
@@ -95,20 +106,85 @@ public sealed class ProjectStore : IDisposable
         }
     }
 
-    // Schema 1 -> 2 adds the redo stack. A consistent SQLite backup is written and flushed first and is never
-    // overwritten; the upgrade itself is one transaction, so an interruption leaves a readable schema-1 file.
-    private void MigrateFromSchemaOne(Action? beforeCommit)
+    // Upgrades are additive steps (1->2 redo stack, 2->3 media and run tables). A consistent SQLite backup of the original
+    // is written and flushed first and never overwritten; all steps run in one transaction, so an interruption leaves the
+    // file at its original schema.
+    private void Migrate(int found, Action? beforeCommit)
     {
         var stamp = DateTime.UtcNow.ToString("yyyyMMdd'T'HHmmss'Z'");
-        var backup = PathName + ".schema1-" + stamp + ".backup";
-        while (File.Exists(backup)) backup = PathName + ".schema1-" + stamp + "-" + Guid.NewGuid().ToString("N")[..8] + ".backup";
-        CopyDatabase(backup, expectedUserVersion: 1);
+        var backup = PathName + $".schema{found}-" + stamp + ".backup";
+        while (File.Exists(backup)) backup = PathName + $".schema{found}-" + stamp + "-" + Guid.NewGuid().ToString("N")[..8] + ".backup";
+        CopyDatabase(backup, expectedUserVersion: found);
         using var transaction = connection.BeginTransaction();
-        Execute("CREATE TABLE redo_stack (id INTEGER PRIMARY KEY AUTOINCREMENT, next_json TEXT NOT NULL); PRAGMA user_version=2;", transaction);
+        if (found < 2) Execute("CREATE TABLE redo_stack (id INTEGER PRIMARY KEY AUTOINCREMENT, next_json TEXT NOT NULL);", transaction);
+        if (found < 3) Execute(SchemaThreeTables, transaction);
+        Execute($"PRAGMA user_version={SchemaVersion};", transaction);
         beforeCommit?.Invoke();
         transaction.Commit();
         MigrationBackupPath = backup;
     }
+
+    public void AddMediaAsset(MediaAsset asset)
+    {
+        lock (gate)
+        {
+            ThrowIfDisposed();
+            Execute("INSERT INTO media_assets VALUES($id,$name,$path,$sha,$bytes,$duration,$probe,$imported)", null, ("$id", asset.Id), ("$name", asset.OriginalName),
+                ("$path", asset.RelativePath), ("$sha", asset.Sha256), ("$bytes", asset.Bytes), ("$duration", (object?)asset.DurationMicroseconds ?? DBNull.Value),
+                ("$probe", asset.ProbeJson), ("$imported", asset.ImportedUtc));
+        }
+    }
+    public IReadOnlyList<MediaAsset> MediaAssets()
+    {
+        lock (gate)
+        {
+            ThrowIfDisposed(); using var command = connection.CreateCommand();
+            command.CommandText = "SELECT id,original_name,relative_path,sha256,bytes,duration_us,probe_json,imported_utc FROM media_assets ORDER BY imported_utc, rowid";
+            using var rows = command.ExecuteReader(); var result = new List<MediaAsset>();
+            while (rows.Read()) result.Add(new MediaAsset(rows.GetString(0), rows.GetString(1), rows.GetString(2), rows.GetString(3), rows.GetInt64(4),
+                rows.IsDBNull(5) ? null : rows.GetInt64(5), rows.GetString(6), rows.GetString(7)));
+            return result;
+        }
+    }
+    public void AddRun(ProcessingRun run)
+    {
+        lock (gate)
+        {
+            ThrowIfDisposed();
+            Execute("INSERT INTO processing_runs VALUES($id,$asset,$started,$finished,$status,$options,$artifact,$sha,$error,$provider)", null, ("$id", run.Id), ("$asset", run.AssetId),
+                ("$started", run.StartedUtc), ("$finished", (object?)run.FinishedUtc ?? DBNull.Value), ("$status", run.Status), ("$options", run.OptionsJson),
+                ("$artifact", (object?)run.ArtifactRelativePath ?? DBNull.Value), ("$sha", (object?)run.ArtifactSha256 ?? DBNull.Value), ("$error", (object?)run.Error ?? DBNull.Value), ("$provider", (object?)run.Provider ?? DBNull.Value));
+        }
+    }
+    public void FinishRun(string runId, string status, string? artifactRelativePath, string? artifactSha256, string? error, string? provider)
+    {
+        lock (gate)
+        {
+            ThrowIfDisposed();
+            var updated = Execute("UPDATE processing_runs SET finished_utc=$finished,status=$status,artifact_relative_path=$artifact,artifact_sha256=$sha,error=$error,provider=$provider WHERE id=$id AND status='running'", null,
+                ("$finished", DateTime.UtcNow.ToString("yyyy-MM-dd'T'HH:mm:ss'Z'")), ("$status", status), ("$artifact", (object?)artifactRelativePath ?? DBNull.Value), ("$sha", (object?)artifactSha256 ?? DBNull.Value),
+                ("$error", (object?)error ?? DBNull.Value), ("$provider", (object?)provider ?? DBNull.Value), ("$id", runId));
+            if (updated != 1) throw new InvalidOperationException("The run is not running, so it cannot be finished.");
+        }
+    }
+    public IReadOnlyList<ProcessingRun> Runs()
+    {
+        lock (gate)
+        {
+            ThrowIfDisposed(); using var command = connection.CreateCommand();
+            command.CommandText = "SELECT id,asset_id,started_utc,finished_utc,status,options_json,artifact_relative_path,artifact_sha256,error,provider FROM processing_runs ORDER BY started_utc DESC, rowid DESC";
+            using var rows = command.ExecuteReader(); var result = new List<ProcessingRun>();
+            while (rows.Read()) result.Add(new ProcessingRun(rows.GetString(0), rows.GetString(1), rows.GetString(2), rows.IsDBNull(3) ? null : rows.GetString(3), rows.GetString(4), rows.GetString(5),
+                rows.IsDBNull(6) ? null : rows.GetString(6), rows.IsDBNull(7) ? null : rows.GetString(7), rows.IsDBNull(8) ? null : rows.GetString(8), rows.IsDBNull(9) ? null : rows.GetString(9)));
+            return result;
+        }
+    }
+    // A model result replaces the document as a NEW revision (undoable, in history); the caller decides whether that is wanted.
+    public Transcript ImportInference(long expectedRevision, Transcript proposal, string runId) => Commit(expectedRevision, "import-inference:" + runId, (previous, _) =>
+    {
+        if (!proposal.Provenance.IsModel) throw new InvalidDataException("Only model-inference documents can be imported as a run result.");
+        return proposal with { ProjectId = previous.ProjectId, Revision = previous.Revision };
+    }, CommitKind.Edit);
 
     // Consistent copy through SQLite's online backup API (never a raw file copy), flushed, never overwriting.
     public void BackupTo(string destination)

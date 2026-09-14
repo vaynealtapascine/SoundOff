@@ -379,7 +379,7 @@ public sealed class UiTests
         try
         {
             Click(window, "OpenButton"); await Idle(window);
-            Assert.Contains("Saved · revision 0", Status(window)); Assert.Contains("upgraded from schema 1", Status(window));
+            Assert.Contains("Saved · revision 0", Status(window)); Assert.Contains("upgraded from an older schema", Status(window));
             Assert.Contains(".schema1-", Status(window));
             Click(window, "OpenButton"); await Idle(window); Assert.DoesNotContain("upgraded", Status(window));
         }

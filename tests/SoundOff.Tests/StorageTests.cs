@@ -18,7 +18,7 @@ public sealed class StorageTests
     internal static void DowngradeToSchemaOne(string path)
     {
         using var sql = new SqliteConnection($"Data Source={path};Pooling=False"); sql.Open();
-        using var command = sql.CreateCommand(); command.CommandText = "DROP TABLE redo_stack; PRAGMA user_version=1;"; command.ExecuteNonQuery();
+        using var command = sql.CreateCommand(); command.CommandText = "DROP TABLE processing_runs; DROP TABLE media_assets; DROP TABLE redo_stack; PRAGMA user_version=1;"; command.ExecuteNonQuery();
     }
     private static long Count(string path, string table)
     {
@@ -75,7 +75,7 @@ public sealed class StorageTests
             var undone = store.Undo(store.Read().Revision); Assert.True(store.CanRedo);
             Assert.Equal("Before upgrade", store.Redo(undone.Revision).Speakers[0].Name);
         }
-        Assert.Equal(2L, UserVersion(folder.Project)); Assert.Equal(1L, UserVersion(backup!));
+        Assert.Equal(3L, UserVersion(folder.Project)); Assert.Equal(1L, UserVersion(backup!));
         using (var store = ProjectStore.Open(folder.Project)) Assert.Null(store.MigrationBackupPath);
         Assert.Equal(2, Directory.GetFiles(folder.Root, "*.schema1-*.backup").Length);
         using var sql = new SqliteConnection($"Data Source={backup};Pooling=False;Mode=ReadOnly"); sql.Open();

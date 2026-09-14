@@ -49,7 +49,7 @@ public sealed class BundleTests
         var manifest = new JsonObject
         {
             ["version"] = 1, ["format"] = BundleManifest.FormatName, ["projectId"] = ProjectStore.Open(project).Use(s => s.Read().ProjectId.ToString()),
-            ["title"] = "Synthetic demo — editing practice", ["revision"] = 0, ["schemaVersion"] = 2, ["database"] = "project.sqlite",
+            ["title"] = "Synthetic demo — editing practice", ["revision"] = 0, ["schemaVersion"] = ProjectStore.SchemaVersion, ["database"] = "project.sqlite",
             ["databaseBytes"] = database.Length, ["databaseSha256"] = Convert.ToHexString(SHA256.HashData(database)).ToLowerInvariant()
         };
         var path = Path.Combine(directory, name);

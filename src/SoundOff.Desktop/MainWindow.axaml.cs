@@ -141,7 +141,7 @@ public sealed partial class MainWindow : Window
         catch { next.Dispose(); throw; }
         SavedStatus();
         if (next.MigrationBackupPath is not null)
-            status.Text += $" This project was upgraded from schema 1; the untouched original is kept at {next.MigrationBackupPath}.";
+            status.Text += $" This project was upgraded from an older schema; the untouched original is kept at {next.MigrationBackupPath}.";
         RememberCurrent();
     }
 
