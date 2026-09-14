@@ -18,6 +18,7 @@ public sealed partial class MainWindow : Window
     private Transcript? snapshot;
     private readonly Dictionary<Guid, TextBox> speakerInputs = [];
     private readonly Dictionary<Guid, TextBox> blockInputs = [];
+    private readonly Dictionary<Guid, ComboBox> blockSpeakerInputs = [];
     private readonly CancellationTokenSource lifetime = new();
     private bool dirty, busy, rendering, allowClose, confirmingClose;
     private readonly StackPanel documentHost, speakerHost;
@@ -123,7 +124,7 @@ public sealed partial class MainWindow : Window
         store?.Dispose(); store = next; snapshot = document; Render();
     }
     private EditBatch DraftEdits() => new(speakerInputs.ToDictionary(p => p.Key, p => p.Value.Text ?? ""),
-        blockInputs.ToDictionary(p => p.Key, p => p.Value.Text ?? ""));
+        blockInputs.ToDictionary(p => p.Key, p => p.Value.Text ?? ""), blockSpeakerInputs.ToDictionary(p => p.Key, p => SpeakerChoice(p.Key)));
     private string ExportText() => dirty ? TextExport.RenderDraft(snapshot!, DraftEdits()) : TextExport.Render(snapshot!);
     private static void RequireProjectExtension(string local)
     {
@@ -156,11 +157,23 @@ public sealed partial class MainWindow : Window
         status.Text = dirty ? "Copied UNSAVED DRAFT; project edits are not yet saved." : $"Copied saved revision {snapshot!.Revision}. Clipboard history may retain it.";
     }
 
+    // Paragraph/speaker actions commit the current draft together with the structural change as ONE revision.
+    private Task CommitStructuralAsync(DocumentOperation operation) => GuardAsync(() =>
+    {
+        snapshot = store!.Apply(snapshot!.Revision, DraftEdits(), operation); Render(); SavedStatus(); return Task.CompletedTask;
+    });
+    private Button Action(string label, string accessibleName, Func<Task> action, bool enabled = true)
+    {
+        var button = new Button { Content = label, IsEnabled = enabled }; button.Classes.Add("structural");
+        AutomationProperties.SetName(button, accessibleName); button.Click += async (_, _) => await action(); return button;
+    }
+
     private void Render()
     {
-        rendering = true; dirty = false; documentHost.Children.Clear(); speakerHost.Children.Clear(); speakerInputs.Clear(); blockInputs.Clear();
+        rendering = true; dirty = false; documentHost.Children.Clear(); speakerHost.Children.Clear();
+        speakerInputs.Clear(); blockInputs.Clear(); blockSpeakerInputs.Clear();
         path.Text = store?.PathName ?? "No project file is created until you explicitly load a demo and choose its location.";
-        if (snapshot is null || snapshot.Blocks.Length == 0)
+        if (snapshot is null || snapshot.Provenance == Provenance.Empty)
         {
             var message = new StackPanel { Spacing = 16, Margin = new Thickness(24, 36) };
             message.Children.Add(new TextBlock { Text = "No transcript loaded", FontSize = 28, FontWeight = FontWeight.SemiBold });
@@ -173,33 +186,72 @@ public sealed partial class MainWindow : Window
         {
             documentHost.Children.Add(new TextBlock { Text = snapshot.Title, FontSize = 24, TextWrapping = TextWrapping.Wrap });
             documentHost.Children.Add(Label(snapshot.Provenance.Notice));
-            documentHost.Children.Add(Label("Edit whole paragraphs below. Save edits commits one undoable revision; typing is an unsaved draft. Unknown timing is not zero; any stored intervals are synthetic, not measured."));
+            documentHost.Children.Add(Label("Edit whole paragraphs below. Save edits commits one undoable revision; typing is an unsaved draft. " +
+                "Paragraph and speaker actions save the draft together with their change as one revision. " +
+                "Unknown timing is not zero; any stored intervals are synthetic, not measured. Split and inserted paragraphs are untimed."));
+            var names = snapshot.Speakers.Select(s => s.Name).ToList();
+            var used = snapshot.Blocks.Select(b => b.SpeakerId).ToHashSet();
             foreach (var speaker in snapshot.Speakers)
             {
+                var row = new Grid { ColumnDefinitions = new ColumnDefinitions("*,Auto"), ColumnSpacing = 8 };
                 var input = new TextBox { Text = speaker.Name, MaxLength = 100, Watermark = "Speaker name", IsUndoEnabled = false };
                 AutomationProperties.SetName(input, "Rename " + speaker.Name); input.PropertyChanged += OnDraftChanged;
-                speakerInputs.Add(speaker.Id, input); speakerHost.Children.Add(input);
+                speakerInputs.Add(speaker.Id, input); row.Children.Add(input);
+                var id = speaker.Id;
+                var remove = Action("Remove", "Remove speaker " + speaker.Name, () => CommitStructuralAsync(new RemoveSpeaker(id)), enabled: !used.Contains(id));
+                ToolTip.SetTip(remove, used.Contains(id) ? "Reassign this speaker's paragraphs first." : "Removes the unused speaker as one saved revision.");
+                Grid.SetColumn(remove, 1); row.Children.Add(remove); speakerHost.Children.Add(row);
             }
-            foreach (var block in snapshot.Blocks)
+            speakerHost.Children.Add(Action("Add speaker", "Add speaker", () => CommitStructuralAsync(new AddSpeaker(Guid.NewGuid(), NewSpeakerName())),
+                enabled: snapshot.Speakers.Length < 32));
+            for (var index = 0; index < snapshot.Blocks.Length; index++)
             {
+                var block = snapshot.Blocks[index]; var id = block.Id; var ordinal = index + 1;
                 var name = snapshot.Speakers.Single(s => s.Id == block.SpeakerId).Name;
                 var group = new StackPanel { Spacing = 10 };
-                group.Children.Add(new TextBlock { Text = name + " · " + (block.Timing is null ? "Untimed" : "Microsecond interval stored"), FontWeight = FontWeight.SemiBold });
+                var header = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 10 };
+                var choice = new ComboBox { ItemsSource = names, SelectedIndex = snapshot.Speakers.IndexOf(snapshot.Speakers.Single(s => s.Id == block.SpeakerId)), MinWidth = 180 };
+                AutomationProperties.SetName(choice, $"Speaker for paragraph {ordinal}"); choice.SelectionChanged += (_, _) => RecomputeDraft();
+                blockSpeakerInputs.Add(id, choice); header.Children.Add(choice);
+                header.Children.Add(new TextBlock { Text = "· " + (block.Timing is null ? "Untimed" : "Microsecond interval stored"), FontWeight = FontWeight.SemiBold, VerticalAlignment = VerticalAlignment.Center });
+                group.Children.Add(header);
                 var input = new TextBox { Text = block.Text, AcceptsReturn = true, TextWrapping = TextWrapping.Wrap, MaxLength = DocumentRules.MaxBlockLength, IsUndoEnabled = false };
                 input.Classes.Add("transcript"); AutomationProperties.SetName(input, "Transcript block by " + name);
-                input.PropertyChanged += OnDraftChanged; blockInputs.Add(block.Id, input); group.Children.Add(input);
+                input.PropertyChanged += OnDraftChanged; blockInputs.Add(id, input); group.Children.Add(input);
+                var actions = new WrapPanel { Orientation = Orientation.Horizontal };
+                actions.Children.Add(Action("Split at cursor", $"Split paragraph {ordinal} at cursor", () => CommitStructuralAsync(new SplitBlock(id, input.CaretIndex, Guid.NewGuid()))));
+                actions.Children.Add(Action("Merge with next", $"Merge paragraph {ordinal} with next", () => CommitStructuralAsync(new MergeWithNext(id)), enabled: index + 1 < snapshot.Blocks.Length));
+                actions.Children.Add(Action("Insert paragraph after", $"Insert paragraph after {ordinal}", () => CommitStructuralAsync(new InsertBlock(id, Guid.NewGuid(), SpeakerChoice(id), ""))));
+                actions.Children.Add(Action("Delete paragraph", $"Delete paragraph {ordinal}", () => CommitStructuralAsync(new DeleteBlock(id))));
+                group.Children.Add(actions);
                 var card = new Border { Child = group }; card.Classes.Add("card"); documentHost.Children.Add(card);
             }
+            if (snapshot.Blocks.Length == 0) documentHost.Children.Add(Label("Every paragraph was deleted. Undo restores them, or add a new paragraph below."));
+            documentHost.Children.Add(Action("Add paragraph at end", "Add paragraph at end",
+                () => CommitStructuralAsync(new InsertBlock(snapshot.Blocks.Length == 0 ? null : snapshot.Blocks[^1].Id, Guid.NewGuid(), snapshot.Speakers[0].Id, "")),
+                enabled: snapshot.Speakers.Length > 0 && snapshot.Blocks.Length < DocumentRules.MaxBlocks));
         }
         rendering = false; UpdateControls();
     }
     private static TextBlock Label(string text) => new() { Text = text, TextWrapping = TextWrapping.Wrap };
+    private string NewSpeakerName()
+    {
+        var taken = speakerInputs.Values.Select(t => t.Text ?? "").Concat(snapshot!.Speakers.Select(s => s.Name)).ToHashSet(StringComparer.Ordinal);
+        for (var n = snapshot.Speakers.Length + 1; ; n++) if (!taken.Contains("New speaker " + n)) return "New speaker " + n;
+    }
+    private Guid SpeakerChoice(Guid blockId) => snapshot!.Speakers[Math.Max(0, blockSpeakerInputs[blockId].SelectedIndex)].Id;
     private void OnDraftChanged(object? sender, AvaloniaPropertyChangedEventArgs args)
     {
         // TextChanged is queued by Avalonia; export/close must not see a stale saved-state flag.
-        if (args.Property != TextBox.TextProperty || rendering || snapshot is null || lifetime.IsCancellationRequested) return;
+        if (args.Property != TextBox.TextProperty) return;
+        RecomputeDraft();
+    }
+    private void RecomputeDraft()
+    {
+        if (rendering || snapshot is null || lifetime.IsCancellationRequested) return;
         dirty = speakerInputs.Any(p => p.Value.Text != snapshot.Speakers.Single(s => s.Id == p.Key).Name) ||
-                blockInputs.Any(p => p.Value.Text != snapshot.Blocks.Single(b => b.Id == p.Key).Text);
+                blockInputs.Any(p => p.Value.Text != snapshot.Blocks.Single(b => b.Id == p.Key).Text) ||
+                blockSpeakerInputs.Any(p => SpeakerChoice(p.Key) != snapshot.Blocks.Single(b => b.Id == p.Key).SpeakerId);
         if (dirty) status.Text = $"UNSAVED DRAFT based on revision {snapshot.Revision}. Save edits to commit; Export/Copy can rescue a draft.";
         else SavedStatus();
         UpdateControls();
@@ -211,7 +263,7 @@ public sealed partial class MainWindow : Window
         save.IsEnabled = discard.IsEnabled = !busy && dirty;
         undo.IsEnabled = !busy && !dirty && store?.CanUndo == true;
         redo.IsEnabled = !busy && !dirty && store?.CanRedo == true;
-        export.IsEnabled = copy.IsEnabled = !busy && snapshot is not null && snapshot.Blocks.Length != 0;
+        export.IsEnabled = copy.IsEnabled = !busy && snapshot is not null && snapshot.Provenance != Provenance.Empty;
         documentHost.IsEnabled = speakerHost.IsEnabled = !busy;
     }
 

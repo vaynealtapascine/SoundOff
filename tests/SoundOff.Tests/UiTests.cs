@@ -1,4 +1,5 @@
 using Avalonia;
+using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
@@ -29,6 +30,12 @@ public sealed class UiTests
     private static Button Button(MainWindow window, string name) => window.FindControl<Button>(name)!;
     private static void Click(MainWindow window, string name) => Button(window, name).RaiseEvent(new RoutedEventArgs(Avalonia.Controls.Button.ClickEvent));
     private static string Status(MainWindow window) => window.FindControl<TextBlock>("StatusText")!.Text ?? "";
+    private static TextBox SpeakerBox(MainWindow window, int index = 0) =>
+        window.FindControl<StackPanel>("SpeakerHost")!.GetVisualDescendants().OfType<TextBox>().ElementAt(index);
+    private static TextBox[] Blocks(MainWindow window) => window.GetVisualDescendants().OfType<TextBox>().Where(t => t.Classes.Contains("transcript")).ToArray();
+    private static Button[] Structural(MainWindow window, string label) =>
+        window.GetVisualDescendants().OfType<Button>().Where(b => b.Classes.Contains("structural") && (string?)b.Content == label).ToArray();
+    private static void Press(Button button) => button.RaiseEvent(new RoutedEventArgs(Avalonia.Controls.Button.ClickEvent));
     private static async Task Idle(MainWindow window)
     {
         var deadline = DateTime.UtcNow.AddSeconds(10);
@@ -46,7 +53,7 @@ public sealed class UiTests
             Assert.False(File.Exists(folder.Project)); Assert.False(Button(window, "SaveButton").IsEnabled);
             Assert.False(Button(window, "CopyButton").IsEnabled);
             Click(window, "DemoButton"); await Idle(window); Assert.Contains("Saved · revision 1", Status(window));
-            var speaker = window.FindControl<StackPanel>("SpeakerHost")!.Children.OfType<TextBox>().First();
+            var speaker = SpeakerBox(window);
             speaker.Text = "José 👩🏽‍💻";
             var block = window.GetVisualDescendants().OfType<TextBox>().First(t => t.Classes.Contains("transcript"));
             block.Text = "Edited in real Avalonia controls: piña 中文 👩🏽‍💻";
@@ -58,12 +65,99 @@ public sealed class UiTests
             window.Close();
             window = new MainWindow(picker); window.Show(); Click(window, "OpenButton"); await Idle(window);
             Assert.Contains("Saved · revision 2", Status(window));
-            Assert.Equal("José 👩🏽‍💻", window.FindControl<StackPanel>("SpeakerHost")!.Children.OfType<TextBox>().First().Text);
+            Assert.Equal("José 👩🏽‍💻", SpeakerBox(window).Text);
             Click(window, "UndoButton"); await Idle(window); Assert.Contains("Saved · revision 3", Status(window));
-            Assert.Equal("Demo speaker A", window.FindControl<StackPanel>("SpeakerHost")!.Children.OfType<TextBox>().First().Text);
+            Assert.Equal("Demo speaker A", SpeakerBox(window).Text);
         }
         finally { Click(window, "DiscardButton"); window.Close(); }
         using var reopened = ProjectStore.Open(folder.Project); Assert.Equal("Demo speaker A", reopened.Read().Speakers[0].Name);
+    }
+
+    [AvaloniaFact] public async Task Paragraph_actions_commit_the_draft_and_the_change_as_one_undoable_revision()
+    {
+        using var folder = new TestDirectory();
+        var window = new MainWindow(new Picker(folder.Project, Path.Combine(folder.Root, "text.txt"))); window.Show();
+        try
+        {
+            Click(window, "DemoButton"); await Idle(window);
+            Assert.Equal(3, Structural(window, "Split at cursor").Length); Assert.False(Structural(window, "Merge with next")[2].IsEnabled);
+            SpeakerBox(window).Text = "Renamed with split 👩🏽‍💻";
+            var first = Blocks(window)[0]; first.CaretIndex = "This is ".Length;
+            Press(Structural(window, "Split at cursor")[0]); await Idle(window);
+            Assert.Contains("Saved · revision 2", Status(window));
+            var texts = Blocks(window).Select(t => t.Text).ToArray();
+            Assert.Equal(4, texts.Length); Assert.Equal("This is ", texts[0]); Assert.StartsWith("an authored synthetic example", texts[1]);
+            Assert.Equal("Renamed with split 👩🏽‍💻", SpeakerBox(window).Text);
+            Press(Structural(window, "Merge with next")[0]); await Idle(window);
+            Assert.Contains("Saved · revision 3", Status(window)); Assert.Equal(3, Blocks(window).Length);
+            Assert.StartsWith("This is an authored synthetic example", Blocks(window)[0].Text);
+            Press(Structural(window, "Insert paragraph after")[1]); await Idle(window);
+            Assert.Equal(4, Blocks(window).Length); Assert.Equal("", Blocks(window)[2].Text);
+            Press(Structural(window, "Delete paragraph")[2]); await Idle(window);
+            Assert.Equal(3, Blocks(window).Length); Assert.Contains("Saved · revision 5", Status(window));
+            Click(window, "UndoButton"); await Idle(window); Assert.Equal(4, Blocks(window).Length);
+            Click(window, "UndoButton"); await Idle(window); Click(window, "UndoButton"); await Idle(window);
+            Assert.Equal(4, Blocks(window).Length); Assert.Equal("This is ", Blocks(window)[0].Text);
+            Click(window, "UndoButton"); await Idle(window);
+            Assert.Equal(3, Blocks(window).Length); Assert.Equal("Demo speaker A", SpeakerBox(window).Text); Assert.Contains("Saved · revision 9", Status(window));
+            Press(Structural(window, "Delete paragraph")[0]); await Idle(window);
+            Press(Structural(window, "Delete paragraph")[0]); await Idle(window);
+            Press(Structural(window, "Delete paragraph")[0]); await Idle(window);
+            Assert.Empty(Blocks(window)); Assert.True(Button(window, "ExportButton").IsEnabled);
+            Assert.Contains(window.GetVisualDescendants().OfType<TextBlock>(), t => (t.Text ?? "").StartsWith("Every paragraph was deleted"));
+            Press(Structural(window, "Add paragraph at end")[0]); await Idle(window);
+            Assert.Single(Blocks(window)); Assert.Contains("Saved · revision 13", Status(window));
+        }
+        finally { window.Close(); }
+        using var store = ProjectStore.Open(folder.Project); Assert.Equal(13, store.Read().Revision); Assert.Single(store.Read().Blocks);
+    }
+
+    [AvaloniaFact] public async Task Split_at_a_paragraph_edge_fails_visibly_and_keeps_the_draft()
+    {
+        using var folder = new TestDirectory();
+        var window = new MainWindow(new Picker(folder.Project, Path.Combine(folder.Root, "text.txt"))); window.Show();
+        try
+        {
+            Click(window, "DemoButton"); await Idle(window);
+            var block = Blocks(window)[1]; block.Text = "Draft kept 👩🏽‍💻"; block.CaretIndex = 0;
+            Press(Structural(window, "Split at cursor")[1]); await Idle(window);
+            Assert.Contains("NOT SAVED", Status(window)); Assert.Contains("Place the cursor inside the paragraph", Status(window));
+            Assert.Equal("Draft kept 👩🏽‍💻", Blocks(window)[1].Text); Assert.True(Button(window, "SaveButton").IsEnabled);
+            block.CaretIndex = "Draft kept ".Length + 1; // between the emoji's surrogate halves
+            Press(Structural(window, "Split at cursor")[1]); await Idle(window);
+            Assert.Contains("NOT SAVED", Status(window)); Assert.Equal("Draft kept 👩🏽‍💻", Blocks(window)[1].Text);
+        }
+        finally { Click(window, "DiscardButton"); window.Close(); }
+        using var store = ProjectStore.Open(folder.Project); Assert.Equal(1, store.Read().Revision);
+    }
+
+    [AvaloniaFact] public async Task Speakers_can_be_added_reassigned_from_the_paragraph_and_removed_when_unused()
+    {
+        using var folder = new TestDirectory();
+        var window = new MainWindow(new Picker(folder.Project, Path.Combine(folder.Root, "text.txt"))); window.Show();
+        try
+        {
+            Click(window, "DemoButton"); await Idle(window);
+            Assert.All(Structural(window, "Remove"), b => Assert.False(b.IsEnabled));
+            Press(Structural(window, "Add speaker")[0]); await Idle(window);
+            Assert.Contains("Saved · revision 2", Status(window)); Assert.Equal("New speaker 3", SpeakerBox(window, 2).Text);
+            Assert.True(Structural(window, "Remove")[2].IsEnabled);
+            var choice = window.GetVisualDescendants().OfType<ComboBox>().First(c => AutomationProperties.GetName(c) == "Speaker for paragraph 1");
+            Assert.Equal(0, choice.SelectedIndex); choice.SelectedIndex = 2;
+            Assert.True(Button(window, "SaveButton").IsEnabled); Assert.Contains("UNSAVED DRAFT", Status(window));
+            Click(window, "CopyButton"); await Idle(window);
+            Assert.Contains("New speaker 3:\nThis is an authored", await TopLevel.GetTopLevel(window)!.Clipboard!.TryGetTextAsync());
+            Click(window, "SaveButton"); await Idle(window); Assert.Contains("Saved · revision 3", Status(window));
+            Assert.False(Structural(window, "Remove")[2].IsEnabled);
+            choice = window.GetVisualDescendants().OfType<ComboBox>().First(c => AutomationProperties.GetName(c) == "Speaker for paragraph 1");
+            Assert.Equal(2, choice.SelectedIndex);
+            choice.SelectedIndex = 0; Click(window, "SaveButton"); await Idle(window);
+            Press(Structural(window, "Remove")[2]); await Idle(window);
+            Assert.Contains("Saved · revision 5", Status(window)); Assert.Equal(2, window.FindControl<StackPanel>("SpeakerHost")!.GetVisualDescendants().OfType<TextBox>().Count());
+        }
+        finally { window.Close(); }
+        using var store = ProjectStore.Open(folder.Project); var saved = store.Read();
+        Assert.Equal(2, saved.Speakers.Length); Assert.Equal(saved.Speakers[0].Id, saved.Blocks[0].SpeakerId);
     }
 
     [AvaloniaFact] public async Task Redo_button_restores_undone_revision_and_is_unavailable_while_a_draft_exists()
@@ -73,17 +167,17 @@ public sealed class UiTests
         try
         {
             Click(window, "DemoButton"); await Idle(window); Assert.False(Button(window, "RedoButton").IsEnabled);
-            var speaker = window.FindControl<StackPanel>("SpeakerHost")!.Children.OfType<TextBox>().First();
+            var speaker = SpeakerBox(window);
             speaker.Text = "Redo me 👩🏽‍💻"; Click(window, "SaveButton"); await Idle(window); Assert.Contains("Saved · revision 2", Status(window));
             Assert.False(Button(window, "RedoButton").IsEnabled);
             Click(window, "UndoButton"); await Idle(window); Assert.Contains("Saved · revision 3", Status(window));
             Assert.True(Button(window, "RedoButton").IsEnabled);
-            speaker = window.FindControl<StackPanel>("SpeakerHost")!.Children.OfType<TextBox>().First();
+            speaker = SpeakerBox(window);
             Assert.Equal("Demo speaker A", speaker.Text);
             speaker.Text = "Typing disables redo"; Assert.False(Button(window, "RedoButton").IsEnabled); Assert.False(Button(window, "UndoButton").IsEnabled);
             Click(window, "DiscardButton"); Assert.True(Button(window, "RedoButton").IsEnabled);
             Click(window, "RedoButton"); await Idle(window); Assert.Contains("Saved · revision 4", Status(window));
-            Assert.Equal("Redo me 👩🏽‍💻", window.FindControl<StackPanel>("SpeakerHost")!.Children.OfType<TextBox>().First().Text);
+            Assert.Equal("Redo me 👩🏽‍💻", SpeakerBox(window).Text);
             Assert.False(Button(window, "RedoButton").IsEnabled); Assert.True(Button(window, "UndoButton").IsEnabled);
         }
         finally { window.Close(); }
@@ -134,7 +228,7 @@ public sealed class UiTests
         try
         {
             Click(window, "DemoButton"); await Idle(window);
-            var speaker = window.FindControl<StackPanel>("SpeakerHost")!.Children.OfType<TextBox>().First();
+            var speaker = SpeakerBox(window);
             speaker.Text = "Unsaved José";
             Assert.True(Button(window, "SaveButton").IsEnabled);
             window.Close();
@@ -179,7 +273,7 @@ public sealed class UiTests
         try
         {
             Click(window, "DemoButton"); await Idle(window);
-            var input = window.FindControl<StackPanel>("SpeakerHost")!.Children.OfType<TextBox>().First(); input.Text = "";
+            var input = SpeakerBox(window); input.Text = "";
             await Task.Delay(20); Click(window, "SaveButton"); await Idle(window);
             Assert.Contains("NOT SAVED", Status(window)); Assert.Equal("", input.Text); Assert.True(Button(window, "DiscardButton").IsEnabled);
             Click(window, "ExportButton"); await Idle(window);
