@@ -169,7 +169,7 @@ public sealed partial class MainWindow : Window
         {
             documentHost.Children.Add(new TextBlock { Text = snapshot.Title, FontSize = 24, TextWrapping = TextWrapping.Wrap });
             documentHost.Children.Add(Label(snapshot.Provenance.Notice));
-            documentHost.Children.Add(Label("Edit whole paragraphs below. Save edits commits one undoable revision; typing is an unsaved draft. Timing is unknown, not zero."));
+            documentHost.Children.Add(Label("Edit whole paragraphs below. Save edits commits one undoable revision; typing is an unsaved draft. Unknown timing is not zero; any stored intervals are synthetic, not measured."));
             foreach (var speaker in snapshot.Speakers)
             {
                 var input = new TextBox { Text = speaker.Name, MaxLength = 100, Watermark = "Speaker name", IsUndoEnabled = false };

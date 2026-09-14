@@ -66,6 +66,24 @@ public sealed class UiTests
         using var reopened = ProjectStore.Open(folder.Project); Assert.Equal("Demo speaker A", reopened.Read().Speakers[0].Name);
     }
 
+    [AvaloniaFact] public async Task Timed_synthetic_project_is_not_mislabelled_as_entirely_untimed()
+    {
+        using var folder = new TestDirectory(); var fixture = SyntheticFixture.Create(Guid.NewGuid(), 0);
+        fixture = fixture with { Blocks = fixture.Blocks.SetItem(0, fixture.Blocks[0] with { Timing = new TimeRange(1, 2) }) };
+        using (var store = ProjectStore.Create(folder.Project, fixture)) { }
+        var window = new MainWindow(new Picker(folder.Project, Path.Combine(folder.Root, "text.txt"))); window.Show();
+        try
+        {
+            Click(window, "OpenButton"); await Idle(window);
+            var labels = window.GetVisualDescendants().OfType<TextBlock>().Select(t => t.Text ?? "").ToArray();
+            Assert.Contains(labels, text => text.Contains("any stored intervals are synthetic, not measured"));
+            Assert.Contains(labels, text => text.Contains("Microsecond interval stored"));
+            Assert.Contains(labels, text => text.EndsWith("· Untimed"));
+            Assert.DoesNotContain(labels, text => text.Contains("Timing is unknown, not zero."));
+        }
+        finally { window.Close(); }
+    }
+
     [AvaloniaFact] public async Task Invalid_draft_stays_visible_and_discard_restores_saved_state()
     {
         using var folder = new TestDirectory(); var output = Path.Combine(folder.Root, "draft.txt");
