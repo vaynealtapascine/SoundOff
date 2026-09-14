@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Avalonia.Controls;
+using Avalonia.Threading;
 using Avalonia.Layout;
 using Avalonia.Media;
 using SoundOff.Core;
@@ -20,6 +21,7 @@ public sealed partial class MainWindow
     private CancellationTokenSource? job;
     private Task? jobTask;
     private (string RunId, Transcript Proposal)? pendingResult;
+    private int jobGeneration;
     private bool JobRunning => job is not null;
 
     private void InitializeTranscribe(InferenceWorkerClient? client)
@@ -111,20 +113,31 @@ public sealed partial class MainWindow
         catch (Exception e) { jobText.Text = "Failed: " + e.Message; }
         finally { job?.Dispose(); job = null; if (!lifetime.IsCancellationRequested) { RenderTranscribe(); UpdateControls(); } }
     }
+    // Progress<T> posts asynchronously, so a late report could land after the job's final success or failure message
+    // and overwrite it. This reporter delivers on the UI thread immediately and ignores anything from a finished job.
+    private sealed class JobReporter(Action<InferenceProgress> handler, Func<bool> isCurrent) : IProgress<InferenceProgress>
+    {
+        public void Report(InferenceProgress value)
+        {
+            if (Dispatcher.UIThread.CheckAccess()) { if (isCurrent()) handler(value); }
+            else Dispatcher.UIThread.Post(() => { if (isCurrent()) handler(value); });
+        }
+    }
+
     private IProgress<InferenceProgress> JobProgress(string verb)
     {
-        var started = DateTime.UtcNow; double? lastFraction = null; DateTime? lastAt = null;
-        return new Progress<InferenceProgress>(p =>
+        var started = DateTime.UtcNow;
+        var generation = ++jobGeneration;
+        return new JobReporter(p =>
         {
             var elapsed = DateTime.UtcNow - started; string eta = "Estimating…";
             if (p.Fraction is { } f && f > 0.05 && f < 1)
             {
                 var remaining = TimeSpan.FromSeconds(elapsed.TotalSeconds * (1 - f) / f);
                 eta = remaining.TotalMinutes >= 1 ? $"about {Math.Ceiling(remaining.TotalMinutes):0} min left" : "under a minute left";
-                lastFraction = f; lastAt = DateTime.UtcNow;
             }
             jobText.Text = $"{verb}: {Describe(p.Stage)}{(p.Fraction is { } fr ? $" ({fr:P0})" : "")} · {elapsed:mm\\:ss} elapsed · {eta}" + (p.Message is null ? "" : $" · {p.Message}");
-        });
+        }, () => jobGeneration == generation && JobRunning);
     }
     private static string Describe(string stage) => stage switch
     {
