@@ -1,7 +1,7 @@
 # Implementation verification
 
 - Repository: `C:/Users/pcuser/source/repos/SoundOff`, branch `main`
-- Scope: **real local WhisperX inference and real audio playback on Windows**. No recording, no diarization, no packaging.
+- Scope: **real local WhisperX inference, real recording and real audio playback on Windows**. No diarization, no packaging.
 
 ## Executed results
 
@@ -13,7 +13,7 @@
 | `python -m unittest discover -s scripts -p test_verify.py -v` | 2 verifier regression tests passed. |
 | `dotnet restore SoundOff.sln --force --no-cache --locked-mode` | All five projects restored from lock files; exit 0. |
 | `dotnet build SoundOff.sln -c Release --no-restore -t:Rebuild` | **0 warnings, 0 errors**; exit 0. |
-| `dotnet test SoundOff.sln -c Release --no-build --no-restore` | **204 passed, 0 failed, 0 skipped, 204 total**; exit 0. The previous TRX is deleted first and the fresh one's summary, counters and per-test outcomes are cross-checked. |
+| `dotnet test SoundOff.sln -c Release --no-build --no-restore` | **212 passed, 0 failed, 0 skipped, 212 total**; exit 0. The previous TRX is deleted first and the fresh one's summary, counters and per-test outcomes are cross-checked. |
 | `SoundOff.Worker.dll --self-test` | `status: passed`, `provider: soundoff-demo-v1`, `inference: false`. This is the *fixture* protocol, unrelated to real inference. |
 | `SoundOff.Desktop.dll --self-test --output artifacts/self-test` | `status: passed`; ten non-GUI checks through SQLite and a real fixture child process. |
 | Native smoke | Observed the visible native window titled `SoundOff — local transcription editor`, sent WM_CLOSE to that process only, observed clean **exit 0**. |
@@ -49,6 +49,30 @@ Word timings are real forced-alignment output, for example `Hello.` at 0.13–0.
 
 **This is not a benchmark.** Recognition plus alignment took 3.86 s for 9.3 s of audio, but a 9-second English clip from a speech synthesizer says nothing about the architecture's demanding case: two hours, a dozen speakers, imperfect microphones and Filipino/English code-switching. Model load dominates this measurement and is paid once per run. No accuracy, timing-quality or throughput claim is made, and the 40–60% processing-duration target remains unmeasured.
 
+## Real recording, and the complete loop
+
+Whole-computer capture through the app's own CLI, against the real Windows audio stack:
+
+```text
+dotnet SoundOff.Desktop.dll --record 11 loop-capture.wav system
+```
+
+It captured 11.01 s from `Speakers (Realtek(R) Audio)` as 48 kHz stereo PCM. The engine's own clock and ffprobe's reading of the finished file agree exactly (11.01 s against 11.01 s), which is the check that matters: position is derived from bytes actually written, not from wall-clock time.
+
+The clip was played through those speakers while the capture ran, and the **recording** was then transcribed:
+
+```text
+dotnet SoundOff.Desktop.dll --transcribe loop-capture.wav loop-result.json small cpu en
+```
+
+```text
+Hello! This is a synthetic English test clip for Soneduff. The quick brown box jumps over the lazy dog.
+```
+
+That is record → transcribe working end to end on real audio that never existed as a file until the app recorded it. The recognition is visibly worse than on the source file ("brown box" for "brown fox", "Soneduff" for "SoundOff"), which is the point of quoting it: this is what the model produced, and the app treats it as a proposal to correct.
+
+`CaptureEngineTests` additionally drive the real engine: device enumeration for both modes, a growing wave file that ffprobe can already read *while* recording continues, a pause that excludes its own duration and leaves a gap marker, free-space and writability refused before any device is opened, a second start refused while one runs, and an unknown device id refused by name.
+
 ## Real playback
 
 `PlaybackEngineTests` run against the actual Windows audio stack, not a mock:
@@ -65,7 +89,7 @@ Word timings are real forced-alignment output, for example `Hello.` at 0.13–0.
 - **Storage:** rollback, abrupt process exit, durable undo/redo across reopen, writer ownership across processes, stale-revision protection, refusal of unknown or incomplete schemas, and chained 1→2→3 upgrades behind a flushed backup with an interrupted upgrade leaving the original schema.
 - **Media and runs:** ffprobe identifying content and rejecting a text file named `.wav`, copy-with-digest leaving the original untouched, identical bytes sharing one owned copy, runs finishing exactly once, and results importing as a new undoable revision.
 - **Inference protocol:** an adversary worker exercising wrong job id, sequence gaps, failure messages, missing or tampered artifacts, wrong audio identity, extra messages after completion, silence until the liveness deadline, cooperative cancel, and cancel ignored until the kill. Plus real WhisperX when the runtime and pack are present.
-- **Playback:** clock-to-document mapping including overlap and unaligned words, and the real engine above.
+- **Playback and recording:** clock-to-document mapping including overlap and unaligned words, plus the real engines above. Headless tests drive record/pause/stop with a fake device that writes a real wave file, so the adopt-and-probe path runs for real.
 - **Subtitles, search, settings, recents, bundles** as before.
 - **Headless UI:** the full edit/save/undo/redo/export path, structural actions, manual timing, find and replace, history restore, bundle round trip, recent projects, keyboard shortcuts, the transcription card (import, prepare, transcribe, auto-apply into an empty document, explicit apply otherwise, cancelled and failed runs), and synchronized review (transport, overlap highlighting, word ribbon seeks, Play from here, follow-scroll suspension).
 
@@ -73,7 +97,7 @@ No tests are skipped.
 
 ## What this evidence does not establish
 
-- **No recording of any kind** exists. Capture, its permissions and its state machine are absent.
+- **Per-app capture does not exist.** Only the microphone and the whole computer can be recorded; Windows process-loopback is not used, so recording one application alone is not offered. Recording both the microphone and the computer at once is also absent, because two device clocks need drift handling this build does not implement.
 - **Diarization is untested.** The worker implements the pyannote path but it needs a gated Hugging Face token, so it has never run here.
 - **One machine, one platform.** Windows x64 only, one CPU, and a GPU that torch's CPU build does not use. No macOS or Linux, no packaged artifact, no clean-device install, no upgrade or uninstall test.
 - **No network instrumentation.** The app has no network client beyond the explicit model download and transcription sets `HF_HUB_OFFLINE=1`, but outbound traffic was never measured.

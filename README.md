@@ -9,6 +9,7 @@ This is a working Windows development build, not a packaged release. See [verifi
 | Stage | What actually happens |
 |---|---|
 | Import | ffprobe identifies the file by content, then the bytes are copied beside the project while being hashed. The original is never modified. |
+| Record | WASAPI captures the microphone or the whole computer straight to a wave file whose header is rewritten continuously, so a crash keeps what was captured. |
 | Transcribe | A private Python child process runs WhisperX: voice-activity batching, faster-whisper recognition, then wav2vec2 forced alignment for word timing. |
 | Review | Playback highlights the active paragraph and word from one authoritative clock; clicking a word seeks to it. |
 | Correct | Text, speakers, paragraph structure and timing are yours; each save is an immutable revision you can undo, redo or restore. |
@@ -51,6 +52,7 @@ A single `*.soundoff.sqlite` argument opens that project once the window is show
 ## Transcribe a recording
 
 1. **Import audio/video…** probes the file, creates the project if there is not one yet, and copies the recording into `<project>.soundoff.media/media/`. The transport bar appears once it loads.
+   **Record** captures the microphone or the whole computer instead. Capture starts only from the Record button, shows a live level and elapsed time, pauses with a visible gap marker, and stops into an ordinary project recording. Starting a whole-computer capture pauses playback so the app does not record itself.
 2. **Prepare model pack** downloads the `small` recognition model, the voice-activity model, the English and Filipino aligners and sentence data into `%LOCALAPPDATA%\SoundOff\models`, then verifies them. About 2 GB, once. A pack counts as ready only after that verification succeeds.
 3. Choose **Detect language**, English or Filipino, and CPU or GPU. **Transcribe** runs the job beside the editor with a stage-by-stage status line and a rough estimate. **Cancel** asks the worker to stop and terminates it if a stage will not yield.
 4. The result becomes the transcript automatically only when the document is still empty. Otherwise it waits behind **Apply model result**, which confirms before replacing the document as a new undoable revision. Every run is recorded with its status and its immutable result artifact, and a completed run can be re-applied later after its artifact is re-verified.
@@ -113,7 +115,7 @@ python scripts/worker_cli.py hello --probe-cuda
 
 ## Not implemented
 
-- **Recording.** No microphone, per-app or system-audio capture. The recorder, its capture modes and its state machine are entirely absent.
+- **Per-app capture**, and recording the microphone and the computer at the same time. Per-app needs a Windows process-loopback API this build does not use; the combined mode needs drift handling between two device clocks. Both are absent rather than quietly approximated.
 - **Speaker diarization.** The worker implements the pyannote path, but it needs a Hugging Face token from an account that accepted the model terms, so it is off and untested here. Speakers come from the engine's own labels, or are yours to assign.
 - **Video preview.** Video files import and their audio transcribes; no picture is shown.
 - **Playback speed**, cue editing, reprocessing comparisons, durable job queues surviving restart, word-anchored editing inside the text box, media inside portable bundles, tray and notifications, model choices beyond `small`, library search, and OS reduced-motion detection.
