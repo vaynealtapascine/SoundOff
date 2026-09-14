@@ -28,6 +28,7 @@ public static class Program
             if (args.Length == 2) File.WriteAllText(args[1], Environment.ProcessId.ToString());
             await Task.Delay(TimeSpan.FromMinutes(1)); return 0;
         }
+        if (mode.StartsWith("inf-", StringComparison.Ordinal)) return await InferenceAdversary.RunAsync(mode);
         var request = await new JsonLineReader(Console.OpenStandardInput()).ReadAsync(CancellationToken.None);
         if (request is null) return 2;
         var output = Console.OpenStandardOutput();

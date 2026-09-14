@@ -26,7 +26,8 @@ public static class WorkerProtocol
             throw new InvalidDataException("Worker protocol identity, version, type, or sequence mismatch.");
     }
 
-    public static async Task WriteAsync(Stream stream, WorkerMessage message, CancellationToken cancellationToken)
+    public static Task WriteAsync(Stream stream, WorkerMessage message, CancellationToken cancellationToken) => WriteLineAsync(stream, message, cancellationToken);
+    public static async Task WriteLineAsync<T>(Stream stream, T message, CancellationToken cancellationToken)
     {
         var bytes = JsonSerializer.SerializeToUtf8Bytes(message, DocumentJson.Options);
         if (bytes.Length > MaxLineBytes) throw new InvalidDataException("Worker message exceeds the byte limit.");
@@ -36,13 +37,15 @@ public static class WorkerProtocol
     }
 }
 
+public sealed class JsonLineReader(Stream stream) : JsonLineReader<WorkerMessage>(stream);
+
 // Incremental byte framing, bounded BEFORE deserialization. Never ReadLine on untrusted stdout.
-public sealed class JsonLineReader(Stream stream)
+public class JsonLineReader<T>(Stream stream)
 {
     private readonly byte[] buffer = new byte[4096];
     private int offset;
     private int count;
-    public async Task<WorkerMessage?> ReadAsync(CancellationToken cancellationToken)
+    public async Task<T?> ReadAsync(CancellationToken cancellationToken)
     {
         using var line = new MemoryStream();
         while (true)
@@ -53,7 +56,7 @@ public sealed class JsonLineReader(Stream stream)
                 if (count == 0)
                 {
                     if (line.Length != 0) throw new InvalidDataException("Worker ended with an unterminated JSON line.");
-                    return null;
+                    return default;
                 }
             }
             var value = buffer[offset++];
@@ -64,7 +67,7 @@ public sealed class JsonLineReader(Stream stream)
                 {
                     // Strict UTF-8 and strict property schema; malformed payloads cannot become proposals.
                     var json = new UTF8Encoding(false, true).GetString(line.ToArray());
-                    return DocumentJson.ReadStrict<WorkerMessage>(json, WorkerProtocol.MaxLineBytes);
+                    return DocumentJson.ReadStrict<T>(json, WorkerProtocol.MaxLineBytes);
                 }
                 catch (Exception e) when (e is JsonException or DecoderFallbackException)
                 { throw new InvalidDataException("Invalid worker JSON/UTF-8.", e); }

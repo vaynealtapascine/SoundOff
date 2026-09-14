@@ -16,6 +16,9 @@
     <ProjectReference Include="..\SoundOff.Protocol\SoundOff.Protocol.csproj" />
     <ProjectReference Include="..\SoundOff.Worker\SoundOff.Worker.csproj" ReferenceOutputAssembly="false" />
   </ItemGroup>
+  <Target Name="CopyInferenceWorker" AfterTargets="Build">
+    <Copy SourceFiles="$(MSBuildProjectDirectory)/../SoundOff.Worker.Python/soundoff_worker.py" DestinationFolder="$(OutDir)worker" />
+  </Target>
   <Target Name="CopyFixtureWorker" AfterTargets="Build">
     <ItemGroup><WorkerFiles Include="$(MSBuildProjectDirectory)/../SoundOff.Worker/bin/$(Configuration)/net8.0/**/*" /></ItemGroup>
     <Copy SourceFiles="@(WorkerFiles)" DestinationFiles="@(WorkerFiles->'$(OutDir)worker/%(RecursiveDir)%(Filename)%(Extension)')" />
