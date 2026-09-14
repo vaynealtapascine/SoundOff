@@ -24,7 +24,14 @@ public static class TextExport
         {
             Title = draft.Title ?? snapshot.Title,
             Speakers = snapshot.Speakers.Select(s => draft.SpeakerNames.TryGetValue(s.Id, out var name) ? s with { Name = name } : s).ToImmutableArray(),
-            Blocks = snapshot.Blocks.Select(b => (draft.BlockTexts.TryGetValue(b.Id, out var text) ? b with { Text = text } : b) with { SpeakerId = draft.SpeakerOf(b) }).ToImmutableArray()
+            // An edited paragraph would lose its timing on save, so the draft rescue shows none for it either.
+            Blocks = snapshot.Blocks.Select(b =>
+            {
+                var block = b with { SpeakerId = draft.SpeakerOf(b) };
+                if (draft.BlockTexts.TryGetValue(b.Id, out var text) && text != b.Text) block = block with { Text = text, Timing = null };
+                if (draft.BlockTimings is not null && draft.BlockTimings.TryGetValue(b.Id, out var timing)) block = block with { Timing = timing };
+                return block;
+            }).ToImmutableArray()
         };
         return RenderUnchecked(frozen, true);
     }
@@ -36,7 +43,13 @@ public static class TextExport
         text.Append(isDraft ? "UNSAVED DRAFT based on revision " : "Saved revision ").Append(snapshot.Revision).Append("\n\n");
         var names = snapshot.Speakers.ToDictionary(s => s.Id, s => s.Name);
         foreach (var block in snapshot.Blocks)
-            text.Append(names[block.SpeakerId]).Append(":\n").Append(block.Text).Append("\n\n");
+        {
+            text.Append(names[block.SpeakerId]);
+            // Timecodes appear only where an interval is actually stored; untimed paragraphs get no invented placeholder.
+            if (block.Timing is { } timing)
+                text.Append(" [").Append(TimeText.Format(timing.StartMicroseconds)).Append(" – ").Append(TimeText.Format(timing.EndMicroseconds)).Append(']');
+            text.Append(":\n").Append(block.Text).Append("\n\n");
+        }
         return text.ToString();
     }
 

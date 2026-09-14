@@ -43,6 +43,22 @@ public sealed class TimingTests
         Assert.Contains("later than", Assert.Throws<InvalidDataException>(() => TimeText.ParseRange("3", "2")).Message);
     }
 
+    [Fact] public void Text_export_shows_timecodes_only_for_timed_paragraphs_and_drafts_drop_timing_of_edited_text()
+    {
+        var source = SyntheticFixture.Create(Guid.NewGuid(), 2);
+        source = source with { Blocks = source.Blocks.SetItem(0, source.Blocks[0] with { Timing = new TimeRange(1_000_000, 2_500_000) }) };
+        var saved = TextExport.Render(source);
+        Assert.Contains("Demo speaker A [0:00:01.000000 – 0:00:02.500000]:\nThis is an authored", saved);
+        Assert.Contains("Demo speaker B:\nKumusta!", saved); Assert.DoesNotContain("[0:00:00", saved);
+        var edited = TextExport.RenderDraft(source, new EditBatch(new Dictionary<Guid, string>(), new Dictionary<Guid, string> { [source.Blocks[0].Id] = "edited" }));
+        Assert.Contains("Demo speaker A:\nedited", edited); Assert.DoesNotContain("[0:00:01", edited);
+        var retimed = TextExport.RenderDraft(source, new EditBatch(new Dictionary<Guid, string>(), new Dictionary<Guid, string> { [source.Blocks[0].Id] = "edited" },
+            BlockTimings: new Dictionary<Guid, TimeRange?> { [source.Blocks[0].Id] = new TimeRange(5_000_000, 6_000_000) }));
+        Assert.Contains("Demo speaker A [0:00:05.000000 – 0:00:06.000000]:\nedited", retimed);
+        var unchanged = TextExport.RenderDraft(source, new EditBatch(new Dictionary<Guid, string>(), new Dictionary<Guid, string> { [source.Blocks[0].Id] = source.Blocks[0].Text }));
+        Assert.Contains("[0:00:01.000000 – 0:00:02.500000]", unchanged);
+    }
+
     [Fact] public void Manual_timing_in_a_draft_is_an_explicit_anchor_that_survives_a_text_edit_and_can_be_cleared()
     {
         var source = SyntheticFixture.Create(Guid.NewGuid(), 0);
