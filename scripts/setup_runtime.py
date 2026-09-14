@@ -22,8 +22,11 @@ PYTORCH_CUDA_INDEX = "https://download.pytorch.org/whl/cu126"
 
 
 def default_runtime_dir() -> Path:
-    base = os.environ.get("LOCALAPPDATA") or str(Path.home() / "AppData" / "Local")
-    return Path(base) / "SoundOff" / "runtime"
+    """SOUNDOFF_HOME wins; otherwise %LOCALAPPDATA%/SoundOff. Packaged hosts virtualize LOCALAPPDATA per app, so pass
+    --dir %USERPROFILE%/SoundOff/runtime when the runtime must be shared with launches from other hosts."""
+    home = os.environ.get("SOUNDOFF_HOME")
+    base = Path(home) if home else Path(os.environ.get("LOCALAPPDATA") or str(Path.home() / "AppData" / "Local")) / "SoundOff"
+    return base / "runtime"
 
 
 def run(command: list[str], **kwargs) -> subprocess.CompletedProcess:
