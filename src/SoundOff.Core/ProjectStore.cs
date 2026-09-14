@@ -3,6 +3,7 @@ using Microsoft.Data.Sqlite;
 namespace SoundOff.Core;
 
 public sealed class ProjectLockedException() : IOException("This project is already open for writing. Close its other editor and try again.");
+public sealed record RevisionInfo(long Revision, long? ParentRevision, string Operation);
 
 // One local writer, SQLite transactional revisions. The lock file is deliberately never deleted:
 // ownership is the live exclusive OS handle, not its contents, PID or age.
@@ -134,6 +135,40 @@ public sealed class ProjectStore : IDisposable
         return document;
     }
 
+    // Newest first. History is append-only; nothing here rewrites or removes a revision.
+    public IReadOnlyList<RevisionInfo> History(int limit = 100)
+    {
+        lock (gate)
+        {
+            ThrowIfDisposed();
+            using var command = connection.CreateCommand();
+            command.CommandText = "SELECT revision,parent_revision,operation FROM revision_history ORDER BY revision DESC LIMIT $limit";
+            command.Parameters.AddWithValue("$limit", limit);
+            using var rows = command.ExecuteReader(); var result = new List<RevisionInfo>();
+            while (rows.Read()) result.Add(new RevisionInfo(rows.GetInt64(0), rows.IsDBNull(1) ? null : rows.GetInt64(1), rows.GetString(2)));
+            return result;
+        }
+    }
+    public Transcript ReadRevision(long revision)
+    {
+        lock (gate) { ThrowIfDisposed(); return ReadRevisionInside(null, revision); }
+    }
+    private Transcript ReadRevisionInside(SqliteTransaction? transaction, long revision)
+    {
+        using var command = connection.CreateCommand(); command.Transaction = transaction;
+        command.CommandText = "SELECT CASE WHEN length(CAST(snapshot AS BLOB)) <= $limit THEN snapshot ELSE NULL END FROM revision_history WHERE revision=$revision";
+        command.Parameters.AddWithValue("$limit", DocumentRules.MaxSnapshotBytes); command.Parameters.AddWithValue("$revision", revision);
+        using var row = command.ExecuteReader();
+        if (!row.Read()) throw new InvalidOperationException($"Revision {revision} is not in this project's history.");
+        if (row.IsDBNull(0)) throw new InvalidDataException("History snapshot exceeds the size limit.");
+        var document = DocumentJson.Deserialize(row.GetString(0));
+        if (document.Revision != revision) throw new InvalidDataException("Inconsistent history revision.");
+        return document;
+    }
+    // Restoring is a forward edit: a NEW revision with the old content, undoable, and it clears the redo stack.
+    public Transcript Restore(long expectedRevision, long targetRevision) => Commit(expectedRevision, "restore-revision:" + targetRevision,
+        (previous, transaction) => ReadRevisionInside(transaction, targetRevision) with { Revision = previous.Revision }, CommitKind.Edit);
+
     public bool CanUndo => HasRows("undo_stack");
     public bool CanRedo => HasRows("redo_stack");
     private bool HasRows(string table)
@@ -145,7 +180,7 @@ public sealed class ProjectStore : IDisposable
         }
     }
 
-    public Transcript LoadFixture(long expectedRevision, Transcript proposal) => Commit(expectedRevision, "load-synthetic-fixture", previous =>
+    public Transcript LoadFixture(long expectedRevision, Transcript proposal) => Commit(expectedRevision, "load-synthetic-fixture", (previous, _) =>
     {
         if (previous.Blocks.Length != 0 || previous.Provenance != Provenance.Empty)
             throw new InvalidOperationException("Load the demo into an empty project, not over an existing transcript.");
@@ -160,12 +195,12 @@ public sealed class ProjectStore : IDisposable
     {
         var label = operations.Length == 0 ? "manual-edit"
             : (edits.IsEmpty ? "" : "manual-edit+") + string.Join("+", operations.Select(o => o.Name).Distinct());
-        return Commit(expectedRevision, label, previous => TranscriptEdits.Apply(previous, edits, operations), CommitKind.Edit);
+        return Commit(expectedRevision, label, (previous, _) => TranscriptEdits.Apply(previous, edits, operations), CommitKind.Edit);
     }
-    public Transcript Undo(long expectedRevision) => Commit(expectedRevision, "undo", previous => previous, CommitKind.Undo);
-    public Transcript Redo(long expectedRevision) => Commit(expectedRevision, "redo", previous => previous, CommitKind.Redo);
+    public Transcript Undo(long expectedRevision) => Commit(expectedRevision, "undo", (previous, _) => previous, CommitKind.Undo);
+    public Transcript Redo(long expectedRevision) => Commit(expectedRevision, "redo", (previous, _) => previous, CommitKind.Redo);
 
-    private Transcript Commit(long expectedRevision, string operation, Func<Transcript, Transcript> transform, CommitKind kind)
+    private Transcript Commit(long expectedRevision, string operation, Func<Transcript, SqliteTransaction, Transcript> transform, CommitKind kind)
     {
         lock (gate)
         {
@@ -186,7 +221,7 @@ public sealed class ProjectStore : IDisposable
                 if (row.IsDBNull(1)) throw new InvalidDataException("History snapshot exceeds the size limit.");
                 stackId = row.GetInt64(0); candidate = DocumentJson.Deserialize(row.GetString(1));
             }
-            else candidate = transform(previous);
+            else candidate = transform(previous, transaction);
             if (candidate.ProjectId != previous.ProjectId) throw new InvalidDataException("An edit cannot replace the project identity.");
             var previousJson = DocumentJson.Serialize(previous);
             if (kind == CommitKind.Edit && DocumentJson.Serialize(candidate) == previousJson) return previous;

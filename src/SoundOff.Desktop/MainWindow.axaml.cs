@@ -31,7 +31,8 @@ public sealed partial class MainWindow : Window
     private readonly CheckBox reducedMotionChoice;
     private bool applyingSettings;
     private readonly RecentProjectsStore recent;
-    private readonly StackPanel recentHost;
+    private readonly StackPanel recentHost, historyHost;
+    private const int HistoryRows = 50;
     private readonly TextBox findInput, replaceInput;
     private readonly Button findNext, replaceOne, replaceAll;
     private readonly TextBlock findStatus;
@@ -59,7 +60,7 @@ public sealed partial class MainWindow : Window
         discard.Click += (_, _) => { Render(); SavedStatus(); };
         export.Click += async (_, _) => await GuardAsync(ExportAsync);
         copy.Click += async (_, _) => await GuardAsync(CopyAsync);
-        recent = settings.RecentProjects; recentHost = this.FindControl<StackPanel>("RecentHost")!;
+        recent = settings.RecentProjects; recentHost = this.FindControl<StackPanel>("RecentHost")!; historyHost = this.FindControl<StackPanel>("HistoryHost")!;
         findInput = this.FindControl<TextBox>("FindInput")!; replaceInput = this.FindControl<TextBox>("ReplaceInput")!;
         findNext = this.FindControl<Button>("FindNextButton")!; replaceOne = this.FindControl<Button>("ReplaceButton")!;
         replaceAll = this.FindControl<Button>("ReplaceAllButton")!; findStatus = this.FindControl<TextBlock>("FindStatus")!;
@@ -87,6 +88,31 @@ public sealed partial class MainWindow : Window
         Closed += (_, _) => { lifetime.Cancel(); store?.Dispose(); };
         Render(); RenderRecents();
         if (settingsProblem is not null) status.Text = settingsProblem + " " + status.Text;
+    }
+
+    private void RenderHistory()
+    {
+        historyHost.Children.Clear();
+        if (store is null || snapshot is null) { historyHost.Children.Add(Label("No project open.")); return; }
+        var rows = store.History(HistoryRows);
+        foreach (var info in rows)
+        {
+            var row = new Grid { ColumnDefinitions = new ColumnDefinitions("*,Auto"), ColumnSpacing = 8 }; row.Classes.Add("revision");
+            var current = info.Revision == snapshot.Revision;
+            var text = $"r{info.Revision} · {info.Operation}" + (info.ParentRevision is { } parent ? $" · from r{parent}" : "") + (current ? " · current" : "");
+            row.Children.Add(new TextBlock { Text = text, TextWrapping = TextWrapping.Wrap, VerticalAlignment = VerticalAlignment.Center, FontWeight = current ? FontWeight.SemiBold : FontWeight.Normal });
+            var revision = info.Revision;
+            var restore = Action("Restore", $"Restore revision {revision}", () => GuardAsync(() => RestoreAsync(revision)), enabled: !current);
+            Grid.SetColumn(restore, 1); row.Children.Add(restore); historyHost.Children.Add(row);
+        }
+        if (rows.Count == HistoryRows) historyHost.Children.Add(Label($"Only the newest {HistoryRows} revisions are listed; older ones remain in the project file."));
+    }
+    private async Task RestoreAsync(long revision)
+    {
+        if (dirty && !await ConfirmAsync("Discard unsaved draft?",
+            "Restoring an earlier revision replaces the whole document as a new saved revision. Your unsaved input would be discarded; saved revisions stay in history.", "Discard draft and restore"))
+            return;
+        snapshot = store!.Restore(snapshot!.Revision, revision); Render(); SavedStatus();
     }
 
     private void RememberCurrent()
@@ -360,7 +386,7 @@ public sealed partial class MainWindow : Window
                 () => CommitStructuralAsync(new InsertBlock(snapshot.Blocks.Length == 0 ? null : snapshot.Blocks[^1].Id, Guid.NewGuid(), snapshot.Speakers[0].Id, "")),
                 enabled: snapshot.Speakers.Length > 0 && snapshot.Blocks.Length < DocumentRules.MaxBlocks));
         }
-        rendering = false; UpdateControls();
+        rendering = false; RenderHistory(); UpdateControls();
     }
     private static TextBlock Label(string text) => new() { Text = text, TextWrapping = TextWrapping.Wrap };
     private string NewSpeakerName()
@@ -395,7 +421,7 @@ public sealed partial class MainWindow : Window
         redo.IsEnabled = !busy && !dirty && store?.CanRedo == true;
         export.IsEnabled = copy.IsEnabled = !busy && snapshot is not null && snapshot.Provenance != Provenance.Empty;
         findNext.IsEnabled = replaceOne.IsEnabled = replaceAll.IsEnabled = !busy && snapshot is not null && snapshot.Blocks.Length != 0;
-        documentHost.IsEnabled = speakerHost.IsEnabled = recentHost.IsEnabled = !busy;
+        documentHost.IsEnabled = speakerHost.IsEnabled = recentHost.IsEnabled = historyHost.IsEnabled = !busy;
     }
 
     private async Task<bool> ConfirmAsync(string title, string message, string affirmative)
