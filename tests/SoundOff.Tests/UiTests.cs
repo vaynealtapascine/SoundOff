@@ -23,9 +23,46 @@ public sealed class UiTests
 {
     private sealed class Picker(string project, string export) : IProjectPicker
     {
-        public Task<string?> CreateProjectAsync() => Task.FromResult<string?>(project);
-        public Task<string?> OpenProjectAsync() => Task.FromResult<string?>(project);
+        public string CreatePath { get; set; } = project;
+        private readonly string openPath = project;
+        public string? Bundle { get; set; }
+        public Task<string?> CreateProjectAsync() => Task.FromResult<string?>(CreatePath);
+        public Task<string?> OpenProjectAsync() => Task.FromResult<string?>(openPath);
         public Task<string?> ExportTextAsync(bool isDraft) => Task.FromResult<string?>(export);
+        public Task<string?> ExportBundleAsync() => Task.FromResult(Bundle);
+        public Task<string?> ImportBundleAsync() => Task.FromResult(Bundle);
+    }
+
+    [AvaloniaFact] public async Task Bundles_export_only_the_saved_revision_and_import_into_a_new_project()
+    {
+        using var folder = new TestDirectory();
+        var picker = new Picker(folder.Project, Path.Combine(folder.Root, "t.txt")) { Bundle = Path.Combine(folder.Root, "Trip.soundoff.zip") };
+        var window = new MainWindow(picker, folder.Settings); window.Show();
+        try
+        {
+            Assert.False(Button(window, "ExportBundleButton").IsEnabled); Assert.True(Button(window, "ImportBundleButton").IsEnabled);
+            Click(window, "DemoButton"); await Idle(window);
+            SpeakerBox(window).Text = "Bundled 👩🏽‍💻"; Click(window, "SaveButton"); await Idle(window);
+            Blocks(window)[0].Text = "unsaved draft";
+            Click(window, "ExportBundleButton"); await Idle(window);
+            Assert.Contains("Exported portable bundle of saved revision 2", Status(window)); Assert.Contains("NOT included", Status(window));
+            Assert.True(File.Exists(picker.Bundle)); Assert.True(Button(window, "SaveButton").IsEnabled);
+            Click(window, "DiscardButton");
+            picker.CreatePath = Path.Combine(folder.Root, "Imported.soundoff.sqlite");
+            Click(window, "ImportBundleButton"); await Idle(window);
+            Assert.Contains("Saved · revision 2", Status(window)); Assert.Contains("Imported from a bundle of revision 2", Status(window));
+            Assert.Equal(picker.CreatePath, window.FindControl<TextBlock>("PathText")!.Text);
+            Assert.Equal("Bundled 👩🏽‍💻", SpeakerBox(window).Text); Assert.StartsWith("This is an authored", Blocks(window)[0].Text);
+            Click(window, "ImportBundleButton"); await Idle(window); // destination now exists: refused, current project kept
+            Assert.Contains("Importing never overwrites an existing project", Status(window));
+            picker.Bundle = Path.Combine(folder.Root, "wrong.txt"); Click(window, "ExportBundleButton"); await Idle(window);
+            Assert.Contains("Bundle filenames must end in .soundoff.zip", Status(window)); Assert.False(File.Exists(picker.Bundle));
+        }
+        finally { Click(window, "DiscardButton"); window.Close(); }
+        using var original = ProjectStore.Open(folder.Project); Assert.Equal(2, original.Read().Revision);
+        using var imported = ProjectStore.Open(Path.Combine(folder.Root, "Imported.soundoff.sqlite"));
+        Assert.Equal(original.Read().ProjectId, imported.Read().ProjectId); Assert.Equal("Bundled 👩🏽‍💻", imported.Read().Speakers[0].Name);
+        Assert.Equal(2, folder.Settings.RecentProjects.Load().List.Projects.Count);
     }
     private static Button Button(MainWindow window, string name) => window.FindControl<Button>(name)!;
     private static void Click(MainWindow window, string name) => Button(window, name).RaiseEvent(new RoutedEventArgs(Avalonia.Controls.Button.ClickEvent));

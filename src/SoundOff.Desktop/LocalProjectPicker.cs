@@ -9,14 +9,17 @@ public interface IProjectPicker
     Task<string?> CreateProjectAsync();
     Task<string?> OpenProjectAsync();
     Task<string?> ExportTextAsync(bool isDraft);
+    Task<string?> ExportBundleAsync() => Task.FromResult<string?>(null);
+    Task<string?> ImportBundleAsync() => Task.FromResult<string?>(null);
 }
 public sealed class LocalProjectPicker(Window owner) : IProjectPicker
 {
     private static FilePickerFileType ProjectType => new("SoundOff SQLite project") { Patterns = ["*.soundoff.sqlite"] };
+    private static FilePickerFileType BundleType => new("SoundOff portable project bundle") { Patterns = ["*.soundoff.zip"] };
     private static string? PathOf(IStorageItem? item) => item is null ? null : item.TryGetLocalPath() ?? throw new IOException("Only local filesystem paths are supported.");
     public async Task<string?> CreateProjectAsync() => PathOf(await owner.StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
     {
-        Title = "Create a NEW synthetic demo project (existing projects are never overwritten)",
+        Title = "Choose a NEW project filename (existing projects are never overwritten)",
         SuggestedFileName = "Synthetic demo.soundoff.sqlite", DefaultExtension = "soundoff.sqlite", ShowOverwritePrompt = true,
         FileTypeChoices = [ProjectType]
     }));
@@ -32,4 +35,16 @@ public sealed class LocalProjectPicker(Window owner) : IProjectPicker
         SuggestedFileName = "Synthetic demo.txt", DefaultExtension = "txt", ShowOverwritePrompt = true,
         FileTypeChoices = [new FilePickerFileType("Unicode plain text") { Patterns = ["*.txt"] }]
     }));
+    public async Task<string?> ExportBundleAsync() => PathOf(await owner.StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
+    {
+        Title = "Export portable project bundle (saved revision only)",
+        SuggestedFileName = "Synthetic demo.soundoff.zip", DefaultExtension = "soundoff.zip", ShowOverwritePrompt = true,
+        FileTypeChoices = [BundleType]
+    }));
+    public async Task<string?> ImportBundleAsync()
+    {
+        var files = await owner.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+        { Title = "Import portable project bundle into a NEW project", AllowMultiple = false, FileTypeFilter = [BundleType] });
+        return PathOf(files.FirstOrDefault());
+    }
 }

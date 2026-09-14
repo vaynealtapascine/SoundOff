@@ -24,7 +24,7 @@ public sealed partial class MainWindow : Window
     private readonly StackPanel documentHost, speakerHost;
     private readonly TextBlock status, path;
     private TextBox? titleInput;
-    private readonly Button demo, open, save, undo, redo, discard, export, copy;
+    private readonly Button demo, open, save, undo, redo, discard, export, copy, exportBundle, importBundle;
 
     public MainWindow() : this(null, new SettingsStore(SettingsStore.DefaultPath)) { }
     // initialProject: a project path given on the command line, opened once the window is shown; failures are shown, never fatal.
@@ -42,6 +42,9 @@ public sealed partial class MainWindow : Window
         redo = this.FindControl<Button>("RedoButton")!;
         discard = this.FindControl<Button>("DiscardButton")!; export = this.FindControl<Button>("ExportButton")!;
         copy = this.FindControl<Button>("CopyButton")!;
+        exportBundle = this.FindControl<Button>("ExportBundleButton")!; importBundle = this.FindControl<Button>("ImportBundleButton")!;
+        exportBundle.Click += async (_, _) => await GuardAsync(ExportBundleAsync);
+        importBundle.Click += async (_, _) => await GuardAsync(ImportBundleAsync);
         demo.Click += async (_, _) => await GuardAsync(LoadDemoAsync);
         open.Click += async (_, _) => await GuardAsync(OpenAsync);
         save.Click += async (_, _) => await GuardAsync(() => { Save(); return Task.CompletedTask; });
@@ -152,6 +155,37 @@ public sealed partial class MainWindow : Window
     {
         if (!local.EndsWith(".soundoff.sqlite", StringComparison.OrdinalIgnoreCase))
             throw new IOException("Project filenames must end in .soundoff.sqlite, not .txt or a media extension.");
+    }
+    private static void RequireBundleExtension(string local)
+    {
+        if (!local.EndsWith(ProjectBundle.Extension, StringComparison.OrdinalIgnoreCase))
+            throw new IOException($"Bundle filenames must end in {ProjectBundle.Extension}, never a project, text or media extension.");
+    }
+    // The bundle holds the SAVED revision only; a draft is deliberately never bundled.
+    private async Task ExportBundleAsync()
+    {
+        var wasDirty = dirty;
+        var local = await picker.ExportBundleAsync();
+        if (local is null) return;
+        lifetime.Token.ThrowIfCancellationRequested();
+        RequireBundleExtension(local);
+        var manifest = ProjectBundle.Export(store!, local, overwrite: true);
+        status.Text = $"Exported portable bundle of saved revision {manifest.Revision} to {local}." +
+            (wasDirty ? " The unsaved draft is NOT included; save it first to bundle it." : "");
+    }
+    private async Task ImportBundleAsync()
+    {
+        if (!await MayReplaceAsync()) return;
+        var bundle = await picker.ImportBundleAsync();
+        if (bundle is null) return;
+        RequireBundleExtension(bundle);
+        var local = await picker.CreateProjectAsync();
+        if (local is null) return;
+        RequireProjectExtension(local);
+        lifetime.Token.ThrowIfCancellationRequested();
+        var manifest = ProjectBundle.Import(bundle, local);
+        await OpenPathAsync(local, confirmed: true);
+        status.Text += $" Imported from a bundle of revision {manifest.Revision}; the bundle file itself is unchanged.";
     }
     private void Save()
     {
@@ -291,6 +325,7 @@ public sealed partial class MainWindow : Window
         undo.IsEnabled = !busy && !dirty && store?.CanUndo == true;
         redo.IsEnabled = !busy && !dirty && store?.CanRedo == true;
         export.IsEnabled = copy.IsEnabled = !busy && snapshot is not null && snapshot.Provenance != Provenance.Empty;
+        exportBundle.IsEnabled = !busy && store is not null; importBundle.IsEnabled = !busy;
         findNext.IsEnabled = replaceOne.IsEnabled = replaceAll.IsEnabled = !busy && snapshot is not null && snapshot.Blocks.Length != 0;
         documentHost.IsEnabled = speakerHost.IsEnabled = recentHost.IsEnabled = historyHost.IsEnabled = !busy;
     }
