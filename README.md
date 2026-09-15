@@ -9,7 +9,7 @@ This is a working Windows development build, not a packaged release. See [verifi
 | Stage | What actually happens |
 |---|---|
 | Import | ffprobe identifies the file by content, then the bytes are copied beside the project while being hashed. The original is never modified. |
-| Record | Windows WASAPI captures a microphone or all apps on one selected output endpoint. A new wave file is written continuously and its header refreshed; this is not power-loss-certified recovery. |
+| Record | Windows WASAPI captures a microphone, all apps on one selected output endpoint, or both together. A single-source take writes one continuously-refreshed wave file; a combined take measures each device's real clock from its own hardware timestamps and mixes them down once stopped. Neither is power-loss-certified recovery. |
 | Transcribe | A private Python child process runs WhisperX: voice-activity batching, faster-whisper recognition, then wav2vec2 forced alignment for word timing. |
 | Review | Playback highlights the active paragraph and word from one authoritative clock; clicking a word seeks to it. |
 | Correct | Text, speakers, paragraph structure and timing are yours; each save is an immutable revision you can undo, redo or restore. |
@@ -52,7 +52,9 @@ A single `*.soundoff.sqlite` argument opens that project once the window is show
 ## Transcribe a recording
 
 1. **Import audio/video…** probes the file, creates the project if there is not one yet, and copies the recording into `<project>.soundoff.media/media/`. The transport bar appears once it loads.
-   **Record** captures the microphone or all apps on the selected output device instead (not every output endpoint, and not mic+computer together). Capture starts only from Record and shows a live level and elapsed time. Starting capture pauses and disables this app's playback until Stop. Pausing excludes that time; the gap count is session-only and is **not persisted**. An interruption must be kept before another take can start. If probing/saving fails, **Keep recording** retries the retained file and closing is cancelled rather than reporting success. There is no startup recovery scanner: after restarting, manually import a retained take from `<project>.soundoff.media/recordings/`.
+   **Record** captures the microphone, all apps on the selected output device, or both together instead (not every output endpoint, and not per application). Capture starts only from Record and shows a live level and elapsed time. Starting capture pauses and disables this app's playback until Stop. Pausing excludes that time; the gap count is session-only and is **not persisted** for a single source. An interruption must be kept before another take can start. If probing/saving fails, **Keep recording** retries the retained file and closing is cancelled rather than reporting success. There is no startup recovery scanner: after restarting, manually import a retained take from `<project>.soundoff.media/recordings/`.
+
+   **Combined capture** (microphone + whole computer) opens both endpoints on independent threads and measures each one's actual sample rate from the hardware device-frame/QPC timestamps WASAPI attaches to every packet, not from callback arrival time or the nominal format. That measured rate resamples each source onto one shared presentation clock before they are mixed down to mono 48 kHz once you stop. A source that drops packets, jumps clock rate by more than 5%, or stops delivering interrupts **both** sources rather than silently drifting or falling back to one of them; the raw per-source WAVs, their clock maps and a session journal are kept beside the project (`<take>.wav.sources-<id>/`) for as long as the take is retained, so an interrupted combined take is recoverable even though the mixed file is not yet playable. There is no echo cancellation, so headphones are recommended.
 2. **Prepare model pack** downloads the `small` recognition model, the voice-activity model, the English and Filipino aligners and sentence data into `%LOCALAPPDATA%\SoundOff\models`, then verifies them. About 2 GB, once. A pack counts as ready only after that verification succeeds.
 3. Choose **Detect language**, English or Filipino, and CPU or GPU. **Transcribe** runs the job beside the editor with a stage-by-stage status line and a rough estimate. **Cancel** asks the worker to stop and terminates it if a stage will not yield.
 4. The result becomes the transcript automatically only when the document is still empty at the run's starting revision and there is no draft or competing editor action. Otherwise it waits behind **Apply model result**, which confirms before replacing the document as a new undoable revision. Cancelling that confirmation keeps the proposal. Project switching is blocked during a job or an unfinalized take. Every run is recorded with its status and its immutable result artifact, and a completed run can be re-applied later after its artifact and input digest are re-verified.
@@ -75,7 +77,7 @@ Playback has a **Windows adapter only**; elsewhere the app says so instead of pr
 
 Shortcuts: **Ctrl+S** save, **Ctrl+Z** undo, **Ctrl+Y** redo, **Ctrl+F** find, **F3** find next. Each only triggers the corresponding enabled button, so undo never silently discards typed text.
 
-**Appearance:** Follow system, Light and Dark, plus reduced motion (default on, since OS detection is not implemented). Both are saved to `%LOCALAPPDATA%\SoundOff\settings.json`; an invalid file yields defaults with a visible reason rather than a crash.
+**Appearance:** Follow system, Light and Dark, plus reduced motion (default on, since OS detection is not implemented). **Dark is the default** for a new install or an unreadable settings file; a valid saved choice is never overridden. Both are saved to `%LOCALAPPDATA%\SoundOff\settings.json` (or `SOUNDOFF_SETTINGS_PATH`, see [docs/SETTINGS-ISOLATION.md](docs/SETTINGS-ISOLATION.md)); an invalid file yields defaults with a visible reason rather than a crash.
 
 ## Export
 
@@ -115,7 +117,7 @@ python scripts/worker_cli.py hello --probe-cuda
 
 ## Not implemented
 
-- **Per-app capture**, and recording the microphone and the computer at the same time. Per-app needs a Windows process-loopback API this build does not use; the combined mode needs drift handling between two device clocks. Both are absent rather than quietly approximated.
+- **Per-app capture.** Needs a Windows process-loopback API this build does not use; whole-computer capture is the closest available mode, and it is not silently widened further.
 - **Speaker diarization.** The worker implements the pyannote path, but it needs a Hugging Face token from an account that accepted the model terms, so it is off and untested here. Speakers come from the engine's own labels, or are yours to assign.
 - **Video preview.** Video files import and their audio transcribes; no picture is shown.
 - **Playback speed**, cue editing, reprocessing comparisons, durable job queues surviving restart, word-anchored editing inside the text box, media inside portable bundles, tray and notifications, model choices beyond `small`, library search, and OS reduced-motion detection.
