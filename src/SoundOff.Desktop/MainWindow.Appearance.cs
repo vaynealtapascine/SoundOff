@@ -22,8 +22,13 @@ public sealed partial class MainWindow
     // The window always reflects the choice; persistence failure is reported, never fatal.
     private void ApplyAppearance(bool persist)
     {
-        var index = Math.Clamp(themeChoice.SelectedIndex, 0, AppearanceSettings.Themes.Length - 1);
-        RequestedThemeVariant = index switch { 1 => ThemeVariant.Light, 2 => ThemeVariant.Dark, _ => ThemeVariant.Default };
+        var index = themeChoice.SelectedIndex;
+        if (index < 0 || index >= AppearanceSettings.Themes.Length)
+            index = Array.IndexOf(AppearanceSettings.Themes, AppearanceSettings.Default.Theme);
+        var theme = App.ThemeFor(AppearanceSettings.Themes[index]);
+        // Default on a Window inherits the application theme. Reset that too for a true OS-following choice.
+        if (Application.Current is { } application) application.RequestedThemeVariant = theme;
+        RequestedThemeVariant = theme;
         var reduced = reducedMotionChoice.IsChecked == true;
         Classes.Set("reducedMotion", reduced);
         if (!persist || applyingSettings) return;

@@ -74,7 +74,7 @@ public sealed class SettingsTests
         try
         {
             Assert.Contains("were ignored", window.FindControl<TextBlock>("StatusText")!.Text);
-            Assert.Equal(0, window.FindControl<ComboBox>("ThemeChoice")!.SelectedIndex); Assert.Equal(ThemeVariant.Default, window.RequestedThemeVariant);
+            Assert.Equal(2, window.FindControl<ComboBox>("ThemeChoice")!.SelectedIndex); Assert.Equal(ThemeVariant.Dark, window.RequestedThemeVariant);
             Assert.True(window.FindControl<CheckBox>("ReducedMotionChoice")!.IsChecked); Assert.Contains("reducedMotion", window.Classes);
             window.FindControl<ComboBox>("ThemeChoice")!.SelectedIndex = 1;
         }
@@ -89,8 +89,8 @@ public sealed class SettingsTests
         var window = new MainWindow(null, folder.Settings); window.Show();
         try
         {
-            window.FindControl<ComboBox>("ThemeChoice")!.SelectedIndex = 2;
-            Assert.Equal(ThemeVariant.Dark, window.ActualThemeVariant);
+            window.FindControl<ComboBox>("ThemeChoice")!.SelectedIndex = 1;
+            Assert.Equal(ThemeVariant.Light, window.ActualThemeVariant);
             Assert.Contains("could not be saved", window.FindControl<TextBlock>("StatusText")!.Text);
             Assert.True(Directory.Exists(folder.SettingsPath));
             Assert.Empty(Directory.GetFiles(Path.GetDirectoryName(folder.SettingsPath)!)); // no leftover staging file

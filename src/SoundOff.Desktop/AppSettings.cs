@@ -13,7 +13,7 @@ public sealed record AppearanceSettings([property: JsonRequired] int Version, [p
     public const int CurrentVersion = 1;
     public static readonly string[] Themes = ["system", "light", "dark"];
     // Reduced motion defaults on conservatively: OS reduced-motion detection is not implemented.
-    public static AppearanceSettings Default => new(CurrentVersion, "system", true);
+    public static AppearanceSettings Default => new(CurrentVersion, "dark", true);
 }
 
 public sealed class SettingsStore(string path)
@@ -22,8 +22,20 @@ public sealed class SettingsStore(string path)
     public string PathName { get; } = Path.GetFullPath(path);
     // The recent-project listing lives beside the settings file.
     public RecentProjectsStore RecentProjects => new(Path.Combine(Path.GetDirectoryName(PathName)!, "recent-projects.json"));
-    public static string DefaultPath =>
-        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData, Environment.SpecialFolderOption.DoNotVerify), "SoundOff", "settings.json");
+    // Explicit isolation for tests/tours; independent of SOUNDOFF_HOME (runtime/models).
+    // Reject a malformed override rather than silently reading/writing the user's real preferences.
+    public static string DefaultPath => ResolveSettingsPath(Environment.GetEnvironmentVariable("SOUNDOFF_SETTINGS_PATH"));
+    internal static string ResolveSettingsPath(string? overridePath)
+    {
+        if (overridePath is null)
+            return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData, Environment.SpecialFolderOption.DoNotVerify), "SoundOff", "settings.json");
+        if (string.IsNullOrWhiteSpace(overridePath) || !Path.IsPathFullyQualified(overridePath))
+            throw new ArgumentException("SOUNDOFF_SETTINGS_PATH must be a fully qualified absolute settings filename.");
+        var fullPath = Path.GetFullPath(overridePath);
+        if (string.IsNullOrEmpty(Path.GetFileName(fullPath)) || Directory.Exists(fullPath))
+            throw new ArgumentException("SOUNDOFF_SETTINGS_PATH must name a file, not a directory.");
+        return fullPath;
+    }
 
     public (AppearanceSettings Settings, string? Problem) Load()
     {
