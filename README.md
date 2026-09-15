@@ -11,7 +11,7 @@ This is a working Windows development build, not a packaged release. See [verifi
 | Import | ffprobe identifies the file by content, then the bytes are copied beside the project while being hashed. The original is never modified. |
 | Record | Windows WASAPI captures a microphone, all apps on one selected output endpoint, or both together. A single-source take writes one continuously-refreshed wave file; a combined take measures each device's real clock from its own hardware timestamps and mixes them down once stopped. Neither is power-loss-certified recovery. |
 | Transcribe | A private Python child process runs WhisperX: voice-activity batching, faster-whisper recognition, then wav2vec2 forced alignment for word timing. |
-| Review | Playback highlights the active paragraph and word from one authoritative clock; clicking a word seeks to it. |
+| Review | Playback highlights the active paragraph and word from one authoritative clock; clicking a word seeks to it. A video's picture decodes locally, windowed a few seconds ahead, and tracks the same clock. |
 | Correct | Text, speakers, paragraph structure and timing are yours; each save is an immutable revision you can undo, redo or restore. |
 | Export | UTF-8 text with timecodes, SRT subtitles, the clipboard, or a portable project bundle. |
 
@@ -67,6 +67,8 @@ A single `*.soundoff.sqlite` argument opens that project once the window is show
 
 Playback has a **Windows adapter only**; elsewhere the app says so instead of pretending. Anything that is not already a PCM wave file is decoded once into a cached proxy by the same ffmpeg the worker uses, so playback and stored timing share one time base. There is **no speed control**: honest time-stretching needs an LGPL dependency whose distribution terms are a packaging decision, and a pitch-shifting resample would be a worse lie than no control.
 
+**Video preview:** a video import shows its picture above the transcript, decoded locally by ffmpeg — not a linked video library — into 640×360 BGRA frames at 10 fps, in bounded four-second windows a couple of seconds ahead of playback. Its timing is anchored to the exact first rendered sample of the same audio selection/resampling the playback proxy uses (including AAC encoder priming and edit-list offsets), not to the container's average frame rate, so picture and sound stay together on files with variable frame rate or an audio/video start offset. Hiding it stops decoding without touching audio or the transcript; resizing it never restarts the decoder or reopens the audio device. A decode problem (missing ffmpeg, a damaged file, an oversized frame) degrades to a stated reason with playback and editing unaffected. This is a synchronized preview, not a general video player: no seeking within the picture area itself and no separate volume control — all transport goes through the audio controls above.
+
 **Editing:** the project title, speaker names, paragraph text, the speaker assigned to each paragraph, and manual timing (`H:MM:SS.ffffff`, exact microseconds, both boxes blank means untimed) are all part of one unsaved draft. **Save edits** commits it as one durable revision. Editing a paragraph's text clears its timing and word evidence unless you retype timing in the same draft; untouched timing boxes never re-anchor edited text.
 
 **Structure:** Split at cursor, Merge with next, Insert paragraph after, Delete paragraph, Add paragraph at end, Add speaker and Remove (unused speakers only). Each saves the current draft together with its change as one undoable revision. Split offsets must fall between whole user-perceived characters, so surrogate pairs, combining marks, ZWJ emoji and flag pairs cannot be torn apart.
@@ -119,7 +121,6 @@ python scripts/worker_cli.py hello --probe-cuda
 
 - **Per-app capture.** Needs a Windows process-loopback API this build does not use; whole-computer capture is the closest available mode, and it is not silently widened further.
 - **Speaker diarization.** The worker implements the pyannote path, but it needs a Hugging Face token from an account that accepted the model terms, so it is off and untested here. Speakers come from the engine's own labels, or are yours to assign.
-- **Video preview.** Video files import and their audio transcribes; no picture is shown.
 - **Playback speed**, cue editing, reprocessing comparisons, durable job queues surviving restart, word-anchored editing inside the text box, media inside portable bundles, tray and notifications, model choices beyond `small`, library search, and OS reduced-motion detection.
 - **Packaging**: no installer, no self-contained runtime, no signing or notarization, no dependency or model licence audit, no macOS or Linux validation. Everyday users cannot install this yet.
 - **Mobile.**

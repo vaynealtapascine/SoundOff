@@ -140,7 +140,7 @@
           <Border Classes="card"><StackPanel Spacing="10">
             <TextBlock Text="Scope &amp; privacy" FontSize="18" FontWeight="SemiBold" />
             <TextBlock Text="Recognition, alignment and playback all run on this computer. The only component that reaches the network is the explicit model-pack download; transcription itself runs with the hub offline." TextWrapping="Wrap" />
-            <TextBlock Text="Deferred: recording, speaker diarization, playback speed, cue editing, reprocessing comparisons, durable job queues, word-anchored editing, media in bundles, tray, installers/packaging, and mobile." TextWrapping="Wrap" />
+            <TextBlock Text="Deferred: per-app capture, speaker diarization, playback speed, cue editing, reprocessing comparisons, durable job queues, word-anchored editing, media in bundles, tray, installers/packaging, and mobile." TextWrapping="Wrap" />
             <TextBlock Text="Local project files and clipboard text are not encrypted. Other software, clipboard history or OS backups may read them." TextWrapping="Wrap" />
             <TextBlock Text="Editor limits: up to 64 speakers, 20,000 paragraphs, 16,384 UTF-16 units per paragraph. Accessibility, IME and long-recording release gates remain open." TextWrapping="Wrap" />
           </StackPanel></Border>
