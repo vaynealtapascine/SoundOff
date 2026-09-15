@@ -1,10 +1,28 @@
-# Implementation verification — current review
+# Implementation verification
 
-- Worktree: `C:/Users/pcuser/source/repos/SoundOff-worktrees/current-review`
-- Branch: `agent/current-review`; reviewed baseline: `3b6c60e`.
-- Scope: Windows development build, existing local WhisperX runtime/model pack, synthetic English TTS input, Windows playback and output-endpoint loopback. This is not a release or completion of the architecture's acceptance matrix.
+- Repository: `C:/Users/pcuser/source/repos/SoundOff`, branch `main`.
+- Scope: Windows development build, existing local WhisperX runtime/model pack, synthetic English TTS and video input, Windows playback, output-endpoint loopback, and combined microphone+system capture. This is not a release or completion of the architecture's acceptance matrix.
 
-## Executed results
+## Combined capture and video preview (2026-09-15)
+
+Added since the review below: a **Combined** (microphone + whole computer) recording mode, and a **video preview** synchronized to the playback clock. `python scripts/verify.py --clean --desktop-smoke` was re-run clean after both landed: **exit 0**, **312 tests passed, 0 failed**, both self-tests passed, native smoke passed.
+
+**Combined capture, including a real failure it correctly caught.** Interactively, with the app's own file dialogs (no CLI), a Combined take was started against a real Windows machine's actual devices: a VoiceMeeter virtual input (`VoiceMeeter VAIO3 Output (VB-Audio VoiceMeeter VAIO3)`) as the microphone source and `Speakers (Boom Audio)` as the render endpoint. The virtual device's WASAPI clock is not hardware-backed, and the engine's own ±5% measured-rate check caught it:
+
+> microphone interrupted: The selected source clock jumped outside the supported ±5% rate range.
+
+The take was kept rather than discarded (**Keep recording**), producing a real, playable, if silent, adopted recording with its recovery directory (raw per-source WAVs and clock maps) reported in the status text — exactly the recoverable-on-failure behavior `CombinedCaptureTests` exercises with a scripted fake source. This is reproduced here because it is real evidence of the honesty property mattering in practice: a virtual/software audio device's clock genuinely does drift outside tolerance, and the app said so instead of silently producing a desynchronized file. It was **not** cherry-picked as a success case; it is what the first real attempt on this machine actually did. A second attempt with plain **Microphone** (single-source) mode against the same devices worked normally, unaffected by the combined-mode incident.
+
+**Video preview.** `artifacts/video-fixtures/moving-tts.mp4` (a locally-generated synthetic test pattern with TTS audio, from `scripts/generate_video_fixtures.py`) was imported through **Import audio/video…**. The picture appeared automatically, labelled "Video preview · 10 fps · audio clock synchronized," and tracked the position slider correctly when seeking to an arbitrary mid-clip timestamp (the decoded frame's burned-in `00:00:04.600` counter matched the transport's `0:00:04.634240` position, off by less than one 100 ms frame interval, as expected for a 10 fps preview). **Transcribe** was then run against the same import end-to-end for real:
+
+> Hello. This is a synthetic English test clip for Soneduff.
+> The quick brown fox jumps over the lazy dog.
+
+This matches the mishearing ("Soneduff") already on record in the section below for the same synthesized sentence, from an unrelated recording of the same source material — independent evidence the recognition behavior is consistent, not a one-off. The result auto-applied as revision 1 (`Saved · revision 1 · model-inference`) because the project was empty, exactly as documented.
+
+**What this does not establish:** one machine, one virtual-audio vendor (VoiceMeeter); no test of a second physical microphone drifting; no long-duration (minutes+) combined recording; the video fixture is a synthetic pattern, not a real-world clip with scene changes; no accessibility or screen-reader pass over either new panel.
+
+## Prior review pass, before combined capture and video preview
 
 `python scripts/verify.py --clean --desktop-smoke` returned **exit 0 / status passed** after deleting only the five solution projects' generated `bin`/`obj` directories. This is a fresh-source Release restore/rebuild, **not** cold-machine dependency acquisition: the NuGet package cache and private Python runtime/model pack were already provisioned. `NuGet.Config` allows nuget.org; restore is not claimed to be network-isolated. .NET and Avalonia build telemetry were opted out through their documented environment variables.
 
@@ -58,7 +76,7 @@ A conditional test returning successfully is **not** proof that a device/model r
 - **No physical no-device session was forced.** Missing/removed output and capture failures are exercised by injected adapters; real adapters ran with endpoints present. No OS devices were disabled and no permission settings changed. No real microphone, unplug, disk-full or power-loss test was performed.
 - Pause gaps are **session-only**, not saved to the project or WAV. Header refresh is not power-loss-certified recovery. There is no startup recovery scanner; manually import a retained take from `<project>.soundoff.media/recordings/` after restarting. A damaged take may still be unreadable.
 - No new record-to-transcribe acoustic-loop experiment was run in this review; real loopback and real TTS inference were verified separately. Headless record-to-import UI tests use a fixture capture adapter.
-- No per-app capture, combined microphone+system capture, diarization verification, video preview, playback speed, media-containing portable bundles, packaging, signing, macOS/Linux or mobile validation. No private recordings, gated model access or new model downloads were used for this review.
+- No per-app capture, diarization verification, playback speed, media-containing portable bundles, packaging, signing, macOS/Linux or mobile validation. No private recordings, gated model access or new model downloads were used for this review. Combined microphone+system capture and video preview are now implemented and covered above and by `CombinedCaptureTests`/`CombinedTimelineTests`/`VideoPreviewDecodeTests`/`VideoPreviewSessionTests`/`VideoPreviewUiTests`.
 - No two-hour/Taglish/noisy/many-speaker benchmark, GPU inference, accessibility, native clipboard/file-picker, IME or long-document performance certification. The native smoke is an empty-window launch/close check only.
 - No instrumented outbound-traffic audit or dependency/model licence/security audit. `HF_HUB_OFFLINE=1`, `TRANSFORMERS_OFFLINE=1` and local paths are not a network sandbox for every dependency.
 - The full-product `ACCEPTANCE-MATRIX.csv` and `acceptance.json` remain proposed scenarios, **NOT RUN** as a product acceptance suite.
