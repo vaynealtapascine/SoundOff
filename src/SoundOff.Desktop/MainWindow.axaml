@@ -48,9 +48,24 @@
       </StackPanel>
     </Border>
     <Grid Grid.Row="2" ColumnDefinitions="*,270" ColumnSpacing="20">
-      <ScrollViewer HorizontalScrollBarVisibility="Disabled">
-        <StackPanel x:Name="DocumentHost" Spacing="16" MaxWidth="850" HorizontalAlignment="Stretch" />
-      </ScrollViewer>
+      <Grid x:Name="ReviewArea" RowDefinitions="Auto,Auto,*">
+        <WrapPanel x:Name="VideoControls" IsVisible="False" Orientation="Horizontal" Margin="0,0,0,6">
+          <ToggleButton x:Name="VideoPreviewToggle" Content="Hide video preview" IsChecked="True" Margin="0,0,8,0"
+                        AutomationProperties.Name="Show or hide video preview (audio continues)" />
+          <TextBlock x:Name="VideoSizeLabel" Text="Preview height" VerticalAlignment="Center" Margin="0,0,6,0" />
+          <Slider x:Name="VideoSizeSlider" Minimum="120" Maximum="320" Value="200" SmallChange="20" LargeChange="40"
+                  Width="120" AutomationProperties.Name="Video preview height" />
+        </WrapPanel>
+        <StackPanel x:Name="VideoPreviewPanel" Grid.Row="1" IsVisible="False" Spacing="4" Margin="0,0,0,8">
+          <Border x:Name="VideoSurface" Height="200" Background="Black" ClipToBounds="True">
+            <Image x:Name="VideoPreviewImage" Stretch="Uniform" AutomationProperties.Name="Imported video frame at the audio playhead" />
+          </Border>
+          <TextBlock x:Name="VideoPreviewStatus" TextWrapping="Wrap" FontSize="12" />
+        </StackPanel>
+        <ScrollViewer Grid.Row="2" HorizontalScrollBarVisibility="Disabled">
+          <StackPanel x:Name="DocumentHost" Spacing="16" MaxWidth="850" HorizontalAlignment="Stretch" />
+        </ScrollViewer>
+      </Grid>
       <ScrollViewer Grid.Column="1" HorizontalScrollBarVisibility="Disabled">
         <StackPanel Spacing="20">
           <Border Classes="card"><StackPanel Spacing="10">
@@ -125,7 +140,7 @@
           <Border Classes="card"><StackPanel Spacing="10">
             <TextBlock Text="Scope &amp; privacy" FontSize="18" FontWeight="SemiBold" />
             <TextBlock Text="Recognition, alignment and playback all run on this computer. The only component that reaches the network is the explicit model-pack download; transcription itself runs with the hub offline." TextWrapping="Wrap" />
-            <TextBlock Text="Deferred: recording, video preview, speaker diarization, playback speed, cue editing, reprocessing comparisons, durable job queues, word-anchored editing, media in bundles, tray, installers/packaging, and mobile." TextWrapping="Wrap" />
+            <TextBlock Text="Deferred: recording, speaker diarization, playback speed, cue editing, reprocessing comparisons, durable job queues, word-anchored editing, media in bundles, tray, installers/packaging, and mobile." TextWrapping="Wrap" />
             <TextBlock Text="Local project files and clipboard text are not encrypted. Other software, clipboard history or OS backups may read them." TextWrapping="Wrap" />
             <TextBlock Text="Editor limits: up to 64 speakers, 20,000 paragraphs, 16,384 UTF-16 units per paragraph. Accessibility, IME and long-recording release gates remain open." TextWrapping="Wrap" />
           </StackPanel></Border>

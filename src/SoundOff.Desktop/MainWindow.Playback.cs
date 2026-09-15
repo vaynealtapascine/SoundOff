@@ -59,6 +59,7 @@ public sealed partial class MainWindow
         var wanted = asset is null ? null : Path.Combine(store!.MediaDirectory, asset.RelativePath);
         if (wanted == loadedMediaPath) return;
         loadedMediaPath = wanted;
+        SyncVideoPreviewSource(asset, wanted);
         if (wanted is null) { playback.Unload(); RefreshPlaybackHighlight(force: true); return; }
         try { await playback.LoadAsync(wanted, lifetime.Token); }
         catch (OperationCanceledException) { return; }
@@ -108,6 +109,7 @@ public sealed partial class MainWindow
         var position = playback.PositionMicroseconds;
         transportBar.IsVisible = duration > 0 || playback.Status == PlaybackStatus.Failed;
         var playing = playback.Status == PlaybackStatus.Playing;
+        RefreshVideoPreview(position, playing);
         playPause.Content = playing ? "Pause" : "Play";
         playPause.IsEnabled = duration > 0 && !Recording;
         skipBack.IsEnabled = skipForward.IsEnabled = positionSlider.IsEnabled = duration > 0;
@@ -170,6 +172,7 @@ public sealed partial class MainWindow
     private void DisposePlayback()
     {
         clockTimer?.Stop(); clockTimer = null;
+        DisposeVideoPreview();
         playback.Dispose();
     }
 }

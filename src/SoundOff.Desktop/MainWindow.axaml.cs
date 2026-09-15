@@ -32,7 +32,7 @@ public sealed partial class MainWindow : Window
     public MainWindow() : this(null, new SettingsStore(SettingsStore.DefaultPath)) { }
     // initialProject: a project path given on the command line, opened once the window is shown; failures are shown, never fatal.
     // inference: the worker client (tests inject a protocol-speaking stand-in and a temporary runtime location).
-    public MainWindow(IProjectPicker? picker, SettingsStore settings, string? initialProject = null, InferenceWorkerClient? inference = null, IPlaybackEngine? playbackEngine = null, ICaptureEngine? captureEngine = null)
+    public MainWindow(IProjectPicker? picker, SettingsStore settings, string? initialProject = null, InferenceWorkerClient? inference = null, IPlaybackEngine? playbackEngine = null, ICaptureEngine? captureEngine = null, IVideoPreviewDecoder? videoDecoder = null)
     {
         if (initialProject is not null) Opened += async (_, _) => await GuardAsync(() => OpenPathAsync(initialProject, confirmed: true));
         AvaloniaXamlLoader.Load(this);
@@ -40,6 +40,7 @@ public sealed partial class MainWindow : Window
         this.settings = settings;
         InitializeTranscribe(inference);
         InitializePlayback(playbackEngine);
+        InitializeVideoPreview(videoDecoder);
         InitializeRecording(captureEngine);
         documentHost = this.FindControl<StackPanel>("DocumentHost")!;
         speakerHost = this.FindControl<StackPanel>("SpeakerHost")!;
