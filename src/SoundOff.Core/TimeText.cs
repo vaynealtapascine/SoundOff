@@ -26,7 +26,7 @@ public static class TimeText
         long hours = 0, minutes = 0;
         if (parts.Length == 3) hours = Whole(parts[0], "hours");
         if (parts.Length >= 2) minutes = Whole(parts[^2], "minutes");
-        if (parts.Length >= 2 && minutes > 59) throw new InvalidDataException("Minutes must be 0-59 when hours are given as well.");
+        if (parts.Length == 3 && minutes > 59) throw new InvalidDataException("Minutes must be 0-59 when hours are given as well.");
         var secondsText = parts[^1]; var dot = secondsText.IndexOf('.');
         var wholeSeconds = Whole(dot < 0 ? secondsText : secondsText[..dot], "seconds");
         if (parts.Length >= 2 && wholeSeconds > 59) throw new InvalidDataException("Seconds must be 0-59 when minutes are given as well.");

@@ -74,7 +74,8 @@ public sealed class ProjectStore : IDisposable
                 store.Execute("SELECT revision,parent_revision,operation,snapshot FROM revision_history LIMIT 0");
                 store.Execute("SELECT id,previous_json FROM undo_stack LIMIT 0");
                 if (found >= 2) store.Execute("SELECT id,next_json FROM redo_stack LIMIT 0");
-                if (found >= 3) { store.Execute("SELECT id,original_name,relative_path,sha256,bytes,duration_us,probe_json,imported_utc FROM media_assets LIMIT 0"); store.Execute("SELECT id,asset_id,status FROM processing_runs LIMIT 0"); }
+                // Validate all columns and owned paths before the UI releases its current project.
+                if (found >= 3) { store.MediaAssets(); store.Runs(); }
                 if (found < SchemaVersion) store.Migrate(found, beforeMigrationCommit);
             }
             // Result-producing PRAGMAs/SELECTs must not hide later statements in ExecuteNonQuery.
@@ -129,6 +130,7 @@ public sealed class ProjectStore : IDisposable
         lock (gate)
         {
             ThrowIfDisposed();
+            ValidateAsset(asset);
             Execute("INSERT INTO media_assets VALUES($id,$name,$path,$sha,$bytes,$duration,$probe,$imported)", null, ("$id", asset.Id), ("$name", asset.OriginalName),
                 ("$path", asset.RelativePath), ("$sha", asset.Sha256), ("$bytes", asset.Bytes), ("$duration", (object?)asset.DurationMicroseconds ?? DBNull.Value),
                 ("$probe", asset.ProbeJson), ("$imported", asset.ImportedUtc));
@@ -143,14 +145,22 @@ public sealed class ProjectStore : IDisposable
             using var rows = command.ExecuteReader(); var result = new List<MediaAsset>();
             while (rows.Read()) result.Add(new MediaAsset(rows.GetString(0), rows.GetString(1), rows.GetString(2), rows.GetString(3), rows.GetInt64(4),
                 rows.IsDBNull(5) ? null : rows.GetInt64(5), rows.GetString(6), rows.GetString(7)));
+            foreach (var asset in result) ValidateAsset(asset);
             return result;
         }
+    }
+    private void ValidateAsset(MediaAsset asset)
+    {
+        OwnedProjectPath.Resolve(MediaDirectory, asset.RelativePath);
+        if (asset.Bytes <= 0 || asset.Bytes > MediaImport.MaxBytes || asset.DurationMicroseconds is <= 0 or > TimeText.MaxMicroseconds)
+            throw new InvalidDataException("Owned media has an invalid size or duration (maximum 16 GiB and 1000 hours).");
     }
     public void AddRun(ProcessingRun run)
     {
         lock (gate)
         {
             ThrowIfDisposed();
+            if (run.ArtifactRelativePath is not null) OwnedProjectPath.Resolve(MediaDirectory, run.ArtifactRelativePath);
             Execute("INSERT INTO processing_runs VALUES($id,$asset,$started,$finished,$status,$options,$artifact,$sha,$error,$provider)", null, ("$id", run.Id), ("$asset", run.AssetId),
                 ("$started", run.StartedUtc), ("$finished", (object?)run.FinishedUtc ?? DBNull.Value), ("$status", run.Status), ("$options", run.OptionsJson),
                 ("$artifact", (object?)run.ArtifactRelativePath ?? DBNull.Value), ("$sha", (object?)run.ArtifactSha256 ?? DBNull.Value), ("$error", (object?)run.Error ?? DBNull.Value), ("$provider", (object?)run.Provider ?? DBNull.Value));
@@ -161,6 +171,7 @@ public sealed class ProjectStore : IDisposable
         lock (gate)
         {
             ThrowIfDisposed();
+            if (artifactRelativePath is not null) OwnedProjectPath.Resolve(MediaDirectory, artifactRelativePath);
             var updated = Execute("UPDATE processing_runs SET finished_utc=$finished,status=$status,artifact_relative_path=$artifact,artifact_sha256=$sha,error=$error,provider=$provider WHERE id=$id AND status='running'", null,
                 ("$finished", DateTime.UtcNow.ToString("yyyy-MM-dd'T'HH:mm:ss'Z'")), ("$status", status), ("$artifact", (object?)artifactRelativePath ?? DBNull.Value), ("$sha", (object?)artifactSha256 ?? DBNull.Value),
                 ("$error", (object?)error ?? DBNull.Value), ("$provider", (object?)provider ?? DBNull.Value), ("$id", runId));
@@ -176,6 +187,8 @@ public sealed class ProjectStore : IDisposable
             using var rows = command.ExecuteReader(); var result = new List<ProcessingRun>();
             while (rows.Read()) result.Add(new ProcessingRun(rows.GetString(0), rows.GetString(1), rows.GetString(2), rows.IsDBNull(3) ? null : rows.GetString(3), rows.GetString(4), rows.GetString(5),
                 rows.IsDBNull(6) ? null : rows.GetString(6), rows.IsDBNull(7) ? null : rows.GetString(7), rows.IsDBNull(8) ? null : rows.GetString(8), rows.IsDBNull(9) ? null : rows.GetString(9)));
+            foreach (var run in result)
+                if (run.ArtifactRelativePath is not null) OwnedProjectPath.Resolve(MediaDirectory, run.ArtifactRelativePath);
             return result;
         }
     }

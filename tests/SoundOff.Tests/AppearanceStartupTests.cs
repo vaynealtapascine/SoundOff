@@ -12,6 +12,11 @@ public sealed class AppearanceStartupTests
     [AvaloniaTheory]
     [InlineData(null)]
     [InlineData("not json")]
+    [InlineData("null")]
+    [InlineData("{}")]
+    [InlineData("{\"version\":1,\"theme\":null,\"reducedMotion\":false}")]
+    [InlineData("{\"version\":1,\"theme\":\"light\"}")]
+    [InlineData("{\"version\":2,\"theme\":\"light\",\"reducedMotion\":false}")]
     [InlineData("{\"version\":1,\"theme\":\"unknown\",\"reducedMotion\":false}")]
     public void New_or_invalid_settings_are_dark_before_show_without_rewriting_the_file(string? contents)
     {

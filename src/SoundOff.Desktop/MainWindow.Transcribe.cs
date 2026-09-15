@@ -56,10 +56,10 @@ public sealed partial class MainWindow
             foreach (var run in store.Runs().Take(10))
             {
                 var row = new Grid { ColumnDefinitions = new ColumnDefinitions("*,Auto"), ColumnSpacing = 8 }; row.Classes.Add("run");
-                var text = $"Run {run.Id[..8]} · {run.Status} · {run.StartedUtc}" + (run.Provider is null ? "" : $" · {run.Provider}") + (run.Error is null ? "" : $" · {run.Error}");
+                var text = $"Run {run.Id[..Math.Min(8, run.Id.Length)]} · {run.Status} · {run.StartedUtc}" + (run.Provider is null ? "" : $" · {run.Provider}") + (run.Error is null ? "" : $" · {run.Error}");
                 row.Children.Add(new TextBlock { Text = text, TextWrapping = TextWrapping.Wrap, VerticalAlignment = VerticalAlignment.Center });
                 var id = run.Id; var artifact = run.ArtifactRelativePath;
-                var apply = Action("Apply", $"Apply run {run.Id[..8]}", () => GuardAsync(() => ApplyStoredRunAsync(id)), enabled: run.Status == "completed" && artifact is not null);
+                var apply = Action("Apply", $"Apply run {run.Id[..Math.Min(8, run.Id.Length)]}", () => GuardAsync(() => ApplyStoredRunAsync(id)), enabled: run.Status == "completed" && artifact is not null);
                 Grid.SetColumn(apply, 1); row.Children.Add(apply); runHost.Children.Add(row);
             }
     }
@@ -217,7 +217,7 @@ public sealed partial class MainWindow
         if (snapshot!.Provenance != Provenance.Empty && !await ConfirmAsync("Replace the transcript?",
             "The model result becomes a new revision replacing the current text, speakers and timing. History keeps the current revision and Restore brings it back.", "Replace with model result")) return false;
         snapshot = store!.ImportInference(snapshot.Revision, proposal with { Revision = snapshot.Revision }, runId); Render(); SavedStatus();
-        status.Text = $"Applied model result of run {runId[..8]} as revision {snapshot.Revision}. " + status.Text;
+        status.Text = $"Applied model result of run {runId[..Math.Min(8, runId.Length)]} as revision {snapshot.Revision}. " + status.Text;
         return true;
     }
 

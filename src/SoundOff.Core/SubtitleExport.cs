@@ -38,7 +38,8 @@ public static class SubtitleExport
         var combined = 0;
         for (var i = 1; i < cues.Count; i++)
         {
-            if (cues[i].Start >= cues[i - 1].End) continue; // half-open intervals: touching cues do not overlap
+            // The SRT's outward-rounded millisecond intervals, not the original microseconds, must obey the policy.
+            if (cues[i].Start / 1000 >= cues[i - 1].End / 1000 + (cues[i - 1].End % 1000 == 0 ? 0 : 1)) continue;
             if (options.Overlap == OverlapPolicy.Refuse)
                 throw new InvalidDataException("Overlapping paragraphs cannot be written as separate SRT cues. Export with the combined-overlap layout instead.");
             var previous = cues[i - 1]; var current = cues[i];
@@ -50,7 +51,8 @@ public static class SubtitleExport
         {
             var (start, end, lines) = cues[i];
             srt.Append(i + 1).Append('\n').Append(Timestamp(start, roundUp: false)).Append(" --> ").Append(Timestamp(end, roundUp: true)).Append('\n');
-            foreach (var line in lines) srt.Append(line).Append('\n');
+            // A blank line terminates an SRT cue; preserve text and nonblank line breaks, not empty author lines.
+            foreach (var line in lines.Where(l => !string.IsNullOrWhiteSpace(l))) srt.Append(line).Append('\n');
             srt.Append('\n');
         }
         return new SubtitleResult(srt.ToString(), cues.Count, combined, untimed, skippedEmpty);
@@ -68,7 +70,7 @@ public static class SubtitleExport
     public static List<string> Wrap(string text, int maxLineLength)
     {
         var lines = new List<string>();
-        foreach (var paragraph in text.Replace("\r\n", "\n").Split('\n'))
+        foreach (var paragraph in text.Replace("\r\n", "\n").Replace('\r', '\n').Split('\n'))
         {
             var current = new StringBuilder();
             foreach (var word in paragraph.Split(' ', StringSplitOptions.RemoveEmptyEntries))

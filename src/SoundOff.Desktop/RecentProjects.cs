@@ -31,9 +31,10 @@ public sealed class RecentProjectsStore(string path)
             if (stream.Length > MaxBytes) throw new InvalidDataException("the file is larger than 64 KiB");
             var bytes = new byte[stream.Length]; stream.ReadExactly(bytes);
             var list = DocumentJson.ReadStrict<RecentProjectList>(new UTF8Encoding(false, true).GetString(bytes), MaxBytes);
-            if (list.Version != RecentProjectList.CurrentVersion || list.Projects.Count > RecentProjectList.MaxEntries) throw new InvalidDataException("unsupported version or too many entries");
+            if (list.Version != RecentProjectList.CurrentVersion || list.Projects is null || list.Projects.Count > RecentProjectList.MaxEntries) throw new InvalidDataException("unsupported version or too many entries");
             foreach (var entry in list.Projects)
             {
+                if (entry is null) throw new InvalidDataException("missing recent project entry");
                 DocumentRules.Text(entry.Path, 4096, false); DocumentRules.Text(entry.Title, 200, true);
                 if (!DateTime.TryParseExact(entry.LastOpenedUtc, "yyyy-MM-dd'T'HH:mm:ss'Z'", null, System.Globalization.DateTimeStyles.AssumeUniversal | System.Globalization.DateTimeStyles.AdjustToUniversal, out _))
                     throw new InvalidDataException("invalid timestamp");

@@ -79,6 +79,8 @@ public sealed class BundleTests
             ("declared-too-small", (z, d, m) => { m["databaseBytes"] = d.Length - 1; Standard(z, d, m); }, "size does not match"),
             ("declared-too-large", (z, d, m) => { m["databaseBytes"] = d.Length + 1; Standard(z, d, m); }, "size does not match"),
             ("over-limit", (z, d, m) => { m["databaseBytes"] = ProjectBundle.MaxDatabaseBytes + 1; Standard(z, d, m); }, "unsupported database"),
+            ("null-digest", (z, d, m) => { m["databaseSha256"] = null; Standard(z, d, m); }, "unsupported database"),
+            ("nonhex-digest", (z, d, m) => { m["databaseSha256"] = new string('z', 64); Standard(z, d, m); }, "unsupported database"),
             ("bad-digest", (z, d, m) => { m["databaseSha256"] = new string('0', 64); Standard(z, d, m); }, "digest does not match"),
             ("corrupt-db", (z, d, m) => { var c = (byte[])d.Clone(); c[0] ^= 0xff; /* damaged header: not a database */ m["databaseSha256"] = Convert.ToHexString(SHA256.HashData(c)).ToLowerInvariant(); AddText(z, "manifest.json", m.ToJsonString()); AddBytes(z, "project.sqlite", c); }, ""),
             ("wrong-identity", (z, d, m) => { m["projectId"] = Guid.NewGuid().ToString(); Standard(z, d, m); }, "identity, revision or title"),

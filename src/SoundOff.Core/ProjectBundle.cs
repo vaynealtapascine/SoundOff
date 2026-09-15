@@ -8,7 +8,8 @@ using Microsoft.Data.Sqlite;
 namespace SoundOff.Core;
 
 // Portable project bundle: a ZIP holding exactly manifest.json and a consistent SQLite backup of the project.
-// No media or model files exist in this slice, so none are bundled. Import extracts to a staging file beside the
+// Version 1 cannot carry media/run files, so projects that reference them are refused, not silently truncated.
+// Import extracts to a staging file beside the
 // destination, verifies size and digest against the manifest, validates the database through ProjectStore, and only
 // then moves it into place; it never overwrites an existing project and never executes bundle content.
 public sealed record BundleManifest([property: JsonRequired] int Version, [property: JsonRequired] string Format,
@@ -32,6 +33,7 @@ public static class ProjectBundle
     public static BundleManifest Export(ProjectStore store, string bundlePath, bool overwrite = false)
     {
         bundlePath = Path.GetFullPath(bundlePath);
+        RequireDatabaseOnly(store);
         var document = store.Read();
         var staging = Path.Combine(Path.GetDirectoryName(bundlePath)!, "." + Path.GetFileName(bundlePath) + "." + Guid.NewGuid().ToString("N") + ".tmp");
         var databaseCopy = staging + ".sqlite";
@@ -90,7 +92,7 @@ public static class ProjectBundle
                     if (manifest.SchemaVersion != ProjectStore.SchemaVersion)
                         throw new InvalidDataException($"The bundle holds project schema {manifest.SchemaVersion}; this build imports schema {ProjectStore.SchemaVersion} only.");
                     if (manifest.Database != BundleManifest.DatabaseEntry || manifest.DatabaseBytes <= 0 || manifest.DatabaseBytes > MaxDatabaseBytes ||
-                        manifest.DatabaseSha256.Length != 64 || manifest.ProjectId == Guid.Empty || manifest.Revision < 0)
+                        manifest.DatabaseSha256 is null || manifest.DatabaseSha256.Length != 64 || !manifest.DatabaseSha256.All(Uri.IsHexDigit) || manifest.ProjectId == Guid.Empty || manifest.Revision < 0)
                         throw new InvalidDataException("The bundle manifest describes an unsupported database.");
                     DocumentRules.Text(manifest.Title, 200, false);
                     var databaseEntry = zip.GetEntry(BundleManifest.DatabaseEntry)!;
@@ -123,6 +125,12 @@ public static class ProjectBundle
         }
     }
 
+    private static void RequireDatabaseOnly(ProjectStore store)
+    {
+        if (store.MediaAssets().Count != 0 || store.Runs().Count != 0)
+            throw new InvalidDataException("Version 1 bundles cannot include media or run artifacts. Keep the original project and its matching .media directory together; use TXT/SRT for transcript-only exports.");
+    }
+
     private static string ReadBounded(ZipArchiveEntry entry, int limit)
     {
         using var stream = entry.Open(); using var memory = new MemoryStream();
@@ -144,7 +152,7 @@ public static class ProjectBundle
         }
         // The full document/schema rules apply; the staging file's transient lock marker is removed by the caller.
         Transcript document;
-        using (var store = ProjectStore.Open(staging)) document = store.Read();
+        using (var store = ProjectStore.Open(staging)) { RequireDatabaseOnly(store); document = store.Read(); }
         if (document.ProjectId != manifest.ProjectId || document.Revision != manifest.Revision || document.Title != manifest.Title)
             throw new InvalidDataException("The bundle database does not match the identity, revision or title in its manifest.");
     }

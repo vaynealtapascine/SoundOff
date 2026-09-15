@@ -103,8 +103,8 @@ public static class DocumentRules
 
     private static void Interval(TimeRange? time)
     {
-        if (time is not null && (time.StartMicroseconds < 0 || time.EndMicroseconds <= time.StartMicroseconds))
-            Fail("Timing must be a positive half-open microsecond interval.");
+        if (time is not null && (time.StartMicroseconds < 0 || time.EndMicroseconds <= time.StartMicroseconds || time.EndMicroseconds > TimeText.MaxMicroseconds))
+            Fail("Timing must be a positive half-open microsecond interval within 1000 hours.");
     }
 
     // General text rule shared by document fields and the desktop's own small JSON files.
@@ -215,7 +215,11 @@ public static class TranscriptEdits
                 var block = b with { SpeakerId = edits.SpeakerOf(b) };
                 // Changed text no longer matches aligned words; both block timing and word evidence are dropped.
                 if (edits.BlockTexts.TryGetValue(b.Id, out var text) && text != b.Text) block = block with { Text = text, Timing = null, Words = default, ManuallyEdited = true };
-                if (edits.BlockTimings is not null && edits.BlockTimings.TryGetValue(b.Id, out var timing)) block = block with { Timing = timing, Words = timing is null ? default : block.Words };
+                // A wider paragraph can retain independent alignment evidence, but moving its bounds past
+                // an aligned word cannot leave that word seeking outside the paragraph. Never shift word times.
+                if (edits.BlockTimings is not null && edits.BlockTimings.TryGetValue(b.Id, out var timing))
+                    block = block with { Timing = timing, Words = timing is not null && block.Words.All(w => w.Timing is null ||
+                        w.Timing.StartMicroseconds >= timing.StartMicroseconds && w.Timing.EndMicroseconds <= timing.EndMicroseconds) ? block.Words : default };
                 return block;
             }).ToImmutableArray()
         };
