@@ -56,13 +56,17 @@ def main() -> int:
         run([uv, "pip", "install", "--python", python, "--index-url", PYTORCH_CUDA_INDEX, "torch==2.8.0", "torchaudio==2.8.0", "torchvision==0.23.0"], env=environment)
     freeze = run([uv, "pip", "freeze", "--python", python], env=environment, capture_output=True).stdout
     (runtime / "requirements.frozen.txt").write_text(freeze, encoding="utf-8")
+    # Setup imports the same libraries as the worker: opt out BEFORE those imports, not only at inference time.
+    # Dependency installation above is explicit and network-capable; this local import probe must not fetch models.
+    probe_environment = dict(environment, HF_HUB_DISABLE_TELEMETRY="1", PYANNOTE_METRICS_ENABLED="0", DO_NOT_TRACK="1",
+                             HF_HUB_OFFLINE="1", TRANSFORMERS_OFFLINE="1")
     probe = run([python, "-c", (
         "import json, torch, whisperx, faster_whisper, ctranslate2, pyannote.audio, transformers, sys;"
         "print(json.dumps({'python': sys.version.split()[0], 'torch': torch.__version__, 'cuda': torch.cuda.is_available(),"
         " 'cudaDevice': torch.cuda.get_device_name(0) if torch.cuda.is_available() else None,"
         " 'faster_whisper': faster_whisper.__version__, 'ctranslate2': ctranslate2.__version__,"
         " 'pyannote_audio': pyannote.audio.__version__, 'transformers': transformers.__version__}))"
-    )], env=environment, capture_output=True).stdout.strip()
+    )], env=probe_environment, capture_output=True).stdout.strip()
     versions = json.loads(probe)
     manifest = {
         "schema": 1,
