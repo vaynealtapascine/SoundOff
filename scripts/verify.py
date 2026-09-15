@@ -84,7 +84,7 @@ def native_window_smoke(environment: dict[str, str]) -> dict:
             if pid.value == child.pid and user32.IsWindowVisible(handle):
                 title = ctypes.create_unicode_buffer(user32.GetWindowTextLengthW(handle) + 1)
                 user32.GetWindowTextW(handle, title, len(title))
-                if title.value == "SoundOff — local transcription editor":
+                if title.value == "SoundOff":  # no project open; an open project prefixes its title
                     found.append((handle, title.value))
             return True
         try:

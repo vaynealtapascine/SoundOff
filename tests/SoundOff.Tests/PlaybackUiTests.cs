@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Headless.XUnit;
@@ -49,7 +50,7 @@ public sealed class PlaybackUiTests
     }
     private static string Clip => Path.Combine(AppContext.BaseDirectory, "fixtures", "tts-english.wav");
     private static Button Button(MainWindow w, string name) => w.FindControl<Button>(name)!;
-    private static void Click(MainWindow w, string name) => Button(w, name).RaiseEvent(new RoutedEventArgs(Avalonia.Controls.Button.ClickEvent));
+    private static void Click(MainWindow w, string name) => UiDriver.Click(w, name);
     private static void Press(Button b) => b.RaiseEvent(new RoutedEventArgs(Avalonia.Controls.Button.ClickEvent));
     private static Border[] Cards(MainWindow w) => w.GetVisualDescendants().OfType<Border>().Where(b => b.Classes.Contains("card")).ToArray();
     private static Border[] Playing(MainWindow w) => Cards(w).Where(b => b.Classes.Contains("playing")).ToArray();
@@ -76,11 +77,11 @@ public sealed class PlaybackUiTests
         using (var store = ProjectStore.Create(folder.Project, Timed(Guid.NewGuid()))) { }
         var engine = new FakePlaybackEngine();
         var window = new MainWindow(new Picker(folder.Project, Clip), folder.Settings, null, null, engine); window.Show();
-        Click(window, "OpenButton");
+        Click(window, "OpenProjectItem");
         var deadline = DateTime.UtcNow.AddSeconds(10);
-        while (!Button(window, "DemoButton").IsEnabled && DateTime.UtcNow < deadline) await Task.Delay(10);
+        while (!UiDriver.Item(window, "DemoItem").IsEnabled && DateTime.UtcNow < deadline) await Task.Delay(10);
         Click(window, "ImportMediaButton");
-        while ((!Button(window, "DemoButton").IsEnabled || engine.LoadedPath is null) && DateTime.UtcNow < deadline) await Task.Delay(10);
+        while ((!UiDriver.Item(window, "DemoItem").IsEnabled || engine.LoadedPath is null) && DateTime.UtcNow < deadline) await Task.Delay(10);
         Dispatcher.UIThread.RunJobs();
         return (window, engine);
     }
@@ -93,7 +94,7 @@ public sealed class PlaybackUiTests
         {
             var transport = window.FindControl<Border>("TransportBar")!;
             Assert.True(transport.IsVisible); Assert.NotNull(engine.LoadedPath);
-            Assert.Equal("0:00:00.000000 / 0:00:10.000000", window.FindControl<TextBlock>("PositionText")!.Text);
+            Assert.Equal("0:00 / 0:10", window.FindControl<TextBlock>("PositionText")!.Text);
             Assert.Empty(Playing(window));
             engine.Seek(1_200_000);
             Assert.Single(Playing(window)); Assert.Same(Cards(window)[0], Playing(window)[0]);
@@ -102,7 +103,7 @@ public sealed class PlaybackUiTests
             Assert.Equal(2, Playing(window).Length);
             engine.Seek(9_000_000);
             Assert.Empty(Playing(window));   // the untimed third paragraph never highlights
-            Assert.Equal("0:00:09.000000 / 0:00:10.000000", window.FindControl<TextBlock>("PositionText")!.Text);
+            Assert.Equal("0:09 / 0:10", window.FindControl<TextBlock>("PositionText")!.Text);
         }
         finally { window.Close(); }
     }
@@ -114,9 +115,9 @@ public sealed class PlaybackUiTests
         try
         {
             var before = Blocks(window).Select(b => b.Text).ToArray();
-            Assert.Equal("Play", Button(window, "PlayPauseButton").Content);
+            Assert.Equal("Play", AutomationProperties.GetName(Button(window, "PlayPauseButton")));
             Click(window, "PlayPauseButton"); Dispatcher.UIThread.RunJobs();
-            Assert.Equal(PlaybackStatus.Playing, engine.Status); Assert.Equal("Pause", Button(window, "PlayPauseButton").Content);
+            Assert.Equal(PlaybackStatus.Playing, engine.Status); Assert.Equal("Pause", AutomationProperties.GetName(Button(window, "PlayPauseButton")));
             Click(window, "SkipForwardButton"); Assert.Equal(5_000_000, engine.PositionMicroseconds);
             Click(window, "SkipForwardButton"); Assert.Equal(10_000_000, engine.PositionMicroseconds);  // clamped at the end
             Click(window, "SkipBackButton"); Assert.Equal(5_000_000, engine.PositionMicroseconds);
@@ -152,7 +153,7 @@ public sealed class PlaybackUiTests
             // The ribbon belongs to the active paragraph only, and the untimed paragraph offers no seek.
             engine.Seek(5_500_000);
             Assert.Empty(Ribbon(window));
-            Assert.Contains(window.GetVisualDescendants().OfType<TextBlock>(), t => (t.Text ?? "").Contains("no word timing, so there are no clickable words"));
+            Assert.Contains(window.GetVisualDescendants().OfType<TextBlock>(), t => (t.Text ?? "").Contains("No word timing for this paragraph"));
         }
         finally { window.Close(); }
     }
@@ -163,7 +164,7 @@ public sealed class PlaybackUiTests
         var (window, engine) = await OpenAsync(folder);
         try
         {
-            var buttons = window.GetVisualDescendants().OfType<Button>().Where(b => (b.Content as string) == "Play from here").ToArray();
+            var buttons = window.GetVisualDescendants().OfType<Button>().Where(b => (AutomationProperties.GetName(b) ?? "").StartsWith("Go to paragraph")).ToArray();
             Assert.Equal(3, buttons.Length);
             Assert.True(buttons[0].IsEnabled); Assert.True(buttons[1].IsEnabled);
             Assert.False(buttons[2].IsEnabled);   // untimed paragraph
@@ -184,17 +185,17 @@ public sealed class PlaybackUiTests
             var follow = window.FindControl<ToggleButton>("FollowButton")!;
             Assert.True(follow.IsChecked);
             Click(window, "PlayPauseButton"); engine.Seek(1_200_000);
-            Assert.DoesNotContain("Follow playback paused", Playback(window));
+            Assert.DoesNotContain("Follow paused", Playback(window));
             Blocks(window)[0].Text = "edited while playing";
             Dispatcher.UIThread.RunJobs();
-            Assert.Contains("Follow playback paused", Playback(window));
+            Assert.Contains("Follow paused", Playback(window));
             Assert.True(Button(window, "SaveButton").IsEnabled);        // the edit is a normal draft
             Assert.Equal(PlaybackStatus.Playing, engine.Status);        // and playback keeps going
             follow.IsChecked = false; follow.IsChecked = true;          // resuming clears the suspension
             Dispatcher.UIThread.RunJobs();
             Blocks(window)[0].Text = "edited again";
             Dispatcher.UIThread.RunJobs();
-            Assert.Contains("Follow playback paused", Playback(window));
+            Assert.Contains("Follow paused", Playback(window));
             Click(window, "DiscardButton");
         }
         finally { Click(window, "DiscardButton"); window.Close(); }

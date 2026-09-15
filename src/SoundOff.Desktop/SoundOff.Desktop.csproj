@@ -18,6 +18,7 @@
     <ProjectReference Include="..\SoundOff.Core\SoundOff.Core.csproj" />
     <ProjectReference Include="..\SoundOff.Protocol\SoundOff.Protocol.csproj" />
     <ProjectReference Include="..\SoundOff.Worker\SoundOff.Worker.csproj" ReferenceOutputAssembly="false" />
+    <EmbeddedResource Include="..\..\docs\HELP.md" LogicalName="SoundOff.Desktop.HELP.md" />
   </ItemGroup>
   <Target Name="CopyInferenceWorker" AfterTargets="Build">
     <Copy SourceFiles="$(MSBuildProjectDirectory)/../SoundOff.Worker.Python/soundoff_worker.py" DestinationFolder="$(OutDir)worker" />

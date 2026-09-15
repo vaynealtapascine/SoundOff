@@ -50,15 +50,15 @@ public sealed class RecentTests
         public Task<string?> OpenProjectAsync() => Task.FromResult<string?>(project);
         public Task<string?> ExportTextAsync(bool isDraft) => Task.FromResult<string?>(null);
     }
-    private static void Click(MainWindow window, string name) => window.FindControl<Button>(name)!.RaiseEvent(new RoutedEventArgs(Avalonia.Controls.Button.ClickEvent));
+    private static void Click(MainWindow window, string name) => UiDriver.Click(window, name);
     private static string Status(MainWindow window) => window.FindControl<TextBlock>("StatusText")!.Text ?? "";
     private static StackPanel[] Rows(MainWindow window) => window.FindControl<StackPanel>("RecentHost")!.Children.OfType<StackPanel>().Where(p => p.Classes.Contains("recent")).ToArray();
     private static Button RowButton(StackPanel row, string label) => row.GetVisualDescendants().OfType<Button>().Single(b => (string?)b.Content == label);
     private static async Task Idle(MainWindow window)
     {
         var deadline = DateTime.UtcNow.AddSeconds(10);
-        while (!window.FindControl<Button>("DemoButton")!.IsEnabled && DateTime.UtcNow < deadline) await Task.Delay(10);
-        Assert.True(window.FindControl<Button>("DemoButton")!.IsEnabled, "UI operation did not become idle.");
+        while (!window.FindControl<MenuItem>("DemoItem")!.IsEnabled && DateTime.UtcNow < deadline) await Task.Delay(10);
+        Assert.True(window.FindControl<MenuItem>("DemoItem")!.IsEnabled, "UI operation did not become idle.");
     }
 
     [AvaloniaFact] public async Task Recent_projects_are_listed_reopened_flagged_when_missing_and_forgotten()
@@ -69,7 +69,7 @@ public sealed class RecentTests
         try
         {
             Assert.Contains(window.FindControl<StackPanel>("RecentHost")!.Children.OfType<TextBlock>(), t => t.Text == "No recent projects.");
-            Click(window, "DemoButton"); await Idle(window);
+            Click(window, "DemoItem"); await Idle(window);
             var rows = Rows(window); Assert.Single(rows);
             Assert.Contains(rows[0].Children.OfType<TextBlock>(), t => t.Text == "Synthetic demo — editing practice");
             var title = window.GetVisualDescendants().OfType<TextBox>().Single(t => t.Classes.Contains("title"));
@@ -81,7 +81,7 @@ public sealed class RecentTests
         try
         {
             Assert.Single(Rows(window));
-            Click(window, "OpenButton"); await Idle(window);
+            Click(window, "OpenProjectItem"); await Idle(window);
             var rows = Rows(window); Assert.Equal(2, rows.Length);
             Assert.Contains(rows[0].Children.OfType<TextBlock>(), t => t.Text == "Second project");
             Assert.Contains(rows[1].Children.OfType<TextBlock>(), t => t.Text == "Renamed demo");
@@ -91,7 +91,7 @@ public sealed class RecentTests
             rows = Rows(window); Assert.Contains(rows[0].Children.OfType<TextBlock>(), t => t.Text == "Renamed demo");
             window.GetVisualDescendants().OfType<TextBox>().Single(t => t.Classes.Contains("title")).Text = "dirty";
             RowButton(rows[1], "Open").RaiseEvent(new RoutedEventArgs(Avalonia.Controls.Button.ClickEvent));
-            var dialog = Assert.Single(window.OwnedWindows); Assert.Equal("Discard unsaved draft?", dialog.Title);
+            var dialog = Assert.Single(window.OwnedWindows); Assert.Equal("Discard unsaved changes?", dialog.Title);
             dialog.GetVisualDescendants().OfType<Button>().Single(b => b.IsCancel).RaiseEvent(new RoutedEventArgs(Avalonia.Controls.Button.ClickEvent));
             await Idle(window); Assert.Equal("dirty", window.GetVisualDescendants().OfType<TextBox>().Single(t => t.Classes.Contains("title")).Text);
             Click(window, "DiscardButton");

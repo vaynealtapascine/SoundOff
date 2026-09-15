@@ -44,28 +44,28 @@ public sealed class UiTests
         var window = new MainWindow(new Picker(folder.Project, txtPath) { Subtitles = srtPath }, folder.Settings); window.Show();
         try
         {
-            Click(window, "DemoButton"); await Idle(window);
+            Click(window, "DemoItem"); await Idle(window);
             var timing = TimingBoxes(window); Assert.Equal(6, timing.Length); Assert.All(timing, t => Assert.Equal("", t.Text));
             timing[0].Text = "1"; Assert.True(Button(window, "SaveButton").IsEnabled);
             Click(window, "SaveButton"); await Idle(window);
-            Assert.Contains("NOT SAVED", Status(window)); Assert.Contains("Paragraph 1 timing: Enter both a start and an end", Status(window));
+            Assert.Contains("Not saved", Status(window)); Assert.Contains("Paragraph 1 timing: Enter both a start and an end", Status(window));
             Assert.Equal("1", TimingBoxes(window)[0].Text);
-            Click(window, "ExportButton"); await Idle(window); Assert.Contains("UNSAVED DRAFT", File.ReadAllText(txtPath)); // text rescue ignores timing boxes
+            Click(window, "ExportTextItem"); await Idle(window); Assert.Contains("UNSAVED DRAFT", File.ReadAllText(txtPath)); // text rescue ignores timing boxes
             timing = TimingBoxes(window); timing[1].Text = "2.5"; timing[2].Text = "0:00:02"; timing[3].Text = "0:00:04"; timing[4].Text = "4"; timing[5].Text = "1:00:00";
             Click(window, "SaveButton"); await Idle(window); Assert.Contains("Saved · revision 2", Status(window));
             timing = TimingBoxes(window); Assert.Equal("0:00:01.000000", timing[0].Text); Assert.Equal("0:00:02.500000", timing[1].Text); Assert.Equal("1:00:00.000000", timing[5].Text);
-            Assert.Contains(window.GetVisualDescendants().OfType<TextBlock>(), t => (t.Text ?? "").Contains("Microsecond interval stored"));
-            Assert.True(Button(window, "SrtButton").IsEnabled);
-            Click(window, "SrtButton"); await Idle(window);
-            Assert.Contains("Exported 2 SRT cue(s) from saved revision 2; 1 overlap(s) combined", Status(window));
+            Assert.All(TimingBoxes(window), t => Assert.NotEqual("", t.Text)); // every paragraph now carries stored timing
+            Assert.True(UiDriver.Item(window, "ExportSrtItem").IsEnabled);
+            Click(window, "ExportSrtItem"); await Idle(window);
+            Assert.Contains("Exported 2 subtitle cue(s) from revision 2; 1 overlap(s) combined", Status(window));
             Assert.StartsWith("1\n00:00:01,000 --> 00:00:04,000\n", File.ReadAllText(srtPath));
             Blocks(window)[2].Text = "changed words"; Click(window, "SaveButton"); await Idle(window);
-            Assert.Contains("Saved · revision 3", Status(window)); Assert.False(Button(window, "SrtButton").IsEnabled); // untouched timing boxes do not re-anchor edited text
+            Assert.Contains("Saved · revision 3", Status(window)); Assert.False(UiDriver.Item(window, "ExportSrtItem").IsEnabled); // untouched timing boxes do not re-anchor edited text
             Assert.Equal("", TimingBoxes(window)[4].Text);
             Blocks(window)[2].Text = "changed again"; timing = TimingBoxes(window); timing[4].Text = "10"; timing[5].Text = "11";
-            Click(window, "SaveButton"); await Idle(window); Assert.True(Button(window, "SrtButton").IsEnabled); // retyped timing is an explicit anchor
+            Click(window, "SaveButton"); await Idle(window); Assert.True(UiDriver.Item(window, "ExportSrtItem").IsEnabled); // retyped timing is an explicit anchor
             timing = TimingBoxes(window); timing[4].Text = ""; timing[5].Text = ""; Click(window, "SaveButton"); await Idle(window);
-            Assert.Contains("Saved · revision 5", Status(window)); Assert.False(Button(window, "SrtButton").IsEnabled);
+            Assert.Contains("Saved · revision 5", Status(window)); Assert.False(UiDriver.Item(window, "ExportSrtItem").IsEnabled);
             timing = TimingBoxes(window); timing[1].Text = "0.5"; Click(window, "SaveButton"); await Idle(window);
             Assert.Contains("Paragraph 1 timing: The end must be later than the start", Status(window)); Click(window, "DiscardButton");
             Assert.Equal("0:00:02.500000", TimingBoxes(window)[1].Text);
@@ -86,25 +86,25 @@ public sealed class UiTests
         var window = new MainWindow(picker, folder.Settings); window.Show();
         try
         {
-            Assert.False(Button(window, "SrtButton").IsEnabled);
-            Click(window, "DemoButton"); await Idle(window);
-            Assert.False(Button(window, "SrtButton").IsEnabled); Assert.Contains("Every paragraph needs timing", (string)ToolTip.GetTip(Button(window, "SrtButton"))!);
+            Assert.False(UiDriver.Item(window, "ExportSrtItem").IsEnabled);
+            Click(window, "DemoItem"); await Idle(window);
+            Assert.False(UiDriver.Item(window, "ExportSrtItem").IsEnabled); Assert.Contains("Every paragraph needs timing", (string)ToolTip.GetTip(UiDriver.Item(window, "ExportSrtItem"))!);
         }
         finally { window.Close(); }
         window = new MainWindow(new Picker(timedProject, Path.Combine(folder.Root, "t.txt")) { Subtitles = picker.Subtitles }, folder.Settings); window.Show();
         try
         {
-            Click(window, "OpenButton"); await Idle(window);
-            Assert.True(Button(window, "SrtButton").IsEnabled);
-            Click(window, "SrtButton"); await Idle(window);
-            Assert.Contains("Exported 2 SRT cue(s) from saved revision 0; 1 overlap(s) combined", Status(window)); Assert.Contains("synthetic, not measured", Status(window));
+            Click(window, "OpenProjectItem"); await Idle(window);
+            Assert.True(UiDriver.Item(window, "ExportSrtItem").IsEnabled);
+            Click(window, "ExportSrtItem"); await Idle(window);
+            Assert.Contains("Exported 2 subtitle cue(s) from revision 0; 1 overlap(s) combined", Status(window));
             var srt = File.ReadAllText(picker.Subtitles!);
             Assert.StartsWith("1\n00:00:01,000 --> 00:00:05,000\nDemo speaker A: ", srt); Assert.Contains("\n2\n00:00:06,000 --> 00:00:07,000\n", srt);
-            Blocks(window)[0].Text = "edited draft"; Click(window, "SrtButton"); await Idle(window);
+            Blocks(window)[0].Text = "edited draft"; Click(window, "ExportSrtItem"); await Idle(window);
             Assert.Contains("The unsaved draft is not included", Status(window)); Click(window, "DiscardButton");
             window.GetVisualDescendants().OfType<TextBox>().First(t => t.Classes.Contains("transcript")).Text = "now untimed";
             Click(window, "SaveButton"); await Idle(window);
-            Assert.False(Button(window, "SrtButton").IsEnabled); // the edited paragraph lost its timing
+            Assert.False(UiDriver.Item(window, "ExportSrtItem").IsEnabled); // the edited paragraph lost its timing
         }
         finally { Click(window, "DiscardButton"); window.Close(); }
     }
@@ -116,22 +116,22 @@ public sealed class UiTests
         var window = new MainWindow(picker, folder.Settings); window.Show();
         try
         {
-            Assert.False(Button(window, "ExportBundleButton").IsEnabled); Assert.True(Button(window, "ImportBundleButton").IsEnabled);
-            Click(window, "DemoButton"); await Idle(window);
+            Assert.False(UiDriver.Item(window, "ExportBundleItem").IsEnabled); Assert.True(UiDriver.Item(window, "ImportBundleItem").IsEnabled);
+            Click(window, "DemoItem"); await Idle(window);
             SpeakerBox(window).Text = "Bundled 👩🏽‍💻"; Click(window, "SaveButton"); await Idle(window);
             Blocks(window)[0].Text = "unsaved draft";
-            Click(window, "ExportBundleButton"); await Idle(window);
-            Assert.Contains("Exported portable bundle of saved revision 2", Status(window)); Assert.Contains("NOT included", Status(window));
+            Click(window, "ExportBundleItem"); await Idle(window);
+            Assert.Contains("Exported a bundle of revision 2", Status(window)); Assert.Contains("The unsaved draft is not included", Status(window));
             Assert.True(File.Exists(picker.Bundle)); Assert.True(Button(window, "SaveButton").IsEnabled);
             Click(window, "DiscardButton");
             picker.CreatePath = Path.Combine(folder.Root, "Imported.soundoff.sqlite");
-            Click(window, "ImportBundleButton"); await Idle(window);
+            Click(window, "ImportBundleItem"); await Idle(window);
             Assert.Contains("Saved · revision 2", Status(window)); Assert.Contains("Imported from a bundle of revision 2", Status(window));
             Assert.Equal(picker.CreatePath, window.FindControl<TextBlock>("PathText")!.Text);
             Assert.Equal("Bundled 👩🏽‍💻", SpeakerBox(window).Text); Assert.StartsWith("This is an authored", Blocks(window)[0].Text);
-            Click(window, "ImportBundleButton"); await Idle(window); // destination now exists: refused, current project kept
+            Click(window, "ImportBundleItem"); await Idle(window); // destination now exists: refused, current project kept
             Assert.Contains("Importing never overwrites an existing project", Status(window));
-            picker.Bundle = Path.Combine(folder.Root, "wrong.txt"); Click(window, "ExportBundleButton"); await Idle(window);
+            picker.Bundle = Path.Combine(folder.Root, "wrong.txt"); Click(window, "ExportBundleItem"); await Idle(window);
             Assert.Contains("Bundle filenames must end in .soundoff.zip", Status(window)); Assert.False(File.Exists(picker.Bundle));
         }
         finally { Click(window, "DiscardButton"); window.Close(); }
@@ -141,19 +141,18 @@ public sealed class UiTests
         Assert.Equal(2, folder.Settings.RecentProjects.Load().List.Projects.Count);
     }
     private static Button Button(MainWindow window, string name) => window.FindControl<Button>(name)!;
-    private static void Click(MainWindow window, string name) => Button(window, name).RaiseEvent(new RoutedEventArgs(Avalonia.Controls.Button.ClickEvent));
+    private static void Click(MainWindow window, string name) => UiDriver.Click(window, name);
     private static string Status(MainWindow window) => window.FindControl<TextBlock>("StatusText")!.Text ?? "";
     private static TextBox SpeakerBox(MainWindow window, int index = 0) =>
         window.FindControl<StackPanel>("SpeakerHost")!.GetVisualDescendants().OfType<TextBox>().ElementAt(index);
     private static TextBox[] Blocks(MainWindow window) => window.GetVisualDescendants().OfType<TextBox>().Where(t => t.Classes.Contains("transcript")).ToArray();
-    private static Button[] Structural(MainWindow window, string label) =>
-        window.GetVisualDescendants().OfType<Button>().Where(b => b.Classes.Contains("structural") && (string?)b.Content == label).ToArray();
-    private static void Press(Button button) => button.RaiseEvent(new RoutedEventArgs(Avalonia.Controls.Button.ClickEvent));
+    private static Control[] Structural(MainWindow window, string label) => UiDriver.Actions(window, label);
+    private static void Press(Control control) => UiDriver.Press(control);
     private static async Task Idle(MainWindow window)
     {
         var deadline = DateTime.UtcNow.AddSeconds(10);
-        while (!Button(window, "DemoButton").IsEnabled && DateTime.UtcNow < deadline) await Task.Delay(10);
-        Assert.True(Button(window, "DemoButton").IsEnabled, "UI operation did not become idle.");
+        while (!UiDriver.Item(window, "DemoItem").IsEnabled && DateTime.UtcNow < deadline) await Task.Delay(10);
+        Assert.True(UiDriver.Item(window, "DemoItem").IsEnabled, "UI operation did not become idle.");
     }
 
     [AvaloniaFact] public async Task Actual_controls_cover_empty_demo_edit_save_copy_export_reopen_and_undo()
@@ -162,21 +161,21 @@ public sealed class UiTests
         var picker = new Picker(folder.Project, export); var window = new MainWindow(picker, folder.Settings); window.Show();
         try
         {
-            Assert.Contains(window.GetVisualDescendants().OfType<TextBlock>(), t => t.Text == "No transcript loaded");
+            Assert.True(window.FindControl<Control>("StartScreen")!.IsVisible); // no project: the start screen, not an empty editor
             Assert.False(File.Exists(folder.Project)); Assert.False(Button(window, "SaveButton").IsEnabled);
-            Assert.False(Button(window, "CopyButton").IsEnabled);
-            Click(window, "DemoButton"); await Idle(window); Assert.Contains("Saved · revision 1", Status(window));
+            Assert.False(UiDriver.Item(window, "CopyTextItem").IsEnabled);
+            Click(window, "DemoItem"); await Idle(window); Assert.Contains("Saved · revision 1", Status(window));
             var speaker = SpeakerBox(window);
             speaker.Text = "José 👩🏽‍💻";
             var block = window.GetVisualDescendants().OfType<TextBox>().First(t => t.Classes.Contains("transcript"));
             block.Text = "Edited in real Avalonia controls: piña 中文 👩🏽‍💻";
             await Task.Delay(20); Assert.True(Button(window, "SaveButton").IsEnabled); Assert.False(Button(window, "UndoButton").IsEnabled);
             Click(window, "SaveButton"); await Idle(window); Assert.Contains("Saved · revision 2", Status(window));
-            Click(window, "CopyButton"); await Idle(window); Assert.Contains("Copied saved revision 2", Status(window));
+            Click(window, "CopyTextItem"); await Idle(window); Assert.Contains("Copied saved revision 2", Status(window));
             var copied = await TopLevel.GetTopLevel(window)!.Clipboard!.TryGetTextAsync(); Assert.Contains("José 👩🏽‍💻", copied); Assert.Contains("SYNTHETIC DEMO", copied);
-            Click(window, "ExportButton"); await Idle(window); Assert.Equal(copied, File.ReadAllText(export));
+            Click(window, "ExportTextItem"); await Idle(window); Assert.Equal(copied, File.ReadAllText(export));
             window.Close();
-            window = new MainWindow(picker, folder.Settings); window.Show(); Click(window, "OpenButton"); await Idle(window);
+            window = new MainWindow(picker, folder.Settings); window.Show(); Click(window, "OpenProjectItem"); await Idle(window);
             Assert.Contains("Saved · revision 2", Status(window));
             Assert.Equal("José 👩🏽‍💻", SpeakerBox(window).Text);
             Click(window, "UndoButton"); await Idle(window); Assert.Contains("Saved · revision 3", Status(window));
@@ -192,7 +191,7 @@ public sealed class UiTests
         var window = new MainWindow(new Picker(folder.Project, Path.Combine(folder.Root, "text.txt")), folder.Settings); window.Show();
         try
         {
-            Click(window, "DemoButton"); await Idle(window);
+            Click(window, "DemoItem"); await Idle(window);
             Assert.Equal(3, Structural(window, "Split at cursor").Length); Assert.False(Structural(window, "Merge with next")[2].IsEnabled);
             SpeakerBox(window).Text = "Renamed with split 👩🏽‍💻";
             var first = Blocks(window)[0]; first.CaretIndex = "This is ".Length;
@@ -204,7 +203,7 @@ public sealed class UiTests
             Press(Structural(window, "Merge with next")[0]); await Idle(window);
             Assert.Contains("Saved · revision 3", Status(window)); Assert.Equal(3, Blocks(window).Length);
             Assert.StartsWith("This is an authored synthetic example", Blocks(window)[0].Text);
-            Press(Structural(window, "Insert paragraph after")[1]); await Idle(window);
+            Press(Structural(window, "Insert paragraph below")[1]); await Idle(window);
             Assert.Equal(4, Blocks(window).Length); Assert.Equal("", Blocks(window)[2].Text);
             Press(Structural(window, "Delete paragraph")[2]); await Idle(window);
             Assert.Equal(3, Blocks(window).Length); Assert.Contains("Saved · revision 5", Status(window));
@@ -216,7 +215,7 @@ public sealed class UiTests
             Press(Structural(window, "Delete paragraph")[0]); await Idle(window);
             Press(Structural(window, "Delete paragraph")[0]); await Idle(window);
             Press(Structural(window, "Delete paragraph")[0]); await Idle(window);
-            Assert.Empty(Blocks(window)); Assert.True(Button(window, "ExportButton").IsEnabled);
+            Assert.Empty(Blocks(window)); Assert.True(UiDriver.Item(window, "ExportTextItem").IsEnabled);
             Assert.Contains(window.GetVisualDescendants().OfType<TextBlock>(), t => (t.Text ?? "").StartsWith("Every paragraph was deleted"));
             Press(Structural(window, "Add paragraph at end")[0]); await Idle(window);
             Assert.Single(Blocks(window)); Assert.Contains("Saved · revision 13", Status(window));
@@ -234,11 +233,11 @@ public sealed class UiTests
         var window = new MainWindow(new Picker(folder.Project, Path.Combine(folder.Root, "t.txt")), folder.Settings); window.Show();
         try
         {
-            Click(window, "DemoButton"); await Idle(window);
+            Click(window, "DemoItem"); await Idle(window);
             var block = Blocks(window)[0]; block.Focus();
             block.Text = "Shortcut draft 👩🏽‍💻";
             Key(block, Avalonia.Input.Key.Z, Avalonia.Input.KeyModifiers.Control); await Idle(window);
-            Assert.Equal("Shortcut draft 👩🏽‍💻", Blocks(window)[0].Text); Assert.Contains("UNSAVED DRAFT", Status(window)); // undo is disabled while a draft exists
+            Assert.Equal("Shortcut draft 👩🏽‍💻", Blocks(window)[0].Text); Assert.Contains("Unsaved changes", Status(window)); // undo is disabled while a draft exists
             Key(block, Avalonia.Input.Key.S, Avalonia.Input.KeyModifiers.Control); await Idle(window);
             Assert.Contains("Saved · revision 2", Status(window)); Assert.Equal("Shortcut draft 👩🏽‍💻", Blocks(window)[0].Text);
             Key(window, Avalonia.Input.Key.Z, Avalonia.Input.KeyModifiers.Control); await Idle(window);
@@ -272,7 +271,7 @@ public sealed class UiTests
         try
         {
             await Idle(window); Assert.Contains("Operation failed. Project does not exist.", Status(window));
-            Assert.Contains(window.GetVisualDescendants().OfType<TextBlock>(), t => t.Text == "No transcript loaded");
+            Assert.True(window.FindControl<Control>("StartScreen")!.IsVisible);
             Assert.False(File.Exists(missing)); Assert.False(File.Exists(missing + ".writer.lock"));
         }
         finally { window.Close(); }
@@ -284,14 +283,14 @@ public sealed class UiTests
         var window = new MainWindow(new Picker(folder.Project, export), folder.Settings); window.Show();
         try
         {
-            Click(window, "DemoButton"); await Idle(window);
+            Click(window, "DemoItem"); await Idle(window);
             var title = window.GetVisualDescendants().OfType<TextBox>().Single(t => t.Classes.Contains("title"));
             Assert.Equal("Synthetic demo — editing practice", title.Text);
-            title.Text = "Meeting notes 👩🏽‍💻"; Assert.True(Button(window, "SaveButton").IsEnabled); Assert.Contains("UNSAVED DRAFT", Status(window));
-            Click(window, "ExportButton"); await Idle(window); Assert.StartsWith("Meeting notes 👩🏽‍💻\n", File.ReadAllText(export));
+            title.Text = "Meeting notes 👩🏽‍💻"; Assert.True(Button(window, "SaveButton").IsEnabled); Assert.Contains("Unsaved changes", Status(window));
+            Click(window, "ExportTextItem"); await Idle(window); Assert.StartsWith("Meeting notes 👩🏽‍💻\n", File.ReadAllText(export));
             Click(window, "SaveButton"); await Idle(window); Assert.Contains("Saved · revision 2", Status(window));
             title = window.GetVisualDescendants().OfType<TextBox>().Single(t => t.Classes.Contains("title"));
-            title.Text = ""; Click(window, "SaveButton"); await Idle(window); Assert.Contains("NOT SAVED", Status(window));
+            title.Text = ""; Click(window, "SaveButton"); await Idle(window); Assert.Contains("Not saved", Status(window));
             Click(window, "DiscardButton"); Assert.Contains("Saved · revision 2", Status(window));
         }
         finally { window.Close(); }
@@ -304,14 +303,14 @@ public sealed class UiTests
         var window = new MainWindow(new Picker(folder.Project, Path.Combine(folder.Root, "text.txt")), folder.Settings); window.Show();
         try
         {
-            Click(window, "DemoButton"); await Idle(window);
+            Click(window, "DemoItem"); await Idle(window);
             var block = Blocks(window)[1]; block.Text = "Draft kept 👩🏽‍💻"; block.CaretIndex = 0;
             Press(Structural(window, "Split at cursor")[1]); await Idle(window);
-            Assert.Contains("NOT SAVED", Status(window)); Assert.Contains("Place the cursor inside the paragraph", Status(window));
+            Assert.Contains("Not saved", Status(window)); Assert.Contains("Place the cursor inside the paragraph", Status(window));
             Assert.Equal("Draft kept 👩🏽‍💻", Blocks(window)[1].Text); Assert.True(Button(window, "SaveButton").IsEnabled);
             block.CaretIndex = "Draft kept ".Length + 1; // between the emoji's surrogate halves
             Press(Structural(window, "Split at cursor")[1]); await Idle(window);
-            Assert.Contains("NOT SAVED", Status(window)); Assert.Equal("Draft kept 👩🏽‍💻", Blocks(window)[1].Text);
+            Assert.Contains("Not saved", Status(window)); Assert.Equal("Draft kept 👩🏽‍💻", Blocks(window)[1].Text);
         }
         finally { Click(window, "DiscardButton"); window.Close(); }
         using var store = ProjectStore.Open(folder.Project); Assert.Equal(1, store.Read().Revision);
@@ -323,15 +322,15 @@ public sealed class UiTests
         var window = new MainWindow(new Picker(folder.Project, Path.Combine(folder.Root, "text.txt")), folder.Settings); window.Show();
         try
         {
-            Click(window, "DemoButton"); await Idle(window);
+            Click(window, "DemoItem"); await Idle(window);
             Assert.All(Structural(window, "Remove"), b => Assert.False(b.IsEnabled));
             Press(Structural(window, "Add speaker")[0]); await Idle(window);
             Assert.Contains("Saved · revision 2", Status(window)); Assert.Equal("New speaker 3", SpeakerBox(window, 2).Text);
             Assert.True(Structural(window, "Remove")[2].IsEnabled);
             var choice = window.GetVisualDescendants().OfType<ComboBox>().First(c => AutomationProperties.GetName(c) == "Speaker for paragraph 1");
             Assert.Equal(0, choice.SelectedIndex); choice.SelectedIndex = 2;
-            Assert.True(Button(window, "SaveButton").IsEnabled); Assert.Contains("UNSAVED DRAFT", Status(window));
-            Click(window, "CopyButton"); await Idle(window);
+            Assert.True(Button(window, "SaveButton").IsEnabled); Assert.Contains("Unsaved changes", Status(window));
+            Click(window, "CopyTextItem"); await Idle(window);
             Assert.Contains("New speaker 3:\nThis is an authored", await TopLevel.GetTopLevel(window)!.Clipboard!.TryGetTextAsync());
             Click(window, "SaveButton"); await Idle(window); Assert.Contains("Saved · revision 3", Status(window));
             Assert.False(Structural(window, "Remove")[2].IsEnabled);
@@ -352,7 +351,7 @@ public sealed class UiTests
         var window = new MainWindow(new Picker(folder.Project, Path.Combine(folder.Root, "text.txt")), folder.Settings); window.Show();
         try
         {
-            Click(window, "DemoButton"); await Idle(window); Assert.False(Button(window, "RedoButton").IsEnabled);
+            Click(window, "DemoItem"); await Idle(window); Assert.False(Button(window, "RedoButton").IsEnabled);
             var speaker = SpeakerBox(window);
             speaker.Text = "Redo me 👩🏽‍💻"; Click(window, "SaveButton"); await Idle(window); Assert.Contains("Saved · revision 2", Status(window));
             Assert.False(Button(window, "RedoButton").IsEnabled);
@@ -378,10 +377,10 @@ public sealed class UiTests
         var window = new MainWindow(new Picker(folder.Project, Path.Combine(folder.Root, "text.txt")), folder.Settings); window.Show();
         try
         {
-            Click(window, "OpenButton"); await Idle(window);
+            Click(window, "OpenProjectItem"); await Idle(window);
             Assert.Contains("Saved · revision 0", Status(window)); Assert.Contains("upgraded from an older schema", Status(window));
             Assert.Contains(".schema1-", Status(window));
-            Click(window, "OpenButton"); await Idle(window); Assert.DoesNotContain("upgraded", Status(window));
+            Click(window, "OpenProjectItem"); await Idle(window); Assert.DoesNotContain("upgraded", Status(window));
         }
         finally { window.Close(); }
         Assert.Single(Directory.GetFiles(folder.Root, "*.schema1-*.backup"));
@@ -393,11 +392,11 @@ public sealed class UiTests
         var window = new MainWindow(new Picker(folder.Project, Path.Combine(folder.Root, "draft.txt")), folder.Settings); window.Show();
         try
         {
-            Click(window, "DemoButton"); await Idle(window);
+            Click(window, "DemoItem"); await Idle(window);
             var block = window.GetVisualDescendants().OfType<TextBox>().First(t => t.Classes.Contains("transcript"));
             block.Text = "Immediate draft piña 👩🏽‍💻";
             // Do not wait for a queued TextChanged event: commands/closing must see the current input.
-            Click(window, "CopyButton"); await Idle(window);
+            Click(window, "CopyTextItem"); await Idle(window);
             var text = await TopLevel.GetTopLevel(window)!.Clipboard!.TryGetTextAsync();
             Assert.Contains("UNSAVED DRAFT", text); Assert.Contains("Immediate draft piña 👩🏽‍💻", text);
             Assert.True(Button(window, "SaveButton").IsEnabled);
@@ -413,14 +412,14 @@ public sealed class UiTests
         var window = new MainWindow(new Picker(folder.Project, Path.Combine(folder.Root, "draft.txt")), folder.Settings); window.Show();
         try
         {
-            Click(window, "DemoButton"); await Idle(window);
+            Click(window, "DemoItem"); await Idle(window);
             var speaker = SpeakerBox(window);
             speaker.Text = "Unsaved José";
             Assert.True(Button(window, "SaveButton").IsEnabled);
             window.Close();
             Assert.True(window.IsVisible);
             var dialog = Assert.Single(window.OwnedWindows);
-            Assert.Equal("Discard unsaved draft?", dialog.Title);
+            Assert.Equal("Discard unsaved changes?", dialog.Title);
             dialog.GetVisualDescendants().OfType<Button>().Single(b => b.IsCancel)
                 .RaiseEvent(new RoutedEventArgs(Avalonia.Controls.Button.ClickEvent));
             Assert.True(window.IsVisible); Assert.Equal("Unsaved José", speaker.Text);
@@ -442,12 +441,15 @@ public sealed class UiTests
         var window = new MainWindow(new Picker(folder.Project, Path.Combine(folder.Root, "text.txt")), folder.Settings); window.Show();
         try
         {
-            Click(window, "OpenButton"); await Idle(window);
-            var labels = window.GetVisualDescendants().OfType<TextBlock>().Select(t => t.Text ?? "").ToArray();
-            Assert.Contains(labels, text => text.Contains("SYNTHETIC DEMO") && text.Contains("Any timing is synthetic, not measured"));
-            Assert.Contains(labels, text => text.Contains("Microsecond interval stored"));
-            Assert.Contains(labels, text => text.EndsWith("· Untimed"));
-            Assert.DoesNotContain(labels, text => text.Contains("Timing is unknown, not zero."));
+            Click(window, "OpenProjectItem"); await Idle(window);
+            // The document keeps the synthetic status visible as a badge; the full notice is its tooltip.
+            var badge = window.GetVisualDescendants().OfType<Border>().Single(b => b.Classes.Contains("provenance"));
+            Assert.StartsWith("Demo project", ((TextBlock)badge.Child!).Text);
+            Assert.Contains("Any timing is synthetic, not measured", (string)ToolTip.GetTip(badge)!);
+            var timing = TimingBoxes(window);
+            Assert.Equal("0:00:00.000001", timing[0].Text); Assert.Equal("0:00:00.000002", timing[1].Text); // a stored interval shows exactly
+            Assert.Equal("", timing[2].Text); Assert.Equal("", timing[3].Text);                                // untimed stays blank, never zero
+            Assert.DoesNotContain(window.GetVisualDescendants().OfType<TextBlock>(), t => (t.Text ?? "").Contains("Timing is unknown, not zero."));
         }
         finally { window.Close(); }
     }
@@ -458,11 +460,11 @@ public sealed class UiTests
         var window = new MainWindow(new Picker(folder.Project, output), folder.Settings); window.Show();
         try
         {
-            Click(window, "DemoButton"); await Idle(window);
+            Click(window, "DemoItem"); await Idle(window);
             var input = SpeakerBox(window); input.Text = "";
             await Task.Delay(20); Click(window, "SaveButton"); await Idle(window);
-            Assert.Contains("NOT SAVED", Status(window)); Assert.Equal("", input.Text); Assert.True(Button(window, "DiscardButton").IsEnabled);
-            Click(window, "ExportButton"); await Idle(window);
+            Assert.Contains("Not saved", Status(window)); Assert.Equal("", input.Text); Assert.True(Button(window, "DiscardButton").IsEnabled);
+            Click(window, "ExportTextItem"); await Idle(window);
             Assert.Contains("UNSAVED DRAFT", File.ReadAllText(output)); Assert.True(Button(window, "SaveButton").IsEnabled);
             Click(window, "DiscardButton"); Assert.Contains("Saved · revision 1", Status(window));
         }
@@ -499,15 +501,15 @@ public sealed class UiTests
         var window = new MainWindow(new Picker(badProject, folder.Project), folder.Settings); window.Show();
         try
         {
-            Click(window, "DemoButton"); await Idle(window);
+            Click(window, "DemoItem"); await Idle(window);
             Assert.Contains("Project filenames must end in .soundoff.sqlite", Status(window)); Assert.False(File.Exists(badProject));
         }
         finally { window.Close(); }
         window = new MainWindow(new Picker(folder.Project, folder.Project), folder.Settings); window.Show();
         try
         {
-            Click(window, "DemoButton"); await Idle(window);
-            Click(window, "ExportButton"); await Idle(window);
+            Click(window, "DemoItem"); await Idle(window);
+            Click(window, "ExportTextItem"); await Idle(window);
             Assert.Contains("Text exports must use .txt", Status(window));
         }
         finally { window.Close(); }
@@ -521,9 +523,9 @@ public sealed class UiTests
         var window = new MainWindow(new Picker(folder.Project, output), folder.Settings); window.Show();
         try
         {
-            Click(window, "DemoButton"); await Idle(window);
+            Click(window, "DemoItem"); await Idle(window);
             window.GetVisualDescendants().OfType<TextBox>().First(t => t.Classes.Contains("transcript")).Text = "Unsaved draft 👩🏽‍💻";
-            await Task.Delay(20); Click(window, "ExportButton"); await Idle(window);
+            await Task.Delay(20); Click(window, "ExportTextItem"); await Idle(window);
             Assert.Contains("UNSAVED DRAFT", File.ReadAllText(output)); Assert.Contains("Unsaved draft 👩🏽‍💻", File.ReadAllText(output));
             Assert.True(Button(window, "SaveButton").IsEnabled); Click(window, "DiscardButton");
         }

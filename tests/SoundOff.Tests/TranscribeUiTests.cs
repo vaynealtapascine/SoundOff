@@ -20,15 +20,15 @@ public sealed class TranscribeUiTests
     }
     private static string Clip => Path.Combine(AppContext.BaseDirectory, "fixtures", "tts-english.wav");
     private static Button Button(MainWindow window, string name) => window.FindControl<Button>(name)!;
-    private static void Click(MainWindow window, string name) => Button(window, name).RaiseEvent(new RoutedEventArgs(Avalonia.Controls.Button.ClickEvent));
+    private static void Click(MainWindow window, string name) => UiDriver.Click(window, name);
     private static string Status(MainWindow window) => window.FindControl<TextBlock>("StatusText")!.Text ?? "";
     private static string Job(MainWindow window) => window.FindControl<TextBlock>("JobText")!.Text ?? "";
     private static TextBox[] Blocks(MainWindow window) => window.GetVisualDescendants().OfType<TextBox>().Where(t => t.Classes.Contains("transcript")).ToArray();
     private static async Task Idle(MainWindow window, Func<bool>? until = null)
     {
         var deadline = DateTime.UtcNow.AddSeconds(20);
-        while ((!Button(window, "DemoButton").IsEnabled || (until is not null && !until())) && DateTime.UtcNow < deadline) await Task.Delay(10);
-        Assert.True(Button(window, "DemoButton").IsEnabled, "UI operation did not become idle.");
+        while ((!UiDriver.Item(window, "DemoItem").IsEnabled || (until is not null && !until())) && DateTime.UtcNow < deadline) await Task.Delay(10);
+        Assert.True(UiDriver.Item(window, "DemoItem").IsEnabled, "UI operation did not become idle.");
     }
     private static async Task JobDone(MainWindow window)
     {
@@ -48,28 +48,29 @@ public sealed class TranscribeUiTests
             Assert.False(Button(window, "TranscribeButton").IsEnabled); Assert.True(Button(window, "PreparePackButton").IsEnabled);
             Assert.Contains("not prepared yet", window.FindControl<TextBlock>("RuntimeText")!.Text);
             Click(window, "ImportMediaButton"); await Idle(window); // creates the project first, then copies the clip
-            Assert.Contains("Imported tts-english.wav", Status(window)); Assert.Contains("Recording: tts-english.wav", window.FindControl<TextBlock>("MediaText")!.Text);
+            Assert.Contains("Imported tts-english.wav", Status(window)); Assert.StartsWith("tts-english.wav · 0:09", window.FindControl<TextBlock>("MediaText")!.Text);
             Assert.True(File.Exists(folder.Project)); Assert.False(Button(window, "TranscribeButton").IsEnabled);
             Click(window, "PreparePackButton"); await JobDone(window);
-            Assert.StartsWith("Model pack ready: small with en, tl alignment", Job(window)); Assert.True(runtime.IsPackReady("small"));
-            Assert.True(Button(window, "TranscribeButton").IsEnabled); Assert.Contains("model pack prepared", window.FindControl<TextBlock>("RuntimeText")!.Text);
+            Assert.StartsWith("Model pack ready (small · en, tl", Job(window)); Assert.True(runtime.IsPackReady("small"));
+            Assert.True(Button(window, "TranscribeButton").IsEnabled); Assert.False(window.FindControl<TextBlock>("RuntimeText")!.IsVisible); Assert.False(Button(window, "PreparePackButton").IsVisible);
             mode = "inf-ok"; Click(window, "TranscribeButton"); await JobDone(window);
-            Assert.Contains("The result is now the transcript (revision 1)", Job(window));
+            Assert.Contains("Transcript created as revision 1", Job(window));
             Assert.Equal(2, Blocks(window).Length); Assert.StartsWith("Hello. This is a synthetic", Blocks(window)[0].Text);
-            Assert.Contains(window.GetVisualDescendants().OfType<TextBlock>(), t => (t.Text ?? "").Contains("MODEL OUTPUT"));
+            var badge = window.GetVisualDescendants().OfType<Border>().Single(b => b.Classes.Contains("provenance"));
+            Assert.StartsWith("Machine transcript", ((TextBlock)badge.Child!).Text); Assert.Contains("MODEL OUTPUT", (string)ToolTip.GetTip(badge)!);
             Assert.Contains(window.FindControl<StackPanel>("RunHost")!.Children.OfType<Grid>().Select(g => g.Children.OfType<TextBlock>().Single().Text), t => t!.Contains("completed"));
             Assert.False(Button(window, "ApplyResultButton").IsEnabled);
             // A second run over a non-empty document is kept pending until applied explicitly.
             Click(window, "TranscribeButton"); await JobDone(window);
-            Assert.Contains("The current transcript was kept", Job(window)); Assert.True(Button(window, "ApplyResultButton").IsEnabled);
+            Assert.Contains("Apply the result", Job(window)); Assert.True(Button(window, "ApplyResultButton").IsVisible); Assert.True(Button(window, "ApplyResultButton").IsEnabled);
             Assert.Contains("Saved · revision 1", Status(window));
             Click(window, "ApplyResultButton");
             var dialog = Assert.Single(window.OwnedWindows); Assert.Equal("Replace the transcript?", dialog.Title);
             dialog.GetVisualDescendants().OfType<Button>().Single(b => !b.IsCancel).RaiseEvent(new RoutedEventArgs(Avalonia.Controls.Button.ClickEvent));
-            await Idle(window); Assert.Contains("Applied model result", Status(window)); Assert.Contains("revision 2", Status(window));
+            await Idle(window); Assert.Contains("Applied the transcription result", Status(window)); Assert.Contains("revision 2", Status(window));
             Assert.False(Button(window, "ApplyResultButton").IsEnabled);
             Assert.Equal(2, window.FindControl<StackPanel>("RunHost")!.Children.Count);
-            Assert.Contains("import-inference:", window.FindControl<StackPanel>("HistoryHost")!.Children.OfType<Grid>().First().Children.OfType<TextBlock>().Single().Text);
+            Assert.Contains("Transcription applied", window.FindControl<StackPanel>("HistoryHost")!.Children.OfType<Grid>().First().Children.OfType<TextBlock>().Single().Text);
         }
         finally { foreach (var owned in window.OwnedWindows.ToArray()) owned.Close(false); window.Close(); }
         using var store = ProjectStore.Open(folder.Project);
@@ -93,7 +94,7 @@ public sealed class TranscribeUiTests
             Assert.StartsWith("Stopped.", Job(window));
             mode = "inf-failed"; Click(window, "TranscribeButton"); await JobDone(window);
             Assert.Contains("model files are missing", Job(window));
-            Assert.Contains(window.GetVisualDescendants().OfType<TextBlock>(), t => t.Text == "No transcript loaded");
+            Assert.Contains(window.GetVisualDescendants().OfType<TextBlock>(), t => t.Text == "No transcript yet");
         }
         finally { window.Close(); }
         using var store = ProjectStore.Open(folder.Project);

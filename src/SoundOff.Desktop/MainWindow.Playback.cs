@@ -26,6 +26,18 @@ public sealed partial class MainWindow
     private string? loadedMediaPath;
     private IReadOnlyList<ActiveSpan> activeSpans = [];
     private Guid ribbonBlock;                // which paragraph currently owns a word ribbon
+    private static readonly Geometry PlayGlyph = Geometry.Parse("M8,5 L19,12 L8,19 Z");
+    private static readonly Geometry PauseGlyph = Geometry.Parse("M6,5 H10 V19 H6 Z M14,5 H18 V19 H14 Z");
+    private readonly PathIcon playIcon = new() { Data = PlayGlyph, Width = 14, Height = 14 };
+    private bool showingPause;
+
+    // Friendly clock for transport and recording: m:ss, or h:mm:ss past an hour. Exact microseconds stay in the timing boxes.
+    internal static string Clock(long microseconds)
+    {
+        var t = TimeSpan.FromSeconds(Math.Max(0, microseconds) / 1_000_000);
+        return t.TotalHours >= 1 ? $"{(int)t.TotalHours}:{t.Minutes:00}:{t.Seconds:00}" : $"{t.Minutes}:{t.Seconds:00}";
+    }
+    private void SetPlaybackText(string text) { playbackText.Text = text; playbackText.IsVisible = text.Length > 0; }
 
     private void InitializePlayback(IPlaybackEngine? engine)
     {
@@ -35,6 +47,7 @@ public sealed partial class MainWindow
         skipForward = this.FindControl<Button>("SkipForwardButton")!; followButton = this.FindControl<ToggleButton>("FollowButton")!;
         positionSlider = this.FindControl<Slider>("PositionSlider")!; volumeSlider = this.FindControl<Slider>("VolumeSlider")!;
         positionText = this.FindControl<TextBlock>("PositionText")!; playbackText = this.FindControl<TextBlock>("PlaybackText")!;
+        playPause.Content = playIcon;
         playPause.Click += (_, _) => TogglePlay();
         skipBack.Click += (_, _) => Skip(-SkipMicroseconds);
         skipForward.Click += (_, _) => Skip(SkipMicroseconds);
@@ -82,16 +95,16 @@ public sealed partial class MainWindow
     {
         if (snapshot?.Blocks.FirstOrDefault(b => b.Id == blockId) is not { } block) return;
         var (availability, target) = PlaybackCursor.SeekTarget(block);
-        if (availability == SeekAvailability.Untimed) { playbackText.Text = "That paragraph has no timing, so there is nowhere to seek to."; return; }
-        playback.Seek(target); RefreshPlaybackHighlight(force: true);
+        if (availability == SeekAvailability.Untimed) { SetPlaybackText("That paragraph has no timing."); return; }
+        SetPlaybackText(""); playback.Seek(target); RefreshPlaybackHighlight(force: true);
     }
     private void SeekToWord(Guid blockId, int wordIndex)
     {
         if (snapshot?.Blocks.FirstOrDefault(b => b.Id == blockId) is not { } block) return;
         var (availability, target) = PlaybackCursor.SeekTarget(block, wordIndex);
-        if (availability == SeekAvailability.Untimed) { playbackText.Text = "That paragraph has no timing, so there is nowhere to seek to."; return; }
+        if (availability == SeekAvailability.Untimed) { SetPlaybackText("That paragraph has no timing."); return; }
         playback.Seek(target); RefreshPlaybackHighlight(force: true);
-        if (availability == SeekAvailability.Unaligned) playbackText.Text = "That word was never aligned; the playhead moved to the start of its paragraph instead.";
+        SetPlaybackText(availability == SeekAvailability.Unaligned ? "That word was never aligned, so the playhead moved to its paragraph." : "");
     }
 
     // Manual scrolling, selection or typing stops the document from being dragged around under the reader.
@@ -99,7 +112,7 @@ public sealed partial class MainWindow
     {
         if (playback.Status != PlaybackStatus.Playing || followSuspended) return;
         followSuspended = true;
-        playbackText.Text = "Follow playback paused because you moved around the document. Use Follow playback to resume.";
+        SetPlaybackText("Follow paused while you edit. Turn Follow on to resume.");
     }
 
     private void RefreshPlaybackHighlight(bool force)
@@ -110,18 +123,22 @@ public sealed partial class MainWindow
         transportBar.IsVisible = duration > 0 || playback.Status == PlaybackStatus.Failed;
         var playing = playback.Status == PlaybackStatus.Playing;
         RefreshVideoPreview(position, playing);
-        playPause.Content = playing ? "Pause" : "Play";
+        if (playing != showingPause)
+        {
+            showingPause = playing; playIcon.Data = playing ? PauseGlyph : PlayGlyph;
+            var label = playing ? "Pause" : "Play";
+            AutomationProperties.SetName(playPause, label); ToolTip.SetTip(playPause, label);
+        }
         playPause.IsEnabled = duration > 0 && !Recording;
         skipBack.IsEnabled = skipForward.IsEnabled = positionSlider.IsEnabled = duration > 0;
-        positionText.Text = duration > 0 ? $"{TimeText.Format(position)} / {TimeText.Format(duration)}" : "";
+        positionText.Text = duration > 0 ? $"{Clock(position)} / {Clock(duration)}" : "";
         if (duration > 0)
         {
             updatingTransport = true;
             positionSlider.Value = Math.Clamp(position / (double)duration * 1000.0, 0, 1000);
             updatingTransport = false;
         }
-        if (playback.Status == PlaybackStatus.Failed) playbackText.Text = playback.FailureReason ?? "Playback is unavailable.";
-        else if (playback.Status == PlaybackStatus.Ended) playbackText.Text = "Reached the end of the recording.";
+        if (playback.Status == PlaybackStatus.Failed) SetPlaybackText(playback.FailureReason ?? "Playback is unavailable.");
 
         var spans = snapshot is null || duration <= 0 ? [] : PlaybackCursor.Locate(snapshot, position);
         if (!force && spans.SequenceEqual(activeSpans)) return;
@@ -148,7 +165,7 @@ public sealed partial class MainWindow
             if (ribbon.Children.Count != 1)
             {
                 ribbon.Children.Clear();
-                ribbon.Children.Add(new TextBlock { Text = "Playing this paragraph. It has no word timing, so there are no clickable words.", TextWrapping = TextWrapping.Wrap });
+                ribbon.Children.Add(new TextBlock { Text = "No word timing for this paragraph.", TextWrapping = TextWrapping.Wrap, Classes = { "muted" } });
             }
             return;
         }

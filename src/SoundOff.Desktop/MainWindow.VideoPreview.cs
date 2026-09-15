@@ -20,7 +20,7 @@ public sealed partial class MainWindow
     private Border videoSurface = null!;
     private Grid reviewArea = null!;
     private Image videoImage = null!;
-    private TextBlock videoStatus = null!, videoSizeLabel = null!;
+    private TextBlock videoStatus = null!;
     private WriteableBitmap? videoBitmap;
     private VideoPreviewFrame? displayedFrame;
     private int videoRefreshQueued;
@@ -40,7 +40,6 @@ public sealed partial class MainWindow
         reviewArea = this.FindControl<Grid>("ReviewArea")!;
         videoImage = this.FindControl<Image>("VideoPreviewImage")!;
         videoStatus = this.FindControl<TextBlock>("VideoPreviewStatus")!;
-        videoSizeLabel = this.FindControl<TextBlock>("VideoSizeLabel")!;
         videoToggle.IsCheckedChanged += (_, _) =>
         {
             videoPreview.SetVisible(videoToggle.IsChecked == true);
@@ -81,10 +80,12 @@ public sealed partial class MainWindow
         var shown = hasVideo && videoToggle.IsChecked == true;
         videoControls.IsVisible = hasVideo;
         videoPanel.IsVisible = shown;
-        videoSize.IsVisible = videoSizeLabel.IsVisible = shown;
-        videoToggle.Content = shown ? "Hide video preview" : "Show video preview";
-        videoStatus.Text = videoPreview.Message;
+        videoSize.IsVisible = shown;
+        videoToggle.Content = shown ? "Hide video" : "Show video";
         var frame = shown ? videoPreview.Frame : null;
+        // A frame speaks for itself; the status line only explains an empty picture (loading, ended, failure).
+        videoStatus.Text = videoPreview.Message;
+        videoStatus.IsVisible = shown && frame is null;
         if (frame is null) { ClearVideoBitmap(); return; }
         if (ReferenceEquals(frame, displayedFrame)) return;
         try
@@ -103,7 +104,8 @@ public sealed partial class MainWindow
         catch (Exception e)
         {
             ClearVideoBitmap(); videoPreview.SetVisible(false);
-            videoStatus.Text = "The video image could not be displayed: " + e.Message + " Hide and show preview to retry. Audio and transcript remain usable.";
+            videoStatus.Text = "The video image could not be displayed: " + e.Message + " Hide and show the video to retry. Audio and transcript remain usable.";
+            videoStatus.IsVisible = true;
         }
     }
     private void ResizeVideoPreview()

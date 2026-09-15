@@ -3,11 +3,44 @@
              x:Class="SoundOff.Desktop.App" RequestedThemeVariant="Dark">
   <Application.Styles>
     <FluentTheme />
-    <!-- Real designer entry points: spacing, readable width, typography, panel width. -->
-    <Style Selector="Button"><Setter Property="MinHeight" Value="36" /><Setter Property="Padding" Value="14,8" /></Style>
-    <Style Selector="TextBlock.heading"><Setter Property="FontSize" Value="28" /><Setter Property="FontWeight" Value="SemiBold" /></Style>
-    <Style Selector="TextBox.transcript"><Setter Property="FontSize" Value="18" /><Setter Property="Padding" Value="14" /><Setter Property="MinHeight" Value="120" /></Style>
-    <Style Selector="Border.card"><Setter Property="CornerRadius" Value="10" /><Setter Property="Padding" Value="20" /><Setter Property="BorderThickness" Value="1" /><Setter Property="BorderBrush" Value="{DynamicResource SystemControlForegroundBaseMediumLowBrush}" /></Style>
+    <Style Selector="Button, ToggleButton"><Setter Property="MinHeight" Value="34" /><Setter Property="Padding" Value="12,6" /></Style>
+    <Style Selector="TextBlock.heading"><Setter Property="FontSize" Value="30" /><Setter Property="FontWeight" Value="SemiBold" /></Style>
+    <Style Selector="TextBlock.section"><Setter Property="FontSize" Value="15" /><Setter Property="FontWeight" Value="SemiBold" /></Style>
+    <Style Selector="TextBlock.muted"><Setter Property="FontSize" Value="12" /><Setter Property="Foreground" Value="{DynamicResource SystemControlForegroundBaseMediumBrush}" /></Style>
+    <Style Selector="Border.topbar">
+      <Setter Property="Padding" Value="16,10" /><Setter Property="BorderThickness" Value="0,0,0,1" />
+      <Setter Property="BorderBrush" Value="{DynamicResource SystemControlForegroundBaseLowBrush}" />
+      <Setter Property="Background" Value="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}" />
+    </Style>
+    <Style Selector="Border.divider"><Setter Property="Width" Value="1" /><Setter Property="Margin" Value="6,6" /><Setter Property="Background" Value="{DynamicResource SystemControlForegroundBaseLowBrush}" /></Style>
+    <Style Selector="Border.statusbar">
+      <Setter Property="Padding" Value="20,8" /><Setter Property="BorderThickness" Value="0,1,0,0" />
+      <Setter Property="BorderBrush" Value="{DynamicResource SystemControlForegroundBaseLowBrush}" />
+    </Style>
+    <Style Selector="Border.transport">
+      <Setter Property="Padding" Value="20,10" /><Setter Property="BorderThickness" Value="0,1,0,0" />
+      <Setter Property="BorderBrush" Value="{DynamicResource SystemControlForegroundBaseLowBrush}" />
+    </Style>
+    <Style Selector="Border.findbar">
+      <Setter Property="Padding" Value="12" /><Setter Property="CornerRadius" Value="8" /><Setter Property="BorderThickness" Value="1" />
+      <Setter Property="BorderBrush" Value="{DynamicResource SystemControlForegroundBaseLowBrush}" />
+    </Style>
+    <Style Selector="Border.card">
+      <Setter Property="CornerRadius" Value="8" /><Setter Property="Padding" Value="16" /><Setter Property="BorderThickness" Value="1" />
+      <Setter Property="BorderBrush" Value="{DynamicResource SystemControlForegroundBaseLowBrush}" />
+    </Style>
+    <Style Selector="Border.badge">
+      <Setter Property="CornerRadius" Value="10" /><Setter Property="Padding" Value="10,3" /><Setter Property="HorizontalAlignment" Value="Left" />
+      <Setter Property="Background" Value="{DynamicResource SystemControlBackgroundBaseLowBrush}" />
+    </Style>
+    <Style Selector="TextBox.title"><Setter Property="FontSize" Value="24" /><Setter Property="FontWeight" Value="SemiBold" /></Style>
+    <Style Selector="TextBox.transcript"><Setter Property="FontSize" Value="17" /><Setter Property="Padding" Value="12,10" /><Setter Property="MinHeight" Value="64" /></Style>
+    <Style Selector="TextBox.timing"><Setter Property="Width" Value="138" /><Setter Property="FontSize" Value="13" /></Style>
+    <Style Selector="Button.quiet, Button.more"><Setter Property="Background" Value="Transparent" /><Setter Property="BorderThickness" Value="0" /></Style>
+    <Style Selector="Button.more"><Setter Property="FontSize" Value="18" /><Setter Property="Padding" Value="10,0,10,4" /></Style>
+    <Style Selector="Button.round"><Setter Property="CornerRadius" Value="18" /><Setter Property="Width" Value="44" /><Setter Property="Height" Value="36" /><Setter Property="Padding" Value="0" /><Setter Property="HorizontalContentAlignment" Value="Center" /></Style>
+    <Style Selector="PathIcon.volume"><Setter Property="Data" Value="M3,9 H7 L12,5 V19 L7,15 H3 Z M15,10 H16.5 V14 H15 Z M18,8 H19.5 V16 H18 Z" /></Style>
+    <Style Selector="Expander"><Setter Property="Padding" Value="12" /></Style>
     <!-- Playback highlighting is visual only: it changes no text, caret, selection or history. -->
     <Style Selector="Border.card.playing"><Setter Property="BorderThickness" Value="2" /><Setter Property="BorderBrush" Value="{DynamicResource SystemAccentColor}" /></Style>
     <Style Selector="Button.word"><Setter Property="Margin" Value="0,0,4,4" /><Setter Property="Padding" Value="6,2" /><Setter Property="MinHeight" Value="0" /><Setter Property="FontSize" Value="13" /></Style>

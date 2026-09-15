@@ -39,7 +39,7 @@ public sealed class VideoPreviewUiTests
         public Task<string?> OpenProjectAsync() => Task.FromResult(Next);
         public Task<string?> ExportTextAsync(bool isDraft) => Task.FromResult<string?>(null);
     }
-    private static void Click(MainWindow w, string name) => w.FindControl<Button>(name)!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+    private static void Click(MainWindow w, string name) => UiDriver.Click(w, name);
     private static async Task PumpUntil(Func<bool> predicate) => await VideoFixtures.WaitAsync(() => { Dispatcher.UIThread.RunJobs(); return predicate(); });
     private static async Task PrepareAsync(TestDirectory folder)
     {
@@ -96,7 +96,7 @@ public sealed class VideoPreviewUiTests
             window.Height = 680; window.Width = 880; await Task.Delay(100); Dispatcher.UIThread.RunJobs();
             Assert.True(surface.Height <= 320); Assert.True(window.FindControl<Grid>("ReviewArea")!.Bounds.Height > surface.Height);
             var empty = Path.Combine(folder.Root, "empty.soundoff.sqlite"); using (ProjectStore.Create(empty)) { }
-            picker.Next = empty; Click(window, "OpenButton");
+            picker.Next = empty; Click(window, "OpenProjectItem");
             await PumpUntil(() => engine.Status == PlaybackStatus.Empty && window.LiveVideoBitmaps == 0);
             await window.VideoPreview.PendingWork;
             Assert.Null(image.Source); Assert.False(window.FindControl<WrapPanel>("VideoControls")!.IsVisible);

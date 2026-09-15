@@ -18,6 +18,9 @@ public sealed partial class MainWindow
     private Button importMedia = null!, preparePack = null!, transcribe = null!, cancelRun = null!, applyResult = null!;
     private ComboBox languageChoice = null!, deviceChoice = null!;
     private StackPanel runHost = null!;
+    private ProgressBar jobProgress = null!;
+    private Expander runsExpander = null!;
+    private Control transcribeCard = null!;
     private CancellationTokenSource? job;
     private Task? jobTask;
     private (string RunId, Transcript Proposal)? pendingResult;
@@ -31,37 +34,51 @@ public sealed partial class MainWindow
         importMedia = this.FindControl<Button>("ImportMediaButton")!; preparePack = this.FindControl<Button>("PreparePackButton")!;
         transcribe = this.FindControl<Button>("TranscribeButton")!; cancelRun = this.FindControl<Button>("CancelRunButton")!; applyResult = this.FindControl<Button>("ApplyResultButton")!;
         languageChoice = this.FindControl<ComboBox>("LanguageChoice")!; deviceChoice = this.FindControl<ComboBox>("DeviceChoice")!; runHost = this.FindControl<StackPanel>("RunHost")!;
+        jobProgress = this.FindControl<ProgressBar>("JobProgressBar")!; runsExpander = this.FindControl<Expander>("RunsExpander")!;
+        transcribeCard = this.FindControl<Control>("TranscribeCard")!;
         importMedia.Click += async (_, _) => await GuardAsync(ImportMediaAsync);
         preparePack.Click += (_, _) => StartJob(PreparePackAsync);
         transcribe.Click += (_, _) => StartJob(TranscribeJobAsync);
-        cancelRun.Click += (_, _) => { job?.Cancel(); jobText.Text = "Stopping the worker…"; UpdateControls(); };
+        cancelRun.Click += (_, _) => { job?.Cancel(); SetJobText("Stopping…"); UpdateControls(); };
         applyResult.Click += async (_, _) => await GuardAsync(ApplyPendingResultAsync);
-        jobText.Text = "No transcription has run.";
     }
+
+    private void SetJobText(string text) { jobText.Text = text; jobText.IsVisible = text.Length > 0; }
 
     private void RenderTranscribe()
     {
         var runtime = inference.Runtime;
         runtimeText.Text = !runtime.IsInstalled
-            ? "Private WhisperX runtime not installed. Run scripts/setup_runtime.py, then restart. " + runtime.MissingReason
-            : runtime.IsPackReady(PackModel)
-                ? $"WhisperX runtime ready · '{PackModel}' model pack prepared in {runtime.ModelsDir}. Inference runs offline on this computer."
-                : $"WhisperX runtime ready · the '{PackModel}' model pack is not prepared yet. Prepare model pack downloads it once (about 2 GB with the English and Filipino aligners).";
+            ? "The transcription runtime is not installed. Run scripts/setup_runtime.py, then restart. " + runtime.MissingReason
+            : runtime.IsPackReady(PackModel) ? ""
+            : "The model pack is not prepared yet. It is a one-time download of about 2 GB.";
+        runtimeText.IsVisible = runtimeText.Text.Length > 0;
+        preparePack.IsVisible = runtime.IsInstalled && !runtime.IsPackReady(PackModel);
+        // Before a project exists the card only matters if setup is still needed.
+        transcribeCard.IsVisible = store is not null || runtimeText.IsVisible;
+        // Transcribe is the next step only while there is no transcript yet.
+        transcribe.Classes.Set("accent", snapshot is null || snapshot.Provenance == Provenance.Empty);
         var asset = store?.MediaAssets().LastOrDefault();
-        mediaText.Text = store is null ? "Open or create a project, then import a recording."
-            : asset is null ? "No recording imported into this project yet."
-            : $"Recording: {asset.OriginalName} · {(asset.DurationMicroseconds is { } d ? TimeText.Format(d) : "unknown length")} · {asset.Bytes / 1_048_576.0:0.0} MiB · copied to {asset.RelativePath}.";
+        mediaText.Text = store is null ? "" : asset is null ? "No audio yet"
+            : $"{asset.OriginalName} · {(asset.DurationMicroseconds is { } d ? Clock(d) : "unknown length")}";
+        mediaText.IsVisible = mediaText.Text.Length > 0;
+        ToolTip.SetTip(mediaText, asset is null ? null : $"{asset.Bytes / 1_048_576.0:0.0} MiB · copied to {asset.RelativePath}");
         runHost.Children.Clear();
-        if (store is not null)
-            foreach (var run in store.Runs().Take(10))
-            {
-                var row = new Grid { ColumnDefinitions = new ColumnDefinitions("*,Auto"), ColumnSpacing = 8 }; row.Classes.Add("run");
-                var text = $"Run {run.Id[..Math.Min(8, run.Id.Length)]} · {run.Status} · {run.StartedUtc}" + (run.Provider is null ? "" : $" · {run.Provider}") + (run.Error is null ? "" : $" · {run.Error}");
-                row.Children.Add(new TextBlock { Text = text, TextWrapping = TextWrapping.Wrap, VerticalAlignment = VerticalAlignment.Center });
-                var id = run.Id; var artifact = run.ArtifactRelativePath;
-                var apply = Action("Apply", $"Apply run {run.Id[..Math.Min(8, run.Id.Length)]}", () => GuardAsync(() => ApplyStoredRunAsync(id)), enabled: run.Status == "completed" && artifact is not null);
-                Grid.SetColumn(apply, 1); row.Children.Add(apply); runHost.Children.Add(row);
-            }
+        var runs = store?.Runs().Take(10).ToList() ?? [];
+        runsExpander.IsVisible = runs.Count > 0;
+        foreach (var run in runs)
+        {
+            var row = new Grid { ColumnDefinitions = new ColumnDefinitions("*,Auto"), ColumnSpacing = 6 }; row.Classes.Add("run");
+            var started = DateTime.TryParse(run.StartedUtc, null, System.Globalization.DateTimeStyles.AdjustToUniversal, out var utc) ? utc.ToLocalTime().ToString("d MMM HH:mm") : run.StartedUtc;
+            var text = $"{started} · {run.Status}" + (run.Error is null ? "" : $": {run.Error}");
+            var label = new TextBlock { Text = text, TextWrapping = TextWrapping.Wrap, VerticalAlignment = VerticalAlignment.Center, FontSize = 12 };
+            ToolTip.SetTip(label, $"Run {run.Id}" + (run.Provider is null ? "" : $" · {run.Provider}"));
+            row.Children.Add(label);
+            var id = run.Id; var artifact = run.ArtifactRelativePath;
+            var apply = Action("Apply", $"Apply run {run.Id[..Math.Min(8, run.Id.Length)]}", () => GuardAsync(() => ApplyStoredRunAsync(id)), enabled: run.Status == "completed" && artifact is not null);
+            apply.Classes.Add("quiet");
+            Grid.SetColumn(apply, 1); row.Children.Add(apply); runHost.Children.Add(row);
+        }
     }
 
     private void UpdateTranscribeControls()
@@ -71,9 +88,12 @@ public sealed partial class MainWindow
         preparePack.IsEnabled = !busy && !JobRunning && !Recording && runtimeReady;
         transcribe.IsEnabled = !busy && !JobRunning && !Recording && packReady && store?.MediaAssets().Count > 0;
         cancelRun.IsEnabled = JobRunning && job?.IsCancellationRequested == false;
+        cancelRun.IsVisible = jobProgress.IsVisible = JobRunning;
         applyResult.IsEnabled = !busy && !JobRunning && pendingResult is not null && store is not null;
+        applyResult.IsVisible = pendingResult is not null;
         languageChoice.IsEnabled = deviceChoice.IsEnabled = !JobRunning;
-        ToolTip.SetTip(transcribe, !runtimeReady ? "Install the private runtime first." : !packReady ? "Prepare the model pack first." : store?.MediaAssets().Count > 0 ? "Runs WhisperX locally on the latest imported recording." : "Import a recording first.");
+        ToolTip.SetTip(transcribe, !runtimeReady ? "Install the transcription runtime first." : !packReady ? "Prepare the model pack first."
+            : store?.MediaAssets().Count > 0 ? "Transcribe the latest recording on this computer" : "Import or record audio first.");
     }
 
     private async Task ImportMediaAsync()
@@ -92,11 +112,11 @@ public sealed partial class MainWindow
             try { Replace(next, next.Read()); } catch { next.Dispose(); throw; }
             RememberCurrent();
         }
-        status.Text = "Copying and probing the recording… The original file is not modified.";
+        status.Text = "Importing…";
         var asset = await MediaImport.ImportAsync(store!, media, lifetime.Token);
         RenderTranscribe(); SavedStatus();
         await SyncPlaybackSourceAsync();
-        status.Text = $"Imported {asset.OriginalName} ({(asset.DurationMicroseconds is { } d ? TimeText.Format(d) : "?")}). " + status.Text;
+        status.Text = $"Imported {asset.OriginalName}. " + status.Text;
     }
 
     // Jobs run outside GuardAsync so the editor stays usable; only media/model actions are blocked meanwhile.
@@ -109,9 +129,10 @@ public sealed partial class MainWindow
     }
     private async Task RunJobAsync(Func<CancellationToken, Task> work, CancellationToken token)
     {
+        jobProgress.IsIndeterminate = true;
         try { await work(token); }
-        catch (OperationCanceledException) { jobText.Text = "Stopped. Nothing was changed in the transcript."; }
-        catch (Exception e) { jobText.Text = "Failed: " + e.Message; }
+        catch (OperationCanceledException) { SetJobText("Stopped. The transcript is unchanged."); }
+        catch (Exception e) { SetJobText("Failed: " + e.Message); }
         finally { job?.Dispose(); job = null; if (!lifetime.IsCancellationRequested) { RenderTranscribe(); UpdateControls(); } }
     }
     // Progress<T> posts asynchronously, so a late report could land after the job's final success or failure message
@@ -131,13 +152,16 @@ public sealed partial class MainWindow
         var generation = ++jobGeneration;
         return new JobReporter(p =>
         {
-            var elapsed = DateTime.UtcNow - started; string eta = "Estimating…";
+            var elapsed = DateTime.UtcNow - started; var eta = "";
             if (p.Fraction is { } f && f > 0.05 && f < 1)
             {
                 var remaining = TimeSpan.FromSeconds(elapsed.TotalSeconds * (1 - f) / f);
-                eta = remaining.TotalMinutes >= 1 ? $"about {Math.Ceiling(remaining.TotalMinutes):0} min left" : "under a minute left";
+                eta = remaining.TotalMinutes >= 1 ? $" · about {Math.Ceiling(remaining.TotalMinutes):0} min left" : " · under a minute left";
             }
-            jobText.Text = $"{verb}: {Describe(p.Stage)}{(p.Fraction is { } fr ? $" ({fr:P0})" : "")} · {elapsed:mm\\:ss} elapsed · {eta}" + (p.Message is null ? "" : $" · {p.Message}");
+            jobProgress.IsIndeterminate = p.Fraction is null;
+            if (p.Fraction is { } value) jobProgress.Value = Math.Clamp(value, 0, 1);
+            SetJobText($"{verb}: {Describe(p.Stage)}{eta}");
+            ToolTip.SetTip(jobText, p.Message);
         }, () => jobGeneration == generation && JobRunning);
     }
     private static string Describe(string stage) => stage switch
@@ -152,9 +176,9 @@ public sealed partial class MainWindow
     {
         Directory.CreateDirectory(inference.Runtime.ModelsDir);
         var log = Path.Combine(inference.Runtime.ModelsDir, $"prepare-{DateTime.UtcNow:yyyyMMdd'T'HHmmss'Z'}.log");
-        jobText.Text = "Preparing the model pack…";
+        SetJobText("Preparing the model pack…");
         var manifest = await inference.PrepareAsync(PackModel, ["en", "tl"], false, null, log, JobProgress("Preparing"), token);
-        jobText.Text = $"Model pack ready: {manifest.Model} with {string.Join(", ", manifest.Languages)} alignment, {manifest.Bytes / 1_048_576.0:0} MiB on disk.";
+        SetJobText($"Model pack ready ({manifest.Model} · {string.Join(", ", manifest.Languages)} · {manifest.Bytes / 1_048_576.0:0} MiB).");
     }
 
     private async Task TranscribeJobAsync(CancellationToken token)
@@ -168,7 +192,7 @@ public sealed partial class MainWindow
         var runs = Path.Combine(store.MediaDirectory, "runs"); Directory.CreateDirectory(runs);
         var artifact = Path.Combine(runs, runId + ".json"); var log = Path.Combine(runs, runId + ".log");
         store.AddRun(new ProcessingRun(runId, asset.Id, DateTime.UtcNow.ToString("yyyy-MM-dd'T'HH:mm:ss'Z'"), null, "running", options, null, null, null, null));
-        RenderTranscribe(); jobText.Text = "Starting the private worker…";
+        RenderTranscribe(); SetJobText("Starting…");
         try
         {
             var completion = await inference.TranscribeAsync(Path.Combine(store.MediaDirectory, asset.RelativePath), artifact, log, PackModel, device, language, false, null, JobProgress("Transcribing"), token);
@@ -176,16 +200,17 @@ public sealed partial class MainWindow
             var proposal = InferenceImport.ToTranscript(completion.Artifact, snapshot!.ProjectId, baseRevision, snapshot.Title);
             store.FinishRun(runId, "completed", relative, completion.Sha256, null, completion.Artifact.ProviderLabel);
             var seconds = completion.Artifact.Timings.Values.Sum();
-            var summary = $"Finished: {proposal.Blocks.Length} paragraph(s), {proposal.Speakers.Length} speaker(s), language {completion.Artifact.Engine.Language ?? "?"}, {seconds:0} s of processing for {completion.Artifact.Audio.DurationSeconds:0} s of audio.";
+            ToolTip.SetTip(jobText, $"{proposal.Blocks.Length} paragraph(s), {proposal.Speakers.Length} speaker(s), language {completion.Artifact.Engine.Language ?? "?"}, " +
+                $"{seconds:0} s of processing for {completion.Artifact.Audio.DurationSeconds:0} s of audio.");
             if (snapshot.Provenance == Provenance.Empty && snapshot.Revision == baseRevision && !dirty && !busy)
             {
                 snapshot = store.ImportInference(snapshot.Revision, proposal, runId); Render(); SavedStatus();
-                jobText.Text = summary + " The result is now the transcript (revision " + snapshot.Revision + ").";
+                SetJobText($"Done. Transcript created as revision {snapshot.Revision}.");
             }
             else
             {
                 pendingResult = (runId, proposal);
-                jobText.Text = summary + " The current transcript was kept; use Apply model result to replace it as a new revision.";
+                SetJobText("Done. Apply the result to replace the current transcript.");
             }
         }
         catch (OperationCanceledException) { TryFinish(runId, "cancelled", "cancelled by the user"); throw; }
@@ -213,11 +238,11 @@ public sealed partial class MainWindow
     }
     private async Task<bool> ApplyProposalAsync(string runId, Transcript proposal)
     {
-        if (dirty && !await ConfirmAsync("Discard unsaved draft?", "Applying the model result replaces the whole document as a new revision. Your unsaved input would be discarded.", "Discard draft and apply")) return false;
+        if (dirty && !await ConfirmAsync("Discard unsaved changes?", "Applying the result replaces the whole document and discards your unsaved changes.", "Discard and apply")) return false;
         if (snapshot!.Provenance != Provenance.Empty && !await ConfirmAsync("Replace the transcript?",
-            "The model result becomes a new revision replacing the current text, speakers and timing. History keeps the current revision and Restore brings it back.", "Replace with model result")) return false;
+            "The result replaces the current text, speakers and timing as a new revision. The current version stays in History.", "Replace")) return false;
         snapshot = store!.ImportInference(snapshot.Revision, proposal with { Revision = snapshot.Revision }, runId); Render(); SavedStatus();
-        status.Text = $"Applied model result of run {runId[..Math.Min(8, runId.Length)]} as revision {snapshot.Revision}. " + status.Text;
+        status.Text = $"Applied the transcription result as revision {snapshot.Revision}.";
         return true;
     }
 
@@ -225,7 +250,7 @@ public sealed partial class MainWindow
     private async Task<bool> StopJobForCloseAsync()
     {
         if (!JobRunning) return true;
-        if (!await ConfirmAsync("Stop transcription?", "The worker is still running. Closing stops it; the recording and any finished runs stay in the project.", "Stop and close")) return false;
+        if (!await ConfirmAsync("Stop transcription?", "Closing stops the running job. The recording and finished runs stay in the project.", "Stop and close")) return false;
         job?.Cancel();
         if (jobTask is not null) { try { await jobTask; } catch (Exception) { } }
         return true;

@@ -56,12 +56,16 @@ public sealed partial class MainWindow
             ? new[] { ChosenMode != CaptureMode.SystemAudio ? "No microphone found" : "No output device found" }
             : captureDevices.Select(d => d.Name).ToArray();
         captureDeviceChoice.SelectedIndex = 0;
-        recordText.Text = !SourcesAvailable
-            ? capture.FailureReason ?? "No recording device was found for this mode. Re-select the mode after connecting a device."
-            : "Nothing is being recorded. Per-app capture is not available in this build; Whole computer records all apps on the selected output device, not other outputs. " +
-                (combined ? "Both selected sources will be recorded. Headphones are recommended; echo cancellation is not provided." : "The microphone is included only in a microphone mode.");
-        if (combined && capture is not ICombinedCaptureEngine) recordText.Text = "Combined capture is not supported by this recording adapter. No source will be substituted.";
+        SetRecordText(!SourcesAvailable
+            ? capture.FailureReason ?? "No recording device was found for this mode. Connect one, then choose the mode again."
+            : combined ? "Use headphones: there is no echo cancellation." : "");
+        if (combined && capture is not ICombinedCaptureEngine) SetRecordText("Recording both at once is not supported here.");
         RefreshRecording();
+    }
+
+    private void SetRecordText(string text, string? details = null)
+    {
+        recordText.Text = text; recordText.IsVisible = text.Length > 0; ToolTip.SetTip(recordText, details);
     }
 
     private async Task StartRecordingAsync()
@@ -107,35 +111,37 @@ public sealed partial class MainWindow
             if (result.DurationMicroseconds <= 0 && result.Interrupted && result.RecoveryDirectory is { } emptyRecovery)
             {
                 pendingTake = null;
-                recordText.Text = $"Neither source yielded usable recording time. No recording was added. The interrupted take and diagnostics remain at {emptyRecovery}. Check both devices before trying again.";
+                SetRecordText("Nothing usable was captured from either device, so no recording was added. Check both devices and try again.",
+                    $"Diagnostics were kept at {emptyRecovery}");
                 return;
             }
             if (result.DurationMicroseconds <= 0 && !result.Interrupted)
             {
                 File.Delete(result.Path);
                 pendingTake = null;
-                recordText.Text = "Nothing was captured, so no recording was added.";
+                SetRecordText("Nothing was captured, so no recording was added.");
                 return;
             }
             var label = result.Mode switch { CaptureMode.Microphone => "Microphone", CaptureMode.Combined => "Microphone + computer audio", _ => "Computer audio" };
             var name = $"{label} {DateTime.Now:yyyy-MM-dd HH.mm}.wav";
             var asset = await MediaImport.AdoptAsync(store!, result.Path, name, lifetime.Token);
             var recovery = result.RecoveryDirectory is { } retained ? $" Separate sources and clock/pause maps remain at {retained}." : "";
+            var mappingProblem = "";
             if (result.RecoveryDirectory is { } archive)
             {
                 try { File.AppendAllText(Path.Combine(archive, "session.ndjson"), System.Text.Json.JsonSerializer.Serialize(new { status = "adopted", asset.RelativePath, asset.OriginalName }) + Environment.NewLine); }
-                catch (Exception e) { recovery += " The adopted-file mapping could not be saved: " + e.Message; }
+                catch (Exception e) { mappingProblem = " The recovery notes could not be updated: " + e.Message; }
             }
             pendingTake = null;
             RenderTranscribe(); await SyncPlaybackSourceAsync();
             if (!dirty) SavedStatus();
-            var gaps = result.Gaps.Count == 0 ? "" : $" It contains {result.Gaps.Count} pause gap(s)" + (result.RecoveryDirectory is null ? " (session-only markers, not saved in the project)." : " (saved in the retained source maps).");
-            var interrupted = result.Interrupted ? $" The device stopped early ({result.InterruptionReason}); what was captured was kept." : "";
-            recordText.Text = $"Recorded {TimeText.Format(asset.DurationMicroseconds ?? 0)} from {result.DeviceName}.{gaps}{interrupted} It is ready to transcribe.{recovery}";
+            var gaps = result.Gaps.Count == 0 ? "" : $" · {result.Gaps.Count} pause(s)";
+            var interrupted = result.Interrupted ? $" Stopped early ({result.InterruptionReason}); the captured audio was kept." : "";
+            SetRecordText($"Recorded {Clock(asset.DurationMicroseconds ?? 0)}{gaps}.{interrupted}{mappingProblem}", $"From {result.DeviceName}.{recovery}");
         }
         catch (Exception e)
         {
-            recordText.Text = $"Recording was not added: {e.Message} The take remains at {result.Path}. Retry Keep recording after fixing the problem, or import that file manually after reopening.";
+            SetRecordText($"The recording was not added: {e.Message} Choose Keep recording to try again.", $"The take is kept at {result.Path}");
             throw;
         }
         finally { RefreshRecording(); UpdateControls(); RefreshPlaybackHighlight(force: true); }
@@ -154,20 +160,21 @@ public sealed partial class MainWindow
         stopRecordButton.Content = pendingTake is not null || state == RecordingState.Interrupted ? "Keep recording" : "Stop";
         captureModeChoice.IsEnabled = captureDeviceChoice.IsEnabled = captureRenderChoice.IsEnabled = !Recording && !busy;
         levelMeter.Value = capture.PeakLevel;
+        levelMeter.IsVisible = running;
         if (running)
         {
             var free = RecordingRules.TryFreeBytes(store?.MediaDirectory ?? Path.GetTempPath());
-            var room = free is { } bytes ? $" · room for {RecordingRules.DescribeCapacity(bytes, RecordingRules.BytesPerSecond(48_000, 2, 32) * (ChosenMode == CaptureMode.Combined ? 3 : 1))} (estimate)" : "";
-            recordText.Text = (state == RecordingState.Paused ? "PAUSED · " : "RECORDING · ") + TimeText.Format(capture.RecordedMicroseconds) + room;
+            var room = free is { } bytes ? $" · {RecordingRules.DescribeCapacity(bytes, RecordingRules.BytesPerSecond(48_000, 2, 32) * (ChosenMode == CaptureMode.Combined ? 3 : 1))} of space left" : "";
+            SetRecordText((state == RecordingState.Paused ? "Paused " : "Recording ") + Clock(capture.RecordedMicroseconds) + room);
         }
-        else if (pendingTake is null && state == RecordingState.Interrupted) recordText.Text = (capture.FailureReason ?? "The recording was interrupted.") + " Choose Keep recording to add the take.";
-        else if (pendingTake is null && state == RecordingState.Failed && capture.FailureReason is { } reason) recordText.Text = reason;
+        else if (pendingTake is null && state == RecordingState.Interrupted) SetRecordText((capture.FailureReason ?? "The recording was interrupted.") + " Choose Keep recording to add the take.");
+        else if (pendingTake is null && state == RecordingState.Failed && capture.FailureReason is { } reason) SetRecordText(reason);
     }
 
     private async Task<bool> StopRecordingForCloseAsync()
     {
         if (!Recording) return true;
-        if (!await ConfirmAsync("Stop recording?", "A recording is active or waiting to be saved. Closing stops it and keeps the take in this project.", "Stop and close")) return false;
+        if (!await ConfirmAsync("Stop recording?", "Closing stops the recording and keeps the take in this project.", "Stop and close")) return false;
         busy = true; UpdateControls();
         try { await StopRecordingAsync(); return true; }
         catch (Exception e) { status.Text = "Close cancelled: the recording could not be saved. " + e.Message; return false; }

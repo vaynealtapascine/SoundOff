@@ -65,13 +65,13 @@ public sealed class RecordUiTests
     }
     private static string Clip => Path.Combine(AppContext.BaseDirectory, "fixtures", "tts-english.wav");
     private static Button Button(MainWindow w, string name) => w.FindControl<Button>(name)!;
-    private static void Click(MainWindow w, string name) => Button(w, name).RaiseEvent(new RoutedEventArgs(Avalonia.Controls.Button.ClickEvent));
+    private static void Click(MainWindow w, string name) => UiDriver.Click(w, name);
     private static string Record(MainWindow w) => w.FindControl<TextBlock>("RecordText")!.Text ?? "";
     private static string Media(MainWindow w) => w.FindControl<TextBlock>("MediaText")!.Text ?? "";
     private static async Task Idle(MainWindow w)
     {
         var deadline = DateTime.UtcNow.AddSeconds(15);
-        while (!(Button(w, "StopRecordButton").IsEnabled || Button(w, "DemoButton").IsEnabled) && DateTime.UtcNow < deadline) await Task.Delay(10);
+        while (!(Button(w, "StopRecordButton").IsEnabled || UiDriver.Item(w, "DemoItem").IsEnabled) && DateTime.UtcNow < deadline) await Task.Delay(10);
         Dispatcher.UIThread.RunJobs();
     }
 
@@ -87,7 +87,7 @@ public sealed class RecordUiTests
             window.FindControl<ComboBox>("CaptureModeChoice")!.SelectedIndex = 1;
             window.FindControl<ComboBox>("CaptureModeChoice")!.SelectedIndex = 0;
             Assert.Equal(RecordingState.Idle, engine.State);
-            Assert.Contains("Per-app capture is not available", Record(window));
+            Assert.Equal("", Record(window)); // an idle microphone needs no explanation
             Assert.True(Button(window, "RecordButton").IsEnabled);
             Assert.False(Button(window, "StopRecordButton").IsEnabled);
 
@@ -96,21 +96,20 @@ public sealed class RecordUiTests
             Assert.True(File.Exists(folder.Project));                  // the project was created to hold the take
             Assert.False(Button(window, "RecordButton").IsEnabled); Assert.True(Button(window, "StopRecordButton").IsEnabled);
             engine.Capture(3_000_000); Dispatcher.UIThread.RunJobs();
-            Assert.StartsWith("RECORDING · 0:00:03.000000", Record(window));
-            Assert.Contains("room for", Record(window));
+            Assert.StartsWith("Recording 0:03", Record(window));
+            Assert.Contains("of space left", Record(window));
 
             Click(window, "PauseRecordButton"); Dispatcher.UIThread.RunJobs();
             Assert.Equal(RecordingState.Paused, engine.State);
-            Assert.StartsWith("PAUSED ·", Record(window)); Assert.Equal("Resume", Button(window, "PauseRecordButton").Content);
+            Assert.StartsWith("Paused ", Record(window)); Assert.Equal("Resume", Button(window, "PauseRecordButton").Content);
             Click(window, "PauseRecordButton"); Dispatcher.UIThread.RunJobs();
             Assert.Equal(RecordingState.Recording, engine.State);
 
             Click(window, "StopRecordButton"); await Idle(window);
             Assert.Equal(RecordingState.Completed, engine.State);
-            Assert.Contains("Recorded 0:00:09", Record(window));        // the probed clip length, not the claimed one
-            Assert.Contains("1 pause gap(s)", Record(window));
-            Assert.Contains("ready to transcribe", Record(window));
-            Assert.Contains("Recording: Microphone", Media(window));
+            Assert.Contains("Recorded 0:09", Record(window));        // the probed clip length, not the claimed one
+            Assert.Contains("1 pause(s)", Record(window));
+            Assert.StartsWith("Microphone ", Media(window));
         }
         finally { window.Close(); Dispatcher.UIThread.RunJobs(); }
         Assert.True(window.IsVisible == false, "window did not actually close");
@@ -134,7 +133,7 @@ public sealed class RecordUiTests
             File.WriteAllBytes(Path.Combine(Directory.GetDirectories(Path.Combine(folder.Root, "Test project.soundoff.media"), "recordings")[0], "placeholder"), []);
             Click(window, "StopRecordButton"); await Idle(window);   // nothing captured
             Assert.Contains("Nothing was captured", Record(window));
-            Assert.Contains("No recording imported", Media(window));   // the window owns the project, so ask it, not the file
+            Assert.Equal("No audio yet", Media(window));   // the window owns the project, so ask it, not the file
 
             Click(window, "RecordButton"); await Idle(window);
             engine.Capture(2_000_000);
@@ -142,7 +141,7 @@ public sealed class RecordUiTests
             Assert.Contains("stopped unexpectedly", Record(window));
             Assert.True(Button(window, "StopRecordButton").IsEnabled);
             Click(window, "StopRecordButton"); await Idle(window);
-            Assert.Contains("The device stopped early", Record(window));
+            Assert.Contains("Stopped early", Record(window));
             Assert.Contains("was kept", Record(window));
         }
         finally { window.Close(); Dispatcher.UIThread.RunJobs(); }

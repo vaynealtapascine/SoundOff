@@ -1,38 +1,56 @@
-using Avalonia;
-using Avalonia.Automation;
 using Avalonia.Controls;
-using Avalonia.Layout;
-using Avalonia.Input.Platform;
-using Avalonia.Markup.Xaml;
-using Avalonia.Media;
-using Avalonia.Styling;
+using Avalonia.Input;
+using Avalonia.Interactivity;
 using SoundOff.Core;
-using SoundOff.Protocol;
 
 namespace SoundOff.Desktop;
 
-// Keyboard shortcuts and find/replace over the draft paragraph controls.
+// Keyboard shortcuts and the find bar over the draft paragraph controls.
 public sealed partial class MainWindow
 {
-    private readonly TextBox findInput, replaceInput;
-    private readonly Button findNext, replaceOne, replaceAll;
-    private readonly TextBlock findStatus;
+    private TextBox findInput = null!, replaceInput = null!;
+    private Button findNext = null!, replaceOne = null!, replaceAll = null!;
+    private TextBlock findStatus = null!;
+    private Border findBar = null!;
+    private Avalonia.Controls.Primitives.ToggleButton findToggle = null!;
     private (int Paragraph, int Offset, int Length)? lastFind;
 
-    // Ctrl+S save, Ctrl+Z undo, Ctrl+Y redo, Ctrl+F find, F3 find next. Paragraph controls have their own undo disabled,
-    // so Ctrl+Z never silently discards typed text: while a draft exists the undo/redo shortcuts do nothing.
-    private void OnShortcut(object? sender, Avalonia.Input.KeyEventArgs e)
+    private void InitializeSearch()
     {
-        var control = e.KeyModifiers == Avalonia.Input.KeyModifiers.Control;
+        findBar = this.FindControl<Border>("FindBar")!; findToggle = this.FindControl<Avalonia.Controls.Primitives.ToggleButton>("FindToggle")!;
+        findInput = this.FindControl<TextBox>("FindInput")!; replaceInput = this.FindControl<TextBox>("ReplaceInput")!;
+        findNext = this.FindControl<Button>("FindNextButton")!; replaceOne = this.FindControl<Button>("ReplaceButton")!;
+        replaceAll = this.FindControl<Button>("ReplaceAllButton")!; findStatus = this.FindControl<TextBlock>("FindStatus")!;
+        findNext.Click += (_, _) => FindNext(); replaceOne.Click += (_, _) => ReplaceSelected(); replaceAll.Click += (_, _) => ReplaceAll();
+        findInput.KeyDown += (_, e) => { if (e.Key == Key.Enter && findNext.IsEnabled) { FindNext(); e.Handled = true; } };
+        findToggle.IsCheckedChanged += (_, _) => ShowFindBar(findToggle.IsChecked == true);
+        this.FindControl<Button>("CloseFindButton")!.Click += (_, _) => ShowFindBar(false);
+    }
+
+    private void ShowFindBar(bool show)
+    {
+        findBar.IsVisible = show; findToggle.IsChecked = show;
+        if (show) { findInput.Focus(); findInput.SelectAll(); }
+        else findStatus.Text = "";
+    }
+
+    // Ctrl+S save, Ctrl+Z undo, Ctrl+Y redo, Ctrl+F find, F3 find next, Esc close find, F1 help. Paragraph controls have
+    // their own undo disabled, so Ctrl+Z never silently discards typed text: while a draft exists undo/redo do nothing.
+    private void OnShortcut(object? sender, KeyEventArgs e)
+    {
+        var control = e.KeyModifiers == KeyModifiers.Control;
+        var none = e.KeyModifiers == KeyModifiers.None;
+        if (control && e.Key == Key.F) { ShowFindBar(true); e.Handled = true; return; }
+        if (none && e.Key == Key.Escape && findBar.IsVisible) { ShowFindBar(false); e.Handled = true; return; }
+        if (none && e.Key == Key.F1) { ShowHelp(); e.Handled = true; return; }
         Button? target = (e.Key, control) switch
         {
-            (Avalonia.Input.Key.S, true) => save, (Avalonia.Input.Key.Z, true) => undo, (Avalonia.Input.Key.Y, true) => redo,
-            (Avalonia.Input.Key.F3, false) when e.KeyModifiers == Avalonia.Input.KeyModifiers.None => findNext, _ => null
+            (Key.S, true) => save, (Key.Z, true) => undo, (Key.Y, true) => redo,
+            (Key.F3, false) when none => findNext, _ => null
         };
-        if (control && e.Key == Avalonia.Input.Key.F) { findInput.Focus(); findInput.SelectAll(); e.Handled = true; return; }
         if (target is null || !target.IsEnabled) return;
         e.Handled = true;
-        target.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent));
+        target.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
     }
 
     // Find/replace work on the draft text in the paragraph controls, never directly on the saved snapshot.
@@ -84,6 +102,6 @@ public sealed partial class MainWindow
             box.Text = text; total += count; paragraphs++;
         }
         lastFind = null;
-        findStatus.Text = total == 0 ? "No matches in the draft." : $"Replaced {total} occurrence(s) in {paragraphs} paragraph(s) of the unsaved draft. Save edits to commit or Discard draft to revert.";
+        findStatus.Text = total == 0 ? "No matches in the draft." : $"Replaced {total} occurrence(s) in {paragraphs} paragraph(s).";
     }
 }

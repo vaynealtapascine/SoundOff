@@ -44,7 +44,7 @@ public sealed class HistoryTests
         public Task<string?> OpenProjectAsync() => Task.FromResult<string?>(project);
         public Task<string?> ExportTextAsync(bool isDraft) => Task.FromResult<string?>(null);
     }
-    private static void Click(MainWindow window, string name) => window.FindControl<Button>(name)!.RaiseEvent(new RoutedEventArgs(Avalonia.Controls.Button.ClickEvent));
+    private static void Click(MainWindow window, string name) => UiDriver.Click(window, name);
     private static string Status(MainWindow window) => window.FindControl<TextBlock>("StatusText")!.Text ?? "";
     private static Grid[] Rows(MainWindow window) => window.FindControl<StackPanel>("HistoryHost")!.Children.OfType<Grid>().Where(g => g.Classes.Contains("revision")).ToArray();
     private static string RowText(Grid row) => row.Children.OfType<TextBlock>().Single().Text ?? "";
@@ -52,8 +52,8 @@ public sealed class HistoryTests
     private static async Task Idle(MainWindow window)
     {
         var deadline = DateTime.UtcNow.AddSeconds(10);
-        while (!window.FindControl<Button>("DemoButton")!.IsEnabled && DateTime.UtcNow < deadline) await Task.Delay(10);
-        Assert.True(window.FindControl<Button>("DemoButton")!.IsEnabled, "UI operation did not become idle.");
+        while (!window.FindControl<MenuItem>("DemoItem")!.IsEnabled && DateTime.UtcNow < deadline) await Task.Delay(10);
+        Assert.True(window.FindControl<MenuItem>("DemoItem")!.IsEnabled, "UI operation did not become idle.");
     }
 
     [AvaloniaFact] public async Task History_card_lists_revisions_and_restore_asks_before_discarding_a_draft()
@@ -62,27 +62,27 @@ public sealed class HistoryTests
         var window = new MainWindow(new Picker(folder.Project), folder.Settings); window.Show();
         try
         {
-            Assert.Contains(window.FindControl<StackPanel>("HistoryHost")!.Children.OfType<TextBlock>(), t => t.Text == "No project open.");
-            Click(window, "DemoButton"); await Idle(window);
+            Assert.Empty(window.FindControl<StackPanel>("HistoryHost")!.Children); Assert.False(window.FindControl<Control>("HistoryCard")!.IsVisible);
+            Click(window, "DemoItem"); await Idle(window);
             var rows = Rows(window); Assert.Equal(2, rows.Length);
-            Assert.Equal("r1 · load-synthetic-fixture · from r0 · current", RowText(rows[0])); Assert.False(Restore(rows[0]).IsEnabled);
-            Assert.Equal("r0 · create", RowText(rows[1])); Assert.True(Restore(rows[1]).IsEnabled);
+            Assert.Equal("#1 · Demo loaded · current", RowText(rows[0])); Assert.False(Restore(rows[0]).IsEnabled);
+            Assert.Equal("#0 · Created", RowText(rows[1])); Assert.True(Restore(rows[1]).IsEnabled);
             var speaker = window.FindControl<StackPanel>("SpeakerHost")!.GetVisualDescendants().OfType<TextBox>().First();
             speaker.Text = "Edited 👩🏽‍💻"; Click(window, "SaveButton"); await Idle(window);
-            rows = Rows(window); Assert.Equal(3, rows.Length); Assert.Equal("r2 · manual-edit · from r1 · current", RowText(rows[0]));
+            rows = Rows(window); Assert.Equal(3, rows.Length); Assert.Equal("#2 · Edited · current", RowText(rows[0]));
             Restore(rows[2]).RaiseEvent(new RoutedEventArgs(Avalonia.Controls.Button.ClickEvent)); await Idle(window); // r0: the empty document
             Assert.Contains("Saved · revision 3", Status(window));
-            Assert.Contains(window.GetVisualDescendants().OfType<TextBlock>(), t => t.Text == "No transcript loaded");
-            rows = Rows(window); Assert.Equal("r3 · restore-revision:0 · from r2 · current", RowText(rows[0]));
+            Assert.Contains(window.GetVisualDescendants().OfType<TextBlock>(), t => t.Text == "No transcript yet");
+            rows = Rows(window); Assert.Equal("#3 · Restored revision 0 · current", RowText(rows[0]));
             Restore(rows[1]).RaiseEvent(new RoutedEventArgs(Avalonia.Controls.Button.ClickEvent)); await Idle(window); // r2: the edited fixture
             Assert.Contains("Saved · revision 4", Status(window));
             Assert.Equal("Edited 👩🏽‍💻", window.FindControl<StackPanel>("SpeakerHost")!.GetVisualDescendants().OfType<TextBox>().First().Text);
             window.FindControl<StackPanel>("SpeakerHost")!.GetVisualDescendants().OfType<TextBox>().First().Text = "unsaved";
             Restore(Rows(window)[2]).RaiseEvent(new RoutedEventArgs(Avalonia.Controls.Button.ClickEvent));
-            var dialog = Assert.Single(window.OwnedWindows); Assert.Equal("Discard unsaved draft?", dialog.Title);
+            var dialog = Assert.Single(window.OwnedWindows); Assert.Equal("Discard unsaved changes?", dialog.Title);
             dialog.GetVisualDescendants().OfType<Button>().Single(b => b.IsCancel).RaiseEvent(new RoutedEventArgs(Avalonia.Controls.Button.ClickEvent));
             await Idle(window);
-            Assert.Contains("UNSAVED DRAFT based on revision 4", Status(window)); Assert.Equal("unsaved", window.FindControl<StackPanel>("SpeakerHost")!.GetVisualDescendants().OfType<TextBox>().First().Text);
+            Assert.Contains("Unsaved changes · based on revision 4", Status(window)); Assert.Equal("unsaved", window.FindControl<StackPanel>("SpeakerHost")!.GetVisualDescendants().OfType<TextBox>().First().Text);
             Assert.True(window.FindControl<Button>("SaveButton")!.IsEnabled);
             Click(window, "DiscardButton");
         }

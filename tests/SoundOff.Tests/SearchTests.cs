@@ -47,13 +47,13 @@ public sealed class SearchTests
         public Task<string?> OpenProjectAsync() => Task.FromResult<string?>(project);
         public Task<string?> ExportTextAsync(bool isDraft) => Task.FromResult<string?>(export);
     }
-    private static void Click(MainWindow window, string name) => window.FindControl<Button>(name)!.RaiseEvent(new RoutedEventArgs(Avalonia.Controls.Button.ClickEvent));
+    private static void Click(MainWindow window, string name) => UiDriver.Click(window, name);
     private static string FindStatus(MainWindow window) => window.FindControl<TextBlock>("FindStatus")!.Text ?? "";
     private static TextBox[] Blocks(MainWindow window) => window.GetVisualDescendants().OfType<TextBox>().Where(t => t.Classes.Contains("transcript")).ToArray();
     private static async Task Idle(MainWindow window)
     {
         var deadline = DateTime.UtcNow.AddSeconds(10);
-        while (!window.FindControl<Button>("DemoButton")!.IsEnabled && DateTime.UtcNow < deadline) await Task.Delay(10);
+        while (!window.FindControl<MenuItem>("DemoItem")!.IsEnabled && DateTime.UtcNow < deadline) await Task.Delay(10);
     }
 
     [AvaloniaFact] public async Task Find_next_selects_matches_in_document_order_and_wraps()
@@ -63,7 +63,7 @@ public sealed class SearchTests
         try
         {
             Assert.False(window.FindControl<Button>("FindNextButton")!.IsEnabled);
-            Click(window, "DemoButton"); await Idle(window);
+            Click(window, "DemoItem"); await Idle(window);
             window.FindControl<TextBox>("FindInput")!.Text = "SYNTHETIC";
             Click(window, "FindNextButton");
             var blocks = Blocks(window); var first = blocks[0].Text!.IndexOf("synthetic", StringComparison.Ordinal);
@@ -88,7 +88,7 @@ public sealed class SearchTests
         var window = new MainWindow(new Picker(folder.Project, Path.Combine(folder.Root, "t.txt")), folder.Settings); window.Show();
         try
         {
-            Click(window, "DemoButton"); await Idle(window);
+            Click(window, "DemoItem"); await Idle(window);
             window.FindControl<TextBox>("FindInput")!.Text = "synthetic"; window.FindControl<TextBox>("ReplaceInput")!.Text = "SYNTHETIC 👩🏽‍💻";
             Click(window, "ReplaceButton");
             Assert.StartsWith("Nothing was replaced", FindStatus(window)); Assert.False(window.FindControl<Button>("SaveButton")!.IsEnabled);

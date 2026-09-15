@@ -189,7 +189,7 @@ public sealed class BaselineAuditTests
         {
             window.Show();
             Assert.DoesNotContain("Operation failed", window.FindControl<TextBlock>("StatusText")!.Text);
-            Assert.Contains(window.FindControl<StackPanel>("RunHost")!.GetVisualDescendants().OfType<TextBlock>(), t => t.Text!.StartsWith("Run r1 ·"));
+            Assert.Contains(window.FindControl<StackPanel>("RunHost")!.GetVisualDescendants().OfType<TextBlock>(), t => t.Text!.EndsWith("· running"));
             window.GetVisualDescendants().OfType<TextBox>().Single(t => t.Classes.Contains("title")).Text = "Still editable";
             window.FindControl<Button>("SaveButton")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             Assert.Contains("Saved · revision 1", window.FindControl<TextBlock>("StatusText")!.Text);

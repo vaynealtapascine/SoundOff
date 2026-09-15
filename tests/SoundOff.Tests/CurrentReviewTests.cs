@@ -190,7 +190,7 @@ public sealed class CurrentReviewTests
         public Task<string?> PickMediaAsync() => Task.FromResult<string?>(Clip);
     }
     private static Button Button(MainWindow w, string name) => w.FindControl<Button>(name)!;
-    private static void Click(MainWindow w, string name) => Button(w, name).RaiseEvent(new RoutedEventArgs(Avalonia.Controls.Button.ClickEvent));
+    private static void Click(MainWindow w, string name) => UiDriver.Click(w, name);
     private static async Task Until(Func<bool> condition)
     {
         var watch = Stopwatch.StartNew();
@@ -209,8 +209,8 @@ public sealed class CurrentReviewTests
             Click(w, "RecordButton"); await Until(() => Button(w, "StopRecordButton").IsEnabled);
             Assert.Equal(PlaybackStatus.Paused, playback.Status); Click(w, "PlayPauseButton"); Assert.Equal(PlaybackStatus.Paused, playback.Status);
             capture.Capture(1_000_000); capture.Interrupt("lost"); Dispatcher.UIThread.RunJobs();
-            foreach (var name in new[] { "RecordButton", "OpenButton", "DemoButton", "ImportBundleButton", "ImportMediaButton", "PreparePackButton", "TranscribeButton" }) Assert.False(Button(w, name).IsEnabled, name);
-            Click(w, "OpenButton"); Assert.Equal(RecordingState.Interrupted, capture.State);
+            foreach (var name in new[] { "RecordButton", "OpenProjectItem", "DemoItem", "ImportBundleItem", "ImportMediaButton", "PreparePackButton", "TranscribeButton" }) Assert.False(UiDriver.Named(w, name).IsEnabled, name);
+            Click(w, "OpenProjectItem"); Assert.Equal(RecordingState.Interrupted, capture.State);
             // A broken file is recoverable after ffprobe refuses it. No extra capture is started.
             File.WriteAllText(capture.Destination!, "broken");
             Click(w, "StopRecordButton"); await Until(() => Button(w, "StopRecordButton").IsEnabled);
@@ -221,7 +221,7 @@ public sealed class CurrentReviewTests
             Assert.True(w.IsVisible); // failed save must cancel close
             File.Copy(Clip, capture.Destination!, true);
             Click(w, "StopRecordButton"); await Until(() => Button(w, "RecordButton").IsEnabled);
-            Assert.Contains("ready to transcribe", w.FindControl<TextBlock>("RecordText")!.Text);
+            Assert.StartsWith("Recorded ", w.FindControl<TextBlock>("RecordText")!.Text);
             Assert.Contains("Computer audio", w.FindControl<TextBlock>("MediaText")!.Text);
         }
         finally { foreach (var child in w.OwnedWindows.ToArray()) child.Close(false); w.Close(); }
@@ -239,15 +239,15 @@ public sealed class CurrentReviewTests
         {
             Click(w, "ImportMediaButton"); await Until(() => Button(w, "TranscribeButton").IsEnabled);
             Click(w, "TranscribeButton");
-            Assert.False(Button(w, "OpenButton").IsEnabled); Assert.False(Button(w, "DemoButton").IsEnabled);
-            Assert.False(Button(w, "ImportBundleButton").IsEnabled); Assert.False(w.FindControl<StackPanel>("RecentHost")!.IsEnabled);
-            Click(w, "OpenButton"); // direct event routing must also refuse switching
+            Assert.False(UiDriver.Item(w, "OpenProjectItem").IsEnabled); Assert.False(UiDriver.Item(w, "DemoItem").IsEnabled);
+            Assert.False(UiDriver.Item(w, "ImportBundleItem").IsEnabled); Assert.False(w.FindControl<StackPanel>("RecentHost")!.IsEnabled);
+            Click(w, "OpenProjectItem"); // direct event routing must also refuse switching
             await Until(() => Button(w, "ImportMediaButton").IsEnabled);
-            Assert.Contains("model-inference", w.FindControl<TextBlock>("StatusText")!.Text);
+            Assert.Contains(w.GetVisualDescendants().OfType<Border>(), b => b.Classes.Contains("provenance")); // the result became the transcript
             // A job that began on a nonempty revision must not auto-apply after Undo creates a newer empty one.
             Click(w, "TranscribeButton"); Click(w, "UndoButton");
             await Until(() => Button(w, "ApplyResultButton").IsEnabled);
-            Assert.Contains("empty", w.FindControl<TextBlock>("StatusText")!.Text);
+            Assert.DoesNotContain(w.GetVisualDescendants().OfType<Border>(), b => b.Classes.Contains("provenance")); // undo reached the empty revision
             Click(w, "RedoButton");
             mode = "inf-ok"; Click(w, "TranscribeButton"); await Until(() => Button(w, "ApplyResultButton").IsEnabled);
             Click(w, "ApplyResultButton"); Assert.Single(w.OwnedWindows).Close(false);
@@ -259,7 +259,7 @@ public sealed class CurrentReviewTests
             Assert.Equal("José 👩🏽‍💻 e\u0301 corrected", text.Text); Assert.True(Button(w, "SaveButton").IsEnabled);
             Click(w, "SaveButton"); await Until(() => !Button(w, "SaveButton").IsEnabled);
             picker.Project = Path.Combine(folder.Root, "other.soundoff.sqlite"); using (ProjectStore.Create(picker.Project)) { }
-            Click(w, "OpenButton"); await Until(() => Button(w, "OpenButton").IsEnabled);
+            Click(w, "OpenProjectItem"); await Until(() => UiDriver.Item(w, "OpenProjectItem").IsEnabled);
             Assert.False(Button(w, "ApplyResultButton").IsEnabled); // no proposal leaks across projects
         }
         finally { foreach (var child in w.OwnedWindows.ToArray()) child.Close(false); w.Close(); }

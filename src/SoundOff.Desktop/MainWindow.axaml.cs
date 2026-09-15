@@ -1,11 +1,11 @@
 using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
-using Avalonia.Layout;
 using Avalonia.Input.Platform;
+using Avalonia.Interactivity;
+using Avalonia.Layout;
 using Avalonia.Markup.Xaml;
 using Avalonia.Media;
-using Avalonia.Styling;
 using SoundOff.Core;
 using SoundOff.Protocol;
 
@@ -25,9 +25,11 @@ public sealed partial class MainWindow : Window
     private readonly CancellationTokenSource lifetime = new();
     private bool dirty, busy, rendering, allowClose, confirmingClose;
     private readonly StackPanel documentHost, speakerHost;
+    private readonly Control startScreen, speakersCard, historyCard;
     private readonly TextBlock status, path;
     private TextBox? titleInput;
-    private readonly Button demo, open, save, undo, redo, discard, export, copy, exportBundle, importBundle, srt;
+    private readonly Button save, undo, redo, discard, startImport, startOpen, startDemo;
+    private readonly MenuItem demo, open, export, copy, exportBundle, importBundle, srt;
 
     public MainWindow() : this(null, new SettingsStore(SettingsStore.DefaultPath)) { }
     // initialProject: a project path given on the command line, opened once the window is shown; failures are shown, never fatal.
@@ -44,30 +46,35 @@ public sealed partial class MainWindow : Window
         InitializeRecording(captureEngine);
         documentHost = this.FindControl<StackPanel>("DocumentHost")!;
         speakerHost = this.FindControl<StackPanel>("SpeakerHost")!;
+        startScreen = this.FindControl<Control>("StartScreen")!;
+        speakersCard = this.FindControl<Control>("SpeakersCard")!; historyCard = this.FindControl<Control>("HistoryCard")!;
         status = this.FindControl<TextBlock>("StatusText")!; path = this.FindControl<TextBlock>("PathText")!;
-        demo = this.FindControl<Button>("DemoButton")!; open = this.FindControl<Button>("OpenButton")!;
+        demo = this.FindControl<MenuItem>("DemoItem")!; open = this.FindControl<MenuItem>("OpenProjectItem")!;
+        export = this.FindControl<MenuItem>("ExportTextItem")!; srt = this.FindControl<MenuItem>("ExportSrtItem")!;
+        copy = this.FindControl<MenuItem>("CopyTextItem")!;
+        exportBundle = this.FindControl<MenuItem>("ExportBundleItem")!; importBundle = this.FindControl<MenuItem>("ImportBundleItem")!;
+        recentMenu = this.FindControl<MenuItem>("RecentMenu")!;
         save = this.FindControl<Button>("SaveButton")!; undo = this.FindControl<Button>("UndoButton")!;
-        redo = this.FindControl<Button>("RedoButton")!;
-        discard = this.FindControl<Button>("DiscardButton")!; export = this.FindControl<Button>("ExportButton")!;
-        copy = this.FindControl<Button>("CopyButton")!;
-        exportBundle = this.FindControl<Button>("ExportBundleButton")!; importBundle = this.FindControl<Button>("ImportBundleButton")!;
-        srt = this.FindControl<Button>("SrtButton")!; srt.Click += async (_, _) => await GuardAsync(ExportSrtAsync);
+        redo = this.FindControl<Button>("RedoButton")!; discard = this.FindControl<Button>("DiscardButton")!;
+        startImport = this.FindControl<Button>("StartImportButton")!; startOpen = this.FindControl<Button>("StartOpenButton")!;
+        startDemo = this.FindControl<Button>("StartDemoButton")!;
+        srt.Click += async (_, _) => await GuardAsync(ExportSrtAsync);
         exportBundle.Click += async (_, _) => await GuardAsync(ExportBundleAsync);
         importBundle.Click += async (_, _) => await GuardAsync(ImportBundleAsync);
         demo.Click += async (_, _) => await GuardAsync(LoadDemoAsync);
+        startDemo.Click += async (_, _) => await GuardAsync(LoadDemoAsync);
         open.Click += async (_, _) => await GuardAsync(OpenAsync);
+        startOpen.Click += async (_, _) => await GuardAsync(OpenAsync);
+        startImport.Click += async (_, _) => await GuardAsync(ImportMediaAsync);
         save.Click += async (_, _) => await GuardAsync(() => { Save(); return Task.CompletedTask; });
         undo.Click += async (_, _) => await GuardAsync(() => { snapshot = store!.Undo(snapshot!.Revision); Render(); SavedStatus(); return Task.CompletedTask; });
         redo.Click += async (_, _) => await GuardAsync(() => { snapshot = store!.Redo(snapshot!.Revision); Render(); SavedStatus(); return Task.CompletedTask; });
         discard.Click += (_, _) => { Render(); SavedStatus(); };
         export.Click += async (_, _) => await GuardAsync(ExportAsync);
         copy.Click += async (_, _) => await GuardAsync(CopyAsync);
+        this.FindControl<Button>("HelpButton")!.Click += (_, _) => ShowHelp();
         recent = settings.RecentProjects; recentHost = this.FindControl<StackPanel>("RecentHost")!; historyHost = this.FindControl<StackPanel>("HistoryHost")!;
-        findInput = this.FindControl<TextBox>("FindInput")!; replaceInput = this.FindControl<TextBox>("ReplaceInput")!;
-        findNext = this.FindControl<Button>("FindNextButton")!; replaceOne = this.FindControl<Button>("ReplaceButton")!;
-        replaceAll = this.FindControl<Button>("ReplaceAllButton")!; findStatus = this.FindControl<TextBlock>("FindStatus")!;
-        findNext.Click += (_, _) => FindNext(); replaceOne.Click += (_, _) => ReplaceSelected(); replaceAll.Click += (_, _) => ReplaceAll();
-        findInput.KeyDown += (_, e) => { if (e.Key == Avalonia.Input.Key.Enter && findNext.IsEnabled) { FindNext(); e.Handled = true; } };
+        InitializeSearch();
         themeChoice = this.FindControl<ComboBox>("ThemeChoice")!; reducedMotionChoice = this.FindControl<CheckBox>("ReducedMotionChoice")!;
         var (appearance, settingsProblem) = settings.Load();
         applyingSettings = true;
@@ -86,7 +93,7 @@ public sealed partial class MainWindow : Window
             if (confirmingClose) return;
             confirmingClose = true;
             var proceed = await StopRecordingForCloseAsync() && await StopJobForCloseAsync() && (!dirty ||
-                await ConfirmAsync("Discard unsaved draft?", "Your saved revision remains on disk. Choose Cancel to keep editing or save/export the draft.", "Discard and close"));
+                await ConfirmAsync("Discard unsaved changes?", "Your last saved revision stays on disk.", "Discard and close"));
             if (proceed) { allowClose = true; Close(); }
             confirmingClose = false;
         };
@@ -99,10 +106,17 @@ public sealed partial class MainWindow : Window
             try { DisposeRecording(); } catch (Exception) { }
             store?.Dispose(); store = null;
         };
-        // Tunnelling so the shortcuts work while a paragraph has focus; each one only triggers an enabled button's action.
-        AddHandler(KeyDownEvent, OnShortcut, Avalonia.Interactivity.RoutingStrategies.Tunnel);
+        // Tunnelling so the shortcuts work while a paragraph has focus; each one only triggers an enabled action.
+        AddHandler(KeyDownEvent, OnShortcut, RoutingStrategies.Tunnel);
         Render(); RenderRecents();
         if (settingsProblem is not null) status.Text = settingsProblem + " " + status.Text;
+    }
+
+    private void ShowHelp()
+    {
+        var help = new HelpWindow { RequestedThemeVariant = RequestedThemeVariant };
+        help.Classes.Set("reducedMotion", Classes.Contains("reducedMotion"));
+        help.Show(this);
     }
 
     private async Task GuardAsync(Func<Task> action)
@@ -114,13 +128,13 @@ public sealed partial class MainWindow : Window
         catch (Exception e)
         {
             // Visible error; the inputs and authoritative saved snapshot are not discarded.
-            status.Text = (dirty ? "NOT SAVED — draft retained. Retry Save or export/copy the draft. " : "Operation failed. ") + e.Message;
+            status.Text = (dirty ? "Not saved — your changes are still here. " : "Operation failed. ") + e.Message;
         }
         finally { busy = false; if (!lifetime.IsCancellationRequested) UpdateControls(); }
     }
 
-    private async Task<bool> MayReplaceAsync() => !JobRunning && !Recording && (!dirty || await ConfirmAsync("Discard unsaved draft?",
-        "Opening another project discards only your unsaved input. Saved edits remain in the current project.", "Discard draft"));
+    private async Task<bool> MayReplaceAsync() => !JobRunning && !Recording && (!dirty || await ConfirmAsync("Discard unsaved changes?",
+        "Opening another project discards your unsaved changes. Saved revisions stay in the current project.", "Discard"));
 
     private async Task LoadDemoAsync()
     {
@@ -128,9 +142,9 @@ public sealed partial class MainWindow : Window
         var local = await picker.CreateProjectAsync();
         if (local is null) return;
         RequireProjectExtension(local);
-        if (File.Exists(local)) throw new IOException("Choose a new project filename. Existing projects are never overwritten by Load synthetic demo.");
+        if (File.Exists(local)) throw new IOException("Choose a new project filename. Existing projects are never overwritten.");
         var initial = Transcript.CreateEmpty();
-        status.Text = "Loading authored synthetic fixture through a private child worker… No audio or model is involved.";
+        status.Text = "Creating the demo project…";
         var proposal = await new FixtureWorkerClient().LoadAsync(initial.ProjectId, initial.Revision, lifetime.Token);
         lifetime.Token.ThrowIfCancellationRequested();
         var next = ProjectStore.Create(local, initial);
@@ -213,10 +227,10 @@ public sealed partial class MainWindow : Window
         if (!local.EndsWith(".srt", StringComparison.OrdinalIgnoreCase))
             throw new IOException("Subtitle exports must use .srt, never a project, text or media filename.");
         TextExport.WriteAtomic(local, result.Srt, overwrite: true);
-        status.Text = $"Exported {result.CueCount} SRT cue(s) from saved revision {revision}"
-            + (result.CombinedOverlaps > 0 ? $"; {result.CombinedOverlaps} overlap(s) combined into shared cues" : "")
+        status.Text = $"Exported {result.CueCount} subtitle cue(s) from revision {revision}"
+            + (result.CombinedOverlaps > 0 ? $"; {result.CombinedOverlaps} overlap(s) combined" : "")
             + (result.SkippedEmpty > 0 ? $"; {result.SkippedEmpty} empty paragraph(s) skipped" : "")
-            + ". " + snapshot.Provenance.Notice + (wasDirty ? " The unsaved draft is not included." : "");
+            + "." + (wasDirty ? " The unsaved draft is not included." : "");
     }
 
     // The bundle holds the SAVED revision only; a draft is deliberately never bundled.
@@ -228,8 +242,7 @@ public sealed partial class MainWindow : Window
         lifetime.Token.ThrowIfCancellationRequested();
         RequireBundleExtension(local);
         var manifest = ProjectBundle.Export(store!, local, overwrite: true);
-        status.Text = $"Exported portable bundle of saved revision {manifest.Revision} to {local}." +
-            (wasDirty ? " The unsaved draft is NOT included; save it first to bundle it." : "");
+        status.Text = $"Exported a bundle of revision {manifest.Revision}." + (wasDirty ? " The unsaved draft is not included." : "");
     }
     private async Task ImportBundleAsync()
     {
@@ -243,7 +256,7 @@ public sealed partial class MainWindow : Window
         lifetime.Token.ThrowIfCancellationRequested();
         var manifest = ProjectBundle.Import(bundle, local);
         await OpenPathAsync(local, confirmed: true);
-        status.Text += $" Imported from a bundle of revision {manifest.Revision}; the bundle file itself is unchanged.";
+        status.Text += $" Imported from a bundle of revision {manifest.Revision}.";
     }
     private void Save()
     {
@@ -262,15 +275,15 @@ public sealed partial class MainWindow : Window
         if (!string.Equals(Path.GetExtension(local), ".txt", StringComparison.OrdinalIgnoreCase))
             throw new IOException("Text exports must use .txt, never a project or subtitle filename.");
         TextExport.WriteAtomic(local, text, overwrite: true);
-        status.Text = wasDraft ? "Exported UNSAVED DRAFT; project changes are still not saved." : $"Exported UTF-8 text from saved revision {revision}.";
+        status.Text = wasDraft ? "Exported the unsaved draft. Your changes are still not saved." : $"Exported revision {revision} as text.";
     }
     private async Task CopyAsync()
     {
-        var clipboard = GetTopLevel(this)?.Clipboard ?? throw new IOException("Clipboard is unavailable. Use Export TXT instead.");
+        var clipboard = GetTopLevel(this)?.Clipboard ?? throw new IOException("Clipboard is unavailable. Use Export text instead.");
         var text = ExportText();
         await clipboard.SetTextAsync(text);
-        if (await clipboard.TryGetTextAsync() != text) throw new IOException("Clipboard read-back did not match. Use Export TXT instead.");
-        status.Text = dirty ? "Copied UNSAVED DRAFT; project edits are not yet saved." : $"Copied saved revision {snapshot!.Revision}. Clipboard history may retain it.";
+        if (await clipboard.TryGetTextAsync() != text) throw new IOException("Clipboard read-back did not match. Use Export text instead.");
+        status.Text = dirty ? "Copied the unsaved draft." : $"Copied saved revision {snapshot!.Revision}.";
     }
 
     // Paragraph/speaker actions commit the current draft together with the structural change as ONE revision.
@@ -283,41 +296,48 @@ public sealed partial class MainWindow : Window
         var button = new Button { Content = label, IsEnabled = enabled }; button.Classes.Add("structural");
         AutomationProperties.SetName(button, accessibleName); button.Click += async (_, _) => await action(); return button;
     }
+    private static MenuItem MenuAction(string label, string accessibleName, Func<Task> action, bool enabled = true)
+    {
+        var item = new MenuItem { Header = label, IsEnabled = enabled }; item.Classes.Add("structural");
+        AutomationProperties.SetName(item, accessibleName); item.Click += async (_, _) => await action(); return item;
+    }
 
     private void Render()
     {
         rendering = true; dirty = false; titleInput = null; documentHost.Children.Clear(); speakerHost.Children.Clear();
         speakerInputs.Clear(); blockInputs.Clear(); blockSpeakerInputs.Clear(); blockTimingInputs.Clear(); blockCards.Clear(); blockRibbons.Clear();
-        path.Text = store?.PathName ?? "Import, Record or Load synthetic demo asks where to create a project.";
-        if (snapshot is null || snapshot.Provenance == Provenance.Empty)
+        path.Text = store?.PathName ?? "";
+        ToolTip.SetTip(path, store?.PathName);
+        startScreen.IsVisible = store is null;
+        historyCard.IsVisible = store is not null;
+        speakersCard.IsVisible = snapshot is not null && snapshot.Provenance != Provenance.Empty;
+        Title = store is null || snapshot is null ? "SoundOff" : $"{snapshot.Title} — SoundOff";
+        if (store is not null && (snapshot is null || snapshot.Provenance == Provenance.Empty))
         {
-            var message = new StackPanel { Spacing = 16, Margin = new Thickness(24, 36) };
-            message.Children.Add(new TextBlock { Text = "No transcript loaded", FontSize = 28, FontWeight = FontWeight.SemiBold });
-            message.Children.Add(Label("Import audio or video to transcribe it on this computer, load the synthetic demo to practise editing, or open a saved project. Nothing runs automatically."));
-            message.Children.Add(Label("Import a recording to transcribe it locally with WhisperX, or load the synthetic demo to practise editing. Record captures a microphone or a selected whole-computer output on Windows; alignment timing still needs review."));
+            var message = new StackPanel { Spacing = 8, Margin = new Thickness(0, 48, 0, 0), HorizontalAlignment = HorizontalAlignment.Center };
+            message.Children.Add(new TextBlock { Text = "No transcript yet", FontSize = 22, FontWeight = FontWeight.SemiBold, HorizontalAlignment = HorizontalAlignment.Center });
+            var hint = store.MediaAssets().Count > 0 ? "Choose Transcribe to create one from the recording." : "Import or record audio to get started.";
+            message.Children.Add(new TextBlock { Text = hint, Classes = { "muted" }, FontSize = 14, HorizontalAlignment = HorizontalAlignment.Center });
             documentHost.Children.Add(message);
-            speakerHost.Children.Add(Label("No speakers yet."));
         }
-        else
+        else if (snapshot is not null && snapshot.Provenance != Provenance.Empty)
         {
-            titleInput = new TextBox { Text = snapshot.Title, FontSize = 24, MaxLength = 200, Watermark = "Project title", IsUndoEnabled = false };
+            titleInput = new TextBox { Text = snapshot.Title, MaxLength = 200, Watermark = "Project title", IsUndoEnabled = false };
             titleInput.Classes.Add("title"); AutomationProperties.SetName(titleInput, "Project title"); titleInput.PropertyChanged += OnDraftChanged;
             documentHost.Children.Add(titleInput);
-            documentHost.Children.Add(Label(snapshot.Provenance.Notice));
-            documentHost.Children.Add(Label("Edit whole paragraphs below. Save edits commits one undoable revision; typing is an unsaved draft. " +
-                "Paragraph and speaker actions save the draft together with their change as one revision. " +
-                "Unknown timing is not zero. Model alignment and manual timing need review. Split and inserted paragraphs are untimed."));
+            documentHost.Children.Add(ProvenanceBadge(snapshot.Provenance));
             var names = snapshot.Speakers.Select(s => s.Name).ToList();
             var used = snapshot.Blocks.Select(b => b.SpeakerId).ToHashSet();
             foreach (var speaker in snapshot.Speakers)
             {
-                var row = new Grid { ColumnDefinitions = new ColumnDefinitions("*,Auto"), ColumnSpacing = 8 };
+                var row = new Grid { ColumnDefinitions = new ColumnDefinitions("*,Auto"), ColumnSpacing = 6 };
                 var input = new TextBox { Text = speaker.Name, MaxLength = 100, Watermark = "Speaker name", IsUndoEnabled = false };
                 AutomationProperties.SetName(input, "Rename " + speaker.Name); input.PropertyChanged += OnDraftChanged;
                 speakerInputs.Add(speaker.Id, input); row.Children.Add(input);
                 var id = speaker.Id;
                 var remove = Action("Remove", "Remove speaker " + speaker.Name, () => CommitStructuralAsync(new RemoveSpeaker(id)), enabled: !used.Contains(id));
-                ToolTip.SetTip(remove, used.Contains(id) ? "Reassign this speaker's paragraphs first." : "Removes the unused speaker as one saved revision.");
+                ToolTip.SetShowOnDisabled(remove, true);
+                ToolTip.SetTip(remove, used.Contains(id) ? "Reassign this speaker's paragraphs first." : null);
                 Grid.SetColumn(remove, 1); row.Children.Add(remove); speakerHost.Children.Add(row);
             }
             speakerHost.Children.Add(Action("Add speaker", "Add speaker", () => CommitStructuralAsync(new AddSpeaker(Guid.NewGuid(), NewSpeakerName())),
@@ -326,45 +346,62 @@ public sealed partial class MainWindow : Window
             {
                 var block = snapshot.Blocks[index]; var id = block.Id; var ordinal = index + 1;
                 var name = snapshot.Speakers.Single(s => s.Id == block.SpeakerId).Name;
-                var group = new StackPanel { Spacing = 10 };
-                var header = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 10 };
-                var choice = new ComboBox { ItemsSource = names, SelectedIndex = snapshot.Speakers.IndexOf(snapshot.Speakers.Single(s => s.Id == block.SpeakerId)), MinWidth = 180 };
+                var group = new StackPanel { Spacing = 8 };
+                var header = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,Auto,Auto,Auto,*,Auto"), ColumnSpacing = 6 };
+                var choice = new ComboBox { ItemsSource = names, SelectedIndex = snapshot.Speakers.IndexOf(snapshot.Speakers.Single(s => s.Id == block.SpeakerId)), MinWidth = 170 };
                 AutomationProperties.SetName(choice, $"Speaker for paragraph {ordinal}"); choice.SelectionChanged += (_, _) => RecomputeDraft();
                 blockSpeakerInputs.Add(id, choice); header.Children.Add(choice);
-                header.Children.Add(new TextBlock { Text = "· " + (block.Timing is null ? "Untimed" : "Microsecond interval stored"), FontWeight = FontWeight.SemiBold, VerticalAlignment = VerticalAlignment.Center });
-                var startBox = new TextBox { Text = TimingText(block.Timing, true), Watermark = "start h:mm:ss.ffffff", Width = 160, IsUndoEnabled = false };
-                var endBox = new TextBox { Text = TimingText(block.Timing, false), Watermark = "end h:mm:ss.ffffff", Width = 160, IsUndoEnabled = false };
+                var startBox = new TextBox { Text = TimingText(block.Timing, true), Watermark = "Start", IsUndoEnabled = false };
+                var endBox = new TextBox { Text = TimingText(block.Timing, false), Watermark = "End", IsUndoEnabled = false };
                 startBox.Classes.Add("timing"); endBox.Classes.Add("timing");
                 AutomationProperties.SetName(startBox, $"Start time of paragraph {ordinal}"); AutomationProperties.SetName(endBox, $"End time of paragraph {ordinal}");
-                ToolTip.SetTip(startBox, "Manual timing is synthetic, not measured. Leave both boxes blank for untimed."); ToolTip.SetTip(endBox, "Manual timing is synthetic, not measured. Leave both boxes blank for untimed.");
+                ToolTip.SetTip(startBox, "h:mm:ss.ffffff · leave both blank for untimed"); ToolTip.SetTip(endBox, "h:mm:ss.ffffff · leave both blank for untimed");
                 startBox.PropertyChanged += OnDraftChanged; endBox.PropertyChanged += OnDraftChanged;
-                blockTimingInputs.Add(id, (startBox, endBox)); header.Children.Add(startBox); header.Children.Add(endBox);
-                var play = Action("Play from here", $"Play paragraph {ordinal} from its start", () => { SeekToBlock(id); return Task.CompletedTask; }, enabled: block.Timing is not null);
-                ToolTip.SetTip(play, block.Timing is null ? "This paragraph has no timing, so there is nowhere to seek to." : "Moves the playhead to this paragraph without starting playback.");
-                header.Children.Add(play);
-                group.Children.Add(header);
+                blockTimingInputs.Add(id, (startBox, endBox));
+                Grid.SetColumn(startBox, 1); header.Children.Add(startBox);
+                Grid.SetColumn(endBox, 2); header.Children.Add(endBox);
+                var go = Action("Go to", $"Go to paragraph {ordinal}", () => { SeekToBlock(id); return Task.CompletedTask; }, enabled: block.Timing is not null);
+                go.Classes.Add("quiet"); ToolTip.SetShowOnDisabled(go, true);
+                ToolTip.SetTip(go, block.Timing is null ? "This paragraph has no timing." : "Move the playhead here");
+                Grid.SetColumn(go, 3); header.Children.Add(go);
+                var more = new Button { Content = "⋯" }; more.Classes.Add("more");
+                AutomationProperties.SetName(more, $"More actions for paragraph {ordinal}"); ToolTip.SetTip(more, "Paragraph actions");
                 var input = new TextBox { Text = block.Text, AcceptsReturn = true, TextWrapping = TextWrapping.Wrap, MaxLength = DocumentRules.MaxBlockLength, IsUndoEnabled = false };
+                var menu = new MenuFlyout { Placement = PlacementMode.BottomEdgeAlignedRight };
+                menu.Items.Add(MenuAction("Split at cursor", $"Split paragraph {ordinal} at cursor", () => CommitStructuralAsync(new SplitBlock(id, input.CaretIndex, Guid.NewGuid()))));
+                menu.Items.Add(MenuAction("Merge with next", $"Merge paragraph {ordinal} with next", () => CommitStructuralAsync(new MergeWithNext(id)), enabled: index + 1 < snapshot.Blocks.Length));
+                menu.Items.Add(MenuAction("Insert paragraph below", $"Insert paragraph after {ordinal}", () => CommitStructuralAsync(new InsertBlock(id, Guid.NewGuid(), SpeakerChoice(id), ""))));
+                menu.Items.Add(new Separator());
+                menu.Items.Add(MenuAction("Delete paragraph", $"Delete paragraph {ordinal}", () => CommitStructuralAsync(new DeleteBlock(id))));
+                more.Flyout = menu;
+                Grid.SetColumn(more, 5); header.Children.Add(more);
+                group.Children.Add(header);
                 input.Classes.Add("transcript"); AutomationProperties.SetName(input, "Transcript block by " + name);
                 input.PropertyChanged += OnDraftChanged; blockInputs.Add(id, input); group.Children.Add(input);
                 // Filled only while this paragraph is the active one, so a long document never builds thousands of word buttons.
                 var ribbon = new WrapPanel { Orientation = Orientation.Horizontal }; ribbon.Classes.Add("ribbon");
                 blockRibbons.Add(id, ribbon); group.Children.Add(ribbon);
-                var actions = new WrapPanel { Orientation = Orientation.Horizontal };
-                actions.Children.Add(Action("Split at cursor", $"Split paragraph {ordinal} at cursor", () => CommitStructuralAsync(new SplitBlock(id, input.CaretIndex, Guid.NewGuid()))));
-                actions.Children.Add(Action("Merge with next", $"Merge paragraph {ordinal} with next", () => CommitStructuralAsync(new MergeWithNext(id)), enabled: index + 1 < snapshot.Blocks.Length));
-                actions.Children.Add(Action("Insert paragraph after", $"Insert paragraph after {ordinal}", () => CommitStructuralAsync(new InsertBlock(id, Guid.NewGuid(), SpeakerChoice(id), ""))));
-                actions.Children.Add(Action("Delete paragraph", $"Delete paragraph {ordinal}", () => CommitStructuralAsync(new DeleteBlock(id))));
-                group.Children.Add(actions);
                 var card = new Border { Child = group }; card.Classes.Add("card"); blockCards.Add(id, card); documentHost.Children.Add(card);
             }
-            if (snapshot.Blocks.Length == 0) documentHost.Children.Add(Label("Every paragraph was deleted. Undo restores them, or add a new paragraph below."));
-            documentHost.Children.Add(Action("Add paragraph at end", "Add paragraph at end",
+            if (snapshot.Blocks.Length == 0) documentHost.Children.Add(new TextBlock { Text = "Every paragraph was deleted. Undo restores them.", Classes = { "muted" } });
+            var add = Action("+ Add paragraph", "Add paragraph at end",
                 () => CommitStructuralAsync(new InsertBlock(snapshot.Blocks.Length == 0 ? null : snapshot.Blocks[^1].Id, Guid.NewGuid(), snapshot.Speakers[0].Id, "")),
-                enabled: snapshot.Speakers.Length > 0 && snapshot.Blocks.Length < DocumentRules.MaxBlocks));
+                enabled: snapshot.Speakers.Length > 0 && snapshot.Blocks.Length < DocumentRules.MaxBlocks);
+            add.Classes.Add("quiet"); documentHost.Children.Add(add);
         }
         rendering = false; RenderHistory(); RenderTranscribe(); RefreshPlaybackHighlight(force: true); UpdateControls();
     }
-    private static TextBlock Label(string text) => new() { Text = text, TextWrapping = TextWrapping.Wrap };
+
+    // The estimate status stays visible in the document; the full provenance notice is one hover away and in every export.
+    private static Border ProvenanceBadge(Provenance provenance)
+    {
+        var label = provenance.IsModel ? "Machine transcript · needs review"
+            : provenance.Kind == Provenance.SyntheticKind ? "Demo project · not a real recording" : provenance.Kind;
+        var badge = new Border { Child = new TextBlock { Text = label, FontSize = 12 } };
+        badge.Classes.Add("badge"); badge.Classes.Add("provenance");
+        ToolTip.SetTip(badge, provenance.Notice); AutomationProperties.SetHelpText(badge, provenance.Notice);
+        return badge;
+    }
     private string NewSpeakerName()
     {
         var taken = speakerInputs.Values.Select(t => t.Text ?? "").Concat(snapshot!.Speakers.Select(s => s.Name)).ToHashSet(StringComparer.Ordinal);
@@ -386,14 +423,15 @@ public sealed partial class MainWindow : Window
                 blockInputs.Any(p => p.Value.Text != snapshot.Blocks.Single(b => b.Id == p.Key).Text) ||
                 blockSpeakerInputs.Any(p => SpeakerChoice(p.Key) != snapshot.Blocks.Single(b => b.Id == p.Key).SpeakerId) ||
                 blockTimingInputs.Keys.Any(TimingTouched);
-        if (dirty) status.Text = $"UNSAVED DRAFT based on revision {snapshot.Revision}. Save edits to commit; Export/Copy can rescue a draft.";
+        if (dirty) status.Text = $"Unsaved changes · based on revision {snapshot.Revision}";
         else SavedStatus();
         UpdateControls();
     }
-    private void SavedStatus() => status.Text = snapshot is null ? "No project open." : $"Saved · revision {snapshot.Revision} · {snapshot.Provenance.Kind}. Undo and redo are persistent across reopen.";
+    private void SavedStatus() => status.Text = snapshot is null ? "No project open" : $"Saved · revision {snapshot.Revision}";
     private void UpdateControls()
     {
-        demo.IsEnabled = open.IsEnabled = !busy && !JobRunning && !Recording;
+        demo.IsEnabled = open.IsEnabled = startDemo.IsEnabled = startOpen.IsEnabled = recentMenu.IsEnabled = !busy && !JobRunning && !Recording;
+        startImport.IsEnabled = !busy && !JobRunning && !Recording;
         save.IsEnabled = discard.IsEnabled = !busy && dirty;
         undo.IsEnabled = !busy && !dirty && store?.CanUndo == true;
         redo.IsEnabled = !busy && !dirty && store?.CanRedo == true;
@@ -401,8 +439,7 @@ public sealed partial class MainWindow : Window
         exportBundle.IsEnabled = !busy && store is not null; importBundle.IsEnabled = !busy && !JobRunning && !Recording;
         var timed = snapshot is not null && snapshot.Blocks.Length != 0 && snapshot.Blocks.All(b => b.Timing is not null);
         srt.IsEnabled = !busy && timed;
-        ToolTip.SetTip(srt, timed ? "One cue per timed paragraph of the saved revision; overlaps are combined into shared cues."
-            : "Every paragraph needs timing. Align a model result or enter manual timing; unknown timing is never invented.");
+        ToolTip.SetTip(srt, timed ? null : "Every paragraph needs timing first.");
         findNext.IsEnabled = replaceOne.IsEnabled = replaceAll.IsEnabled = !busy && snapshot is not null && snapshot.Blocks.Length != 0;
         documentHost.IsEnabled = speakerHost.IsEnabled = historyHost.IsEnabled = !busy;
         recentHost.IsEnabled = !busy && !JobRunning && !Recording;
@@ -411,12 +448,14 @@ public sealed partial class MainWindow : Window
 
     private async Task<bool> ConfirmAsync(string title, string message, string affirmative)
     {
-        var dialog = new Window { Title = title, Width = 460, SizeToContent = SizeToContent.Height, CanResize = false, WindowStartupLocation = WindowStartupLocation.CenterOwner };
+        var dialog = new Window { Title = title, Width = 420, SizeToContent = SizeToContent.Height, CanResize = false, WindowStartupLocation = WindowStartupLocation.CenterOwner };
         dialog.RequestedThemeVariant = RequestedThemeVariant;
         dialog.Classes.Set("reducedMotion", Classes.Contains("reducedMotion"));
-        var body = new StackPanel { Margin = new Thickness(24), Spacing = 20 }; body.Children.Add(Label(message));
-        var buttons = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Spacing = 12 };
-        var cancel = new Button { Content = "Cancel", IsCancel = true }; var yes = new Button { Content = affirmative };
+        var body = new StackPanel { Margin = new Thickness(24), Spacing = 20 };
+        body.Children.Add(new TextBlock { Text = title, FontSize = 18, FontWeight = FontWeight.SemiBold, TextWrapping = TextWrapping.Wrap });
+        body.Children.Add(new TextBlock { Text = message, TextWrapping = TextWrapping.Wrap });
+        var buttons = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Spacing = 8 };
+        var cancel = new Button { Content = "Cancel", IsCancel = true }; var yes = new Button { Content = affirmative }; yes.Classes.Add("accent");
         cancel.Click += (_, _) => dialog.Close(false); yes.Click += (_, _) => dialog.Close(true);
         buttons.Children.Add(cancel); buttons.Children.Add(yes); body.Children.Add(buttons); dialog.Content = body;
         return await dialog.ShowDialog<bool>(this);
