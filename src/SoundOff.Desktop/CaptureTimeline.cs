@@ -31,12 +31,14 @@ internal sealed class CaptureSourceArchive : IDisposable
     private CapturePacket? pending;
     private double step;
     private long fileFrames;
+    private long nextSpaceCheck;
+    private readonly string folder;
     public long Frames => fileFrames;
     public double Peak { get; private set; }
     public WaveFormat Format { get; }
     public CaptureSourceArchive(string folder, string source, WaveFormat format, CaptureTimeline timeline)
     {
-        Format = format; this.timeline = timeline; step = 10_000_000.0 / format.SampleRate;
+        Format = format; this.timeline = timeline; this.folder = folder; step = 10_000_000.0 / format.SampleRate;
         ValidateFormat(format);
         wave = new WaveFileWriter(new FileStream(Path.Combine(folder, source + ".wav"), FileMode.CreateNew, FileAccess.ReadWrite, FileShare.Read), format);
         try { map = new StreamWriter(new FileStream(Path.Combine(folder, source + ".ndjson"), FileMode.CreateNew, FileAccess.Write, FileShare.Read)); }
@@ -65,6 +67,7 @@ internal sealed class CaptureSourceArchive : IDisposable
             var ratio = measured * Format.SampleRate / 10_000_000;
             if (ratio is < 0.95 or > 1.05) throw new IOException("The selected source clock jumped outside the supported ±5% rate range.");
             step = measured;
+            pending = null; // never replay a partly-written packet when finalization follows a write error
             Write(previous, step, "adjacent-device-qpc");
             if (frames != previous.Frames || (packet.Flags & 1) != 0)
             { pending = null; throw new IOException("The selected source lost capture packets (device discontinuity). Both sources were interrupted."); }
@@ -75,6 +78,12 @@ internal sealed class CaptureSourceArchive : IDisposable
     public void Complete() { if (pending is { } packet) { pending = null; Write(packet, step, "last-measured-or-nominal-tail"); } }
     private void Write(CapturePacket packet, double slope, string method)
     {
+        if (fileFrames >= nextSpaceCheck)
+        {
+            nextSpaceCheck = fileFrames + Format.SampleRate;
+            if (SoundOff.Core.RecordingRules.TryFreeBytes(folder) is { } free && free < SoundOff.Core.RecordingRules.MinimumFreeBytes)
+                throw new IOException("Low disk space interrupted both sources. Retained WAVs and maps were not deleted.");
+        }
         foreach (var span in timeline.Snapshot())
         {
             var first = Math.Max(0, (int)Math.Min(packet.Frames, Math.Ceiling((span.Start100ns - packet.Qpc100ns) / slope)));
@@ -83,6 +92,8 @@ internal sealed class CaptureSourceArchive : IDisposable
             var qpc = packet.Qpc100ns + first * slope;
             var row = new SourceMap(fileFrames, end - first, packet.DeviceFrame + first, qpc, slope,
                 span.Presentation100ns + qpc - span.Start100ns, packet.Flags, method);
+            if (wave.Length + (long)(end - first) * Format.BlockAlign > uint.MaxValue - 1_048_576)
+                throw new IOException("A source WAV is approaching the RIFF 4 GiB limit. Both sources were stopped; start a new take.");
             wave.Write(packet.Data, first * Format.BlockAlign, (end - first) * Format.BlockAlign);
             wave.Flush(); // refresh recoverable WAV length before committing its mapping row
             map.WriteLine(JsonSerializer.Serialize(row)); map.Flush();
@@ -107,15 +118,20 @@ internal static class CaptureMixdown
         public Cursor(string folder, string source)
         {
             wave = new WaveFileReader(Path.Combine(folder, source + ".wav"));
-            rows = new StreamReader(Path.Combine(folder, source + ".ndjson"));
-            Next();
+            try
+            {
+                rows = new StreamReader(Path.Combine(folder, source + ".ndjson"));
+                try { Next(); } catch { rows.Dispose(); throw; }
+            }
+            catch { wave.Dispose(); throw; }
         }
         private void Next()
         {
             var line = rows.ReadLine();
             row = line is null ? null : JsonSerializer.Deserialize<SourceMap>(line) ?? throw new InvalidDataException("Invalid source map.");
             if (row is null) { samples = []; return; }
-            if (row.Frames <= 0 || row.Frames > wave.WaveFormat.SampleRate / 2 || row.Step100ns <= 0) throw new InvalidDataException("Invalid source map bounds.");
+            if (row.Frames <= 0 || row.Frames > wave.WaveFormat.SampleRate / 2 || !double.IsFinite(row.Step100ns) || row.Step100ns <= 0 ||
+                !double.IsFinite(row.Presentation100ns) || row.Presentation100ns < 0 || row.FileFrame < 0) throw new InvalidDataException("Invalid source map bounds.");
             wave.Position = checked(row.FileFrame * wave.WaveFormat.BlockAlign);
             samples = new float[row.Frames];
             var data = new byte[checked(row.Frames * wave.WaveFormat.BlockAlign)];
@@ -148,6 +164,8 @@ internal static class CaptureMixdown
     }
     public static long Write(string folder, Stream destination, long duration100ns, CancellationToken cancellation = default)
     {
+        if (duration100ns < 0 || duration100ns * (double)SampleRate / 10_000_000 * 2 > uint.MaxValue - 1_048_576)
+            throw new IOException("Combined output exceeds the RIFF 4 GiB limit.");
         using var mic = new Cursor(folder, "microphone"); using var system = new Cursor(folder, "system");
         using var output = new WaveFileWriter(destination, new WaveFormat(SampleRate, 16, 1));
         var count = checked((long)Math.Floor(duration100ns * (double)SampleRate / 10_000_000));

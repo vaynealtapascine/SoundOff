@@ -64,9 +64,13 @@
             <TextBlock Text="Record" FontSize="16" FontWeight="SemiBold" />
             <WrapPanel Orientation="Horizontal">
               <ComboBox x:Name="CaptureModeChoice" SelectedIndex="0" MinWidth="150" Margin="0,0,8,8" AutomationProperties.Name="What to record">
-                <ComboBoxItem>Microphone</ComboBoxItem><ComboBoxItem>Whole computer</ComboBoxItem>
+                <ComboBoxItem>Microphone</ComboBoxItem><ComboBoxItem>Whole computer</ComboBoxItem><ComboBoxItem>Microphone + whole computer</ComboBoxItem>
               </ComboBox>
               <ComboBox x:Name="CaptureDeviceChoice" MinWidth="180" Margin="0,0,8,8" AutomationProperties.Name="Recording device" />
+              <StackPanel x:Name="CaptureRenderPanel" IsVisible="False" Margin="0,0,8,8">
+                <TextBlock Text="Computer audio output" />
+                <ComboBox x:Name="CaptureRenderChoice" MinWidth="180" AutomationProperties.Name="Computer audio render endpoint" />
+              </StackPanel>
             </WrapPanel>
             <WrapPanel Orientation="Horizontal">
               <Button x:Name="RecordButton" Content="Record" Margin="0,0,8,8" />

@@ -7,7 +7,7 @@ namespace SoundOff.Desktop;
 
 public static class CaptureEngines
 {
-    public static ICaptureEngine Create() => OperatingSystem.IsWindows() ? new NAudioCaptureEngine() : new UnavailableCaptureEngine();
+    public static ICaptureEngine Create() => OperatingSystem.IsWindows() ? new WindowsCaptureEngine() : new UnavailableCaptureEngine();
 }
 
 // Honest stand-in where no adapter exists: importing and editing still work, recording does not.
@@ -55,6 +55,7 @@ public sealed class NAudioCaptureEngine : ICaptureEngine
 
     public IReadOnlyList<CaptureDevice> Devices(CaptureMode mode)
     {
+        if (mode == CaptureMode.Combined) throw new ArgumentException("List microphone and system devices separately.", nameof(mode));
         try
         {
             using var enumerator = new MMDeviceEnumerator();
@@ -88,7 +89,7 @@ public sealed class NAudioCaptureEngine : ICaptureEngine
         {
             if (capture is not null || writer is not null || State == RecordingState.Stopping)
                 throw new InvalidOperationException("A recording is already running or awaiting finalization. Stop and keep it first.");
-            if (!Enum.IsDefined(mode)) throw new ArgumentOutOfRangeException(nameof(mode));
+            if (mode is not (CaptureMode.Microphone or CaptureMode.SystemAudio)) throw new ArgumentOutOfRangeException(nameof(mode), "Use StartCombined with separate source selections.");
         }
         // CreateNew proves the exact destination is writable BEFORE any device is opened and never truncates a take.
         RecordingRules.RequireWritableSpace(destinationPath);

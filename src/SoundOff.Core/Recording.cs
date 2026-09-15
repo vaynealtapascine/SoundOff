@@ -4,7 +4,7 @@ namespace SoundOff.Core;
 
 // What the user chose to capture. Per-app capture is deliberately absent rather than silently widened: Windows
 // process-loopback needs an API this build does not use, so the app offers the whole computer and says so.
-public enum CaptureMode { Microphone, SystemAudio }
+public enum CaptureMode { Microphone, SystemAudio, Combined }
 
 // Idle -> Ready -> Recording <-> Paused -> Stopping -> Completed, with Failed and Interrupted as terminal problems.
 // Interrupted means capture or writing failed: retain the file for finalization/probing; it is not guaranteed usable.
@@ -17,13 +17,25 @@ public sealed record CaptureDevice(string Id, string Name, CaptureMode Mode);
 public sealed record CaptureGap([property: JsonRequired] long AtMicroseconds, [property: JsonRequired] string ResumedUtc);
 
 public sealed record RecordingResult(string Path, long DurationMicroseconds, CaptureMode Mode, string DeviceName,
-    IReadOnlyList<CaptureGap> Gaps, bool Interrupted, string? InterruptionReason);
+    IReadOnlyList<CaptureGap> Gaps, bool Interrupted, string? InterruptionReason)
+{
+    // App-owned source WAVs, timestamp maps and session metadata; never delete these on failed adoption.
+    public string? RecoveryDirectory { get; init; }
+}
+
+// Optional additive capability: old ICaptureEngine implementations remain source/binary compatible.
+// A combined start always has TWO independent selections; a single ID must never be reused for both.
+public interface ICombinedCaptureEngine : ICaptureEngine
+{
+    void StartCombined(string? microphoneId, string? renderEndpointId, string destinationPath, CancellationToken cancellation = default);
+    RecordingResult StopCombined(CancellationToken cancellation = default);
+}
 
 public interface ICaptureEngine : IDisposable
 {
     RecordingState State { get; }
     string? FailureReason { get; }
-    // Monotonic and derived from bytes actually written, so it never counts paused time or wall-clock changes.
+    // Single source: written bytes. Combined: the monotonic presentation clock with paused spans excluded.
     long RecordedMicroseconds { get; }
     double PeakLevel { get; }
     IReadOnlyList<CaptureDevice> Devices(CaptureMode mode);

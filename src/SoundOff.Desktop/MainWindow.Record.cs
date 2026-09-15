@@ -8,19 +8,25 @@ namespace SoundOff.Desktop;
 public sealed partial class MainWindow
 {
     private ICaptureEngine capture = null!;
-    private ComboBox captureModeChoice = null!, captureDeviceChoice = null!;
+    private ComboBox captureModeChoice = null!, captureDeviceChoice = null!, captureRenderChoice = null!;
+    private StackPanel captureRenderPanel = null!;
     private Button recordButton = null!, pauseRecordButton = null!, stopRecordButton = null!;
     private ProgressBar levelMeter = null!;
     private TextBlock recordText = null!;
     private RecordingResult? pendingTake;
     private IReadOnlyList<CaptureDevice> captureDevices = [];
-    private bool Recording => pendingTake is not null || capture.State is RecordingState.Recording or RecordingState.Paused or RecordingState.Stopping or RecordingState.Interrupted;
-    private CaptureMode ChosenMode => captureModeChoice.SelectedIndex == 1 ? CaptureMode.SystemAudio : CaptureMode.Microphone;
+    private IReadOnlyList<CaptureDevice> renderDevices = [];
+    private bool startingCapture;
+    private bool Recording => startingCapture || pendingTake is not null || capture.State is RecordingState.Recording or RecordingState.Paused or RecordingState.Stopping or RecordingState.Interrupted;
+    private CaptureMode ChosenMode => captureModeChoice.SelectedIndex switch { 1 => CaptureMode.SystemAudio, 2 => CaptureMode.Combined, _ => CaptureMode.Microphone };
+    private bool SourcesAvailable => captureDevices.Count > 0 && (ChosenMode != CaptureMode.Combined || capture is ICombinedCaptureEngine && renderDevices.Count > 0);
 
     private void InitializeRecording(ICaptureEngine? engine)
     {
         capture = engine ?? CaptureEngines.Create();
         captureModeChoice = this.FindControl<ComboBox>("CaptureModeChoice")!; captureDeviceChoice = this.FindControl<ComboBox>("CaptureDeviceChoice")!;
+        captureRenderChoice = this.FindControl<ComboBox>("CaptureRenderChoice")!;
+        captureRenderPanel = this.FindControl<StackPanel>("CaptureRenderPanel")!;
         recordButton = this.FindControl<Button>("RecordButton")!; pauseRecordButton = this.FindControl<Button>("PauseRecordButton")!;
         stopRecordButton = this.FindControl<Button>("StopRecordButton")!; levelMeter = this.FindControl<ProgressBar>("LevelMeter")!;
         recordText = this.FindControl<TextBlock>("RecordText")!;
@@ -39,20 +45,28 @@ public sealed partial class MainWindow
     private void RefreshCaptureDevices()
     {
         if (Recording) return;
-        captureDevices = capture.Devices(ChosenMode);
+        var combined = ChosenMode == CaptureMode.Combined;
+        captureRenderPanel.IsVisible = combined;
+        Avalonia.Automation.AutomationProperties.SetName(captureDeviceChoice, ChosenMode == CaptureMode.SystemAudio ? "Computer audio render endpoint" : "Microphone device");
+        captureDevices = capture.Devices(combined ? CaptureMode.Microphone : ChosenMode);
+        renderDevices = combined ? capture.Devices(CaptureMode.SystemAudio) : [];
+        captureRenderChoice.ItemsSource = renderDevices.Count == 0 ? new[] { "No output device found" } : renderDevices.Select(d => d.Name).ToArray();
+        captureRenderChoice.SelectedIndex = 0;
         captureDeviceChoice.ItemsSource = captureDevices.Count == 0
-            ? new[] { ChosenMode == CaptureMode.Microphone ? "No microphone found" : "No output device found" }
+            ? new[] { ChosenMode != CaptureMode.SystemAudio ? "No microphone found" : "No output device found" }
             : captureDevices.Select(d => d.Name).ToArray();
         captureDeviceChoice.SelectedIndex = 0;
-        recordText.Text = captureDevices.Count == 0
+        recordText.Text = !SourcesAvailable
             ? capture.FailureReason ?? "No recording device was found for this mode. Re-select the mode after connecting a device."
-            : "Nothing is being recorded. Per-app capture is not available in this build; Whole computer records all apps on the selected output device, not other outputs or the microphone.";
+            : "Nothing is being recorded. Per-app capture is not available in this build; Whole computer records all apps on the selected output device, not other outputs. " +
+                (combined ? "Both selected sources will be recorded. Headphones are recommended; echo cancellation is not provided." : "The microphone is included only in a microphone mode.");
+        if (combined && capture is not ICombinedCaptureEngine) recordText.Text = "Combined capture is not supported by this recording adapter. No source will be substituted.";
         RefreshRecording();
     }
 
     private async Task StartRecordingAsync()
     {
-        if (Recording || JobRunning || captureDevices.Count == 0) return;
+        if (Recording || JobRunning || !SourcesAvailable) return;
         if (store is null)
         {
             var local = await picker.CreateProjectAsync();
@@ -69,17 +83,33 @@ public sealed partial class MainWindow
         Directory.CreateDirectory(folder);
         var destination = Path.Combine(folder, DateTime.UtcNow.ToString("yyyyMMdd'T'HHmmss'Z'") + "-" + Guid.NewGuid().ToString("N") + ".wav");
         var device = captureDevices[Math.Clamp(captureDeviceChoice.SelectedIndex, 0, captureDevices.Count - 1)].Id;
-        capture.Start(ChosenMode, device, destination);
-        RefreshRecording(); UpdateControls(); RefreshPlaybackHighlight(force: true);
+        var mode = ChosenMode;
+        var render = mode == CaptureMode.Combined ? renderDevices[Math.Clamp(captureRenderChoice.SelectedIndex, 0, renderDevices.Count - 1)].Id : null;
+        startingCapture = true; UpdateControls(); RefreshPlaybackHighlight(force: true);
+        try
+        {
+            await Task.Run(() =>
+            {
+                if (mode == CaptureMode.Combined) ((ICombinedCaptureEngine)capture).StartCombined(device, render, destination, lifetime.Token);
+                else capture.Start(mode, device, destination);
+            });
+        }
+        finally { startingCapture = false; RefreshRecording(); UpdateControls(); RefreshPlaybackHighlight(force: true); }
     }
 
     private async Task StopRecordingAsync()
     {
         if (!Recording) return;
-        pendingTake ??= capture.Stop();
+        pendingTake ??= await Task.Run(() => capture.Stop());
         var result = pendingTake;
         try
         {
+            if (result.DurationMicroseconds <= 0 && result.Interrupted && result.RecoveryDirectory is { } emptyRecovery)
+            {
+                pendingTake = null;
+                recordText.Text = $"Neither source yielded usable recording time. No recording was added. The interrupted take and diagnostics remain at {emptyRecovery}. Check both devices before trying again.";
+                return;
+            }
             if (result.DurationMicroseconds <= 0 && !result.Interrupted)
             {
                 File.Delete(result.Path);
@@ -87,14 +117,21 @@ public sealed partial class MainWindow
                 recordText.Text = "Nothing was captured, so no recording was added.";
                 return;
             }
-            var name = $"{(result.Mode == CaptureMode.Microphone ? "Microphone" : "Computer audio")} {DateTime.Now:yyyy-MM-dd HH.mm}.wav";
+            var label = result.Mode switch { CaptureMode.Microphone => "Microphone", CaptureMode.Combined => "Microphone + computer audio", _ => "Computer audio" };
+            var name = $"{label} {DateTime.Now:yyyy-MM-dd HH.mm}.wav";
             var asset = await MediaImport.AdoptAsync(store!, result.Path, name, lifetime.Token);
+            var recovery = result.RecoveryDirectory is { } retained ? $" Separate sources and clock/pause maps remain at {retained}." : "";
+            if (result.RecoveryDirectory is { } archive)
+            {
+                try { File.AppendAllText(Path.Combine(archive, "session.ndjson"), System.Text.Json.JsonSerializer.Serialize(new { status = "adopted", asset.RelativePath, asset.OriginalName }) + Environment.NewLine); }
+                catch (Exception e) { recovery += " The adopted-file mapping could not be saved: " + e.Message; }
+            }
             pendingTake = null;
             RenderTranscribe(); await SyncPlaybackSourceAsync();
             if (!dirty) SavedStatus();
-            var gaps = result.Gaps.Count == 0 ? "" : $" It contains {result.Gaps.Count} pause gap(s) (session-only markers, not saved in the project).";
+            var gaps = result.Gaps.Count == 0 ? "" : $" It contains {result.Gaps.Count} pause gap(s)" + (result.RecoveryDirectory is null ? " (session-only markers, not saved in the project)." : " (saved in the retained source maps).");
             var interrupted = result.Interrupted ? $" The device stopped early ({result.InterruptionReason}); what was captured was kept." : "";
-            recordText.Text = $"Recorded {TimeText.Format(asset.DurationMicroseconds ?? 0)} from {result.DeviceName}.{gaps}{interrupted} It is ready to transcribe.";
+            recordText.Text = $"Recorded {TimeText.Format(asset.DurationMicroseconds ?? 0)} from {result.DeviceName}.{gaps}{interrupted} It is ready to transcribe.{recovery}";
         }
         catch (Exception e)
         {
@@ -109,18 +146,18 @@ public sealed partial class MainWindow
         if (lifetime.IsCancellationRequested) return;
         var state = capture.State;
         var running = state is RecordingState.Recording or RecordingState.Paused;
-        recordButton.IsEnabled = !busy && !Recording && !JobRunning && captureDevices.Count > 0;
+        recordButton.IsEnabled = !busy && !Recording && !JobRunning && SourcesAvailable;
         recordButton.Content = running ? "Recording…" : "Record";
         pauseRecordButton.IsEnabled = !busy && running;
         pauseRecordButton.Content = state == RecordingState.Paused ? "Resume" : "Pause";
         stopRecordButton.IsEnabled = !busy && Recording && state != RecordingState.Stopping;
         stopRecordButton.Content = pendingTake is not null || state == RecordingState.Interrupted ? "Keep recording" : "Stop";
-        captureModeChoice.IsEnabled = captureDeviceChoice.IsEnabled = !Recording && !busy;
+        captureModeChoice.IsEnabled = captureDeviceChoice.IsEnabled = captureRenderChoice.IsEnabled = !Recording && !busy;
         levelMeter.Value = capture.PeakLevel;
         if (running)
         {
             var free = RecordingRules.TryFreeBytes(store?.MediaDirectory ?? Path.GetTempPath());
-            var room = free is { } bytes ? $" · room for {RecordingRules.DescribeCapacity(bytes, RecordingRules.BytesPerSecond(48_000, 2, 32))} (estimate)" : "";
+            var room = free is { } bytes ? $" · room for {RecordingRules.DescribeCapacity(bytes, RecordingRules.BytesPerSecond(48_000, 2, 32) * (ChosenMode == CaptureMode.Combined ? 3 : 1))} (estimate)" : "";
             recordText.Text = (state == RecordingState.Paused ? "PAUSED · " : "RECORDING · ") + TimeText.Format(capture.RecordedMicroseconds) + room;
         }
         else if (pendingTake is null && state == RecordingState.Interrupted) recordText.Text = (capture.FailureReason ?? "The recording was interrupted.") + " Choose Keep recording to add the take.";
