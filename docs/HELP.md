@@ -4,7 +4,7 @@ SoundOff turns recordings into editable transcripts on this computer. Nothing is
 
 ## Getting started
 
-1. **Import** audio or video, or **Record**. The first import or recording asks where to save the project (a `.soundoff.sqlite` file). Imported files are copied; the original is never modified.
+1. **Import** audio or video, drop a file on the window, or **Record**. The first import or recording asks where to save the project (a `.soundoff.sqlite` file). Imported files are copied; the original is never modified. A dropped project or bundle is refused rather than treated as a recording.
 2. **Transcribe.** The first time, **Prepare model pack** downloads about 2 GB once. After that, transcription runs offline.
 3. **Review.** Press play: the current paragraph is outlined and its words appear underneath. Click a word to move the playhead there.
 4. **Correct** the text, speakers and timing, then **Save**.
@@ -12,7 +12,8 @@ SoundOff turns recordings into editable transcripts on this computer. Nothing is
 
 ## Editing and saving
 
-- Typing creates unsaved changes. **Save** (Ctrl+S) records them as a new revision; **Discard** throws them away.
+- Typing creates unsaved changes. **Save** (Ctrl+S) records them as a new revision; **Discard** throws them away and asks first, because undo cannot bring them back.
+- The dot at the left of the status bar is the state: saved, unsaved changes, working, or the last action failed.
 - **Undo** (Ctrl+Z) and **Redo** (Ctrl+Y) step through saved revisions and still work after you reopen the project. They are unavailable while you have unsaved changes, so undo never silently throws away typing.
 - Each paragraph's **⋯** menu can split it at the cursor, merge it with the next one, insert a paragraph below or delete it. Each action saves your current changes together with the action as one revision.
 - **History** lists saved revisions, newest first. **Restore** brings an earlier one back as a new revision; nothing is rewritten or removed.
@@ -74,11 +75,14 @@ SoundOff turns recordings into editable transcripts on this computer. Nothing is
 | Ctrl+F | Find |
 | F3 | Find next |
 | Esc | Close the find bar |
+| Ctrl+B | Show or hide the side panel |
 | F1 | Help |
 
 ## Settings
 
-The theme (dark by default, light, or follow the system) and reduced motion are in **Settings** and are remembered on this computer.
+The theme (dark by default, light, or follow the system) and reduced motion are in **Settings** and are remembered on this computer, along with whether the side panel is showing.
+
+**Panel** (Ctrl+B) hides the side panel so the transcript gets the whole window. Recording, transcription, speakers and history live in that panel, so hide it while reading and correcting and show it again when you need them.
 
 ## Privacy
 

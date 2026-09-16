@@ -3,6 +3,14 @@
 - Repository: `C:/Users/pcuser/source/repos/SoundOff`, branch `main`.
 - Scope: Windows development build, existing local WhisperX runtime/model pack, synthetic English TTS and video input, Windows playback, output-endpoint loopback, and combined microphone+system capture. This is not a release or completion of the architecture's acceptance matrix.
 
+## Window pass: palette, panel, drop and confirmation (2026-09-16)
+
+Added since the reviews below, all interface work: hand-built Light and Dark token palettes replacing Fluent's system brushes, a real primary-button variant (the `accent` class had been applied in markup but never styled), a collapsible side panel remembered in settings (Ctrl+B), a status-bar state dot, drag-and-drop media import, a confirmation before Discard, and a reshaped start screen with hoverable list rows. `python scripts/verify.py --clean --desktop-smoke` was re-run clean afterwards: **exit 0**, **325 tests passed, 0 failed**, both self-tests passed, native smoke passed.
+
+**Contrast is measured, not asserted.** Every foreground/background pair in both palettes was computed with the WCAG relative-luminance formula from the exact hex values committed in `App.axaml`, and the ratios are recorded beside the tokens. The lowest pairs are 5.0:1 (light accent on surface, white on light accent) and 5.2:1 (dark accent on surface); all clear AA 4.5:1. White on the dark accent measured **3.2:1** and was rejected, which is why the primary button's foreground is a theme token (white in Light, ink in Dark, 6.1:1) rather than a hard-coded white. No claim is made about non-text contrast, focus-indicator sizing, or any other success criterion: this is a measured colour-pair check, not a WCAG conformance audit, and accessibility remains untested overall.
+
+**Not covered:** no screen-reader, keyboard-only or high-contrast-mode pass was run on the new controls. Drag-and-drop was exercised only through its extension-filter decision function in tests; a real Explorer drag onto the window was not automated.
+
 ## Combined capture and video preview (2026-09-15)
 
 Added since the review below: a **Combined** (microphone + whole computer) recording mode, and a **video preview** synchronized to the playback clock. `python scripts/verify.py --clean --desktop-smoke` was re-run clean after both landed: **exit 0**, **312 tests passed, 0 failed**, both self-tests passed, native smoke passed.
