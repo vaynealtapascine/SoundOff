@@ -353,6 +353,12 @@
       <Setter Property="Padding" Value="0" /><Setter Property="HorizontalContentAlignment" Value="Center" />
     </Style>
 
+    <Style Selector="Border.waveform">
+      <Setter Property="CornerRadius" Value="{StaticResource RadiusMd}" /><Setter Property="Padding" Value="0" />
+      <Setter Property="BorderThickness" Value="1" /><Setter Property="BorderBrush" Value="{DynamicResource EdgeBrush}" />
+      <Setter Property="Background" Value="{DynamicResource SurfaceBrush}" /><Setter Property="ClipToBounds" Value="True" />
+    </Style>
+
     <!-- Fields -->
     <Style Selector="TextBox">
       <Setter Property="Background" Value="{DynamicResource FieldSurfaceBrush}" />

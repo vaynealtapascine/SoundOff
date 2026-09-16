@@ -72,10 +72,18 @@ public sealed partial class MainWindow
         var wanted = asset is null ? null : Path.Combine(store!.MediaDirectory, asset.RelativePath);
         if (wanted == loadedMediaPath) return;
         loadedMediaPath = wanted;
+        ResetWaveform();
+        var generation = waveformGeneration;
         SyncVideoPreviewSource(asset, wanted);
         if (wanted is null) { playback.Unload(); RefreshPlaybackHighlight(force: true); return; }
         try { await playback.LoadAsync(wanted, lifetime.Token); }
         catch (OperationCanceledException) { return; }
+        if (generation != waveformGeneration || lifetime.IsCancellationRequested) return;
+        if (playback.DurationMicroseconds > 0)
+        {
+            var wavePath = OperatingSystem.IsWindows() && playback is NAudioPlaybackEngine native ? native.ProxyPath ?? wanted : wanted;
+            _ = LoadWaveformAsync(wavePath, playback.DurationMicroseconds);
+        }
         RefreshPlaybackHighlight(force: true);
     }
 
@@ -120,6 +128,7 @@ public sealed partial class MainWindow
         if (lifetime.IsCancellationRequested) return;
         var duration = playback.DurationMicroseconds;
         var position = playback.PositionMicroseconds;
+        if (waveform is not null) waveform.Position = position;
         transportBar.IsVisible = duration > 0 || playback.Status == PlaybackStatus.Failed;
         var playing = playback.Status == PlaybackStatus.Playing;
         RefreshVideoPreview(position, playing);
@@ -189,6 +198,7 @@ public sealed partial class MainWindow
     private void DisposePlayback()
     {
         clockTimer?.Stop(); clockTimer = null;
+        ResetWaveform();
         DisposeVideoPreview();
         playback.Dispose();
     }

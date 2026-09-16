@@ -42,6 +42,7 @@ public sealed partial class MainWindow : Window
         this.settings = settings;
         InitializeTranscribe(inference);
         InitializePlayback(playbackEngine);
+        InitializeWaveform();
         InitializeVideoPreview(videoDecoder);
         InitializeRecording(captureEngine);
         InitializeLayout();

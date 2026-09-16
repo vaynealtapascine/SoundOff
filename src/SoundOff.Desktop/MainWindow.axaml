@@ -1,4 +1,5 @@
 <Window xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:controls="using:SoundOff.Desktop"
         x:Class="SoundOff.Desktop.MainWindow" Title="SoundOff"
         Width="1280" Height="860" MinWidth="900" MinHeight="620"
         DragDrop.AllowDrop="True">
@@ -65,7 +66,7 @@
     </Border>
 
     <Grid x:Name="WorkArea" Grid.Row="1" ColumnDefinitions="*,320" Margin="20,16,20,0" ColumnSpacing="20">
-      <Grid x:Name="ReviewArea" RowDefinitions="Auto,Auto,Auto,Auto,*">
+      <Grid x:Name="ReviewArea" RowDefinitions="Auto,Auto,Auto,Auto,Auto,*">
         <Border x:Name="FindBar" Classes="findbar" IsVisible="False" Margin="0,0,0,12" MaxWidth="880">
           <Grid ColumnDefinitions="*,*,Auto,Auto,Auto,Auto" ColumnSpacing="8" RowDefinitions="Auto,Auto">
             <TextBox x:Name="FindInput" Watermark="Find" AutomationProperties.Name="Find text" IsUndoEnabled="False" />
@@ -98,10 +99,18 @@
           </WrapPanel>
           <TextBlock x:Name="ViewHint" Classes="muted" TextWrapping="Wrap" />
         </StackPanel>
-        <ScrollViewer x:Name="TranscriptScroll" Grid.Row="4" HorizontalScrollBarVisibility="Disabled">
+        <Border x:Name="WaveformHost" Classes="waveform" Grid.Row="4" IsVisible="False" Height="64" Margin="0,0,0,10" MaxWidth="880">
+          <Panel>
+            <controls:WaveformOverview x:Name="Waveform" AutomationProperties.Name="Recording waveform. Click to move the playhead"
+                                       ToolTip.Tip="Click or drag to move the playhead. In Review the strip follows playback; in Document the whole recording is shown." />
+            <TextBlock x:Name="WaveformStatus" Classes="muted" VerticalAlignment="Center" HorizontalAlignment="Center"
+                       TextAlignment="Center" TextWrapping="Wrap" Margin="8,0" IsVisible="False" />
+          </Panel>
+        </Border>
+        <ScrollViewer x:Name="TranscriptScroll" Grid.Row="5" HorizontalScrollBarVisibility="Disabled">
           <StackPanel x:Name="DocumentHost" Spacing="14" MaxWidth="880" HorizontalAlignment="Stretch" Margin="0,0,0,24" />
         </ScrollViewer>
-        <ScrollViewer x:Name="StartScreen" Grid.Row="4" HorizontalScrollBarVisibility="Disabled">
+        <ScrollViewer x:Name="StartScreen" Grid.Row="5" HorizontalScrollBarVisibility="Disabled">
           <StackPanel MaxWidth="560" Spacing="28" Margin="0,44,0,24" HorizontalAlignment="Center">
             <StackPanel Spacing="10" HorizontalAlignment="Center">
               <Border Width="64" Height="64" CornerRadius="20" HorizontalAlignment="Center"
