@@ -17,6 +17,9 @@ public sealed partial class MainWindow
             if (Recording || playback.DurationMicroseconds <= 0) return;
             playback.Seek(target); RefreshPlaybackHighlight(true);
         };
+        this.FindControl<Button>("ZoomInButton")!.Click += (_, _) => waveform.Zoom(1 / 1.5);
+        this.FindControl<Button>("ZoomOutButton")!.Click += (_, _) => waveform.Zoom(1.5);
+        this.FindControl<Button>("FitWaveButton")!.Click += (_, _) => waveform.WindowSeconds = 0;
     }
 
     private void ResetWaveform()
@@ -41,7 +44,7 @@ public sealed partial class MainWindow
             var values = await WaveformAnalysis.AnalyzeAsync(path, duration, cancellation.Token);
             if (generation != waveformGeneration || lifetime.IsCancellationRequested) return;
             waveform.Duration = duration; waveform.SetPeaks(values); waveform.IsVisible = true;
-            waveform.WindowSeconds = DocumentView ? 0 : 30;
+            waveform.WindowSeconds = 30;
             waveform.Position = playback.PositionMicroseconds;
             label.IsVisible = false;
         }

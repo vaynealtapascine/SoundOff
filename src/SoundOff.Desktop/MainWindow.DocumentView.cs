@@ -32,7 +32,7 @@ public sealed partial class MainWindow
     private void ApplyDocumentView()
     {
         var document = DocumentView;
-        if (waveform is not null) waveform.WindowSeconds = document ? 0 : 30;
+        // Keep the user's chosen audio zoom when switching text views.
         this.FindControl<Control>("ViewBar")!.IsVisible = snapshot is not null && snapshot.Provenance != Provenance.Empty;
         this.FindControl<TextBlock>("ViewHint")!.Text = document
             ? "Edit the words, then Export → Document. Review shows speakers and timing; switching keeps your changes."

@@ -65,10 +65,13 @@ public sealed class WaveformOverview : Control
     public float[]? Peaks => peaks;
     private bool dragging;
     public bool Dragging => dragging;
-    private long windowSeconds;          // 0 = show the whole recording
+    private long windowMicros;           // 0 = show the whole recording
     private long viewStart;              // left edge of the visible span, microseconds
     private long duration, position;
     public event EventHandler<long>? SeekRequested;
+
+    // The smallest zoomable span: a quarter second of context is enough to place a click.
+    private static long MinWindow => 250_000;
 
     public long Duration
     {
@@ -78,22 +81,51 @@ public sealed class WaveformOverview : Control
     public long Position
     {
         get => position;
-        set { position = Math.Clamp(value, 0, Math.Max(0, duration)); ClampView(); InvalidateVisual(); }
+        set { var next = Math.Clamp(value, 0, Math.Max(0, duration)); if (position == next) return; position = next; ClampView(); InvalidateVisual(); }
     }
     public long WindowSeconds
     {
-        get => windowSeconds;
-        set { windowSeconds = value; ClampView(); InvalidateVisual(); }
+        get => windowMicros / 1_000_000;
+        set { windowMicros = value <= 0 ? 0 : value * 1_000_000; ClampView(); InvalidateVisual(); }
     }
+    public long VisibleSpanMicroseconds => Window;
+    public long ViewStartMicroseconds => viewStart;
 
     public void SetPeaks(float[]? values) { peaks = values; InvalidateVisual(); }
 
-    private long Window => windowSeconds > 0 ? Math.Min(Math.Max(1, duration), windowSeconds * 1_000_000L) : duration;
+    protected override void OnPointerWheelChanged(PointerWheelEventArgs e)
+    {
+        base.OnPointerWheelChanged(e);
+        if (duration <= 0 || peaks is null) return;
+        var fraction = Math.Clamp(e.GetPosition(this).X / Math.Max(1, Bounds.Width), 0, 1);
+        Zoom(Math.Pow(1 / 1.5, e.Delta.Y), fraction);   // wheel up (Y > 0) zooms in under the cursor
+        e.Handled = true;
+    }
+
+    // factor > 1 widens (zoom out), < 1 narrows (zoom in). The point of the waveform under
+    // anchorFraction (0..1 across the visible strip) stays under the cursor, so zooming in
+    // centres on what the user is looking at rather than on the playhead.
+    public void Zoom(double factor, double anchorFraction = 0.5)
+    {
+        if (duration <= 0 || !double.IsFinite(factor) || factor <= 0 || !double.IsFinite(anchorFraction)) return;
+        anchorFraction = Math.Clamp(anchorFraction, 0, 1);
+        var span = Window;
+        var anchorTime = viewStart + (long)(anchorFraction * span);
+        var newSpan = (long)Math.Clamp(span * factor, Math.Min(duration, MinWindow), duration);
+        windowMicros = newSpan >= duration ? 0 : newSpan;
+        viewStart = windowMicros > 0
+            ? Math.Clamp(anchorTime - (long)(anchorFraction * newSpan), 0, Math.Max(0, duration - newSpan))
+            : 0;
+        InvalidateVisual();
+    }
+
+    private long Window => windowMicros > 0 ? Math.Min(Math.Max(1, duration), windowMicros) : duration;
 
     private void ClampView()
     {
         var span = Window;
-        if (!dragging) viewStart = windowSeconds > 0 ? Math.Clamp(position - span / 2, 0, Math.Max(0, duration - span)) : 0;
+        if (!dragging && windowMicros > 0) viewStart = Math.Clamp(position - span / 2, 0, Math.Max(0, duration - span));
+        else if (windowMicros == 0) viewStart = 0;
     }
 
     protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)

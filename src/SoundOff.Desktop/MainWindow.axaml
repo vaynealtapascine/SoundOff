@@ -103,10 +103,18 @@
         </StackPanel>
         <Border x:Name="WaveformHost" Classes="waveform" Grid.Row="4" IsVisible="False" Height="64" Margin="0,0,0,10" MaxWidth="880">
           <Panel>
-            <controls:WaveformOverview x:Name="Waveform" AutomationProperties.Name="Recording waveform. Click to move the playhead"
-                                       ToolTip.Tip="Click or drag to move the playhead. In Review the strip follows playback; in Document the whole recording is shown." />
+            <controls:WaveformOverview x:Name="Waveform" Margin="0,0,100,0" AutomationProperties.Name="Recording waveform. Click to move the playhead"
+                                       ToolTip.Tip="Click or drag to move the playhead. Scroll on the strip or use the zoom buttons to change the time span shown." />
             <TextBlock x:Name="WaveformStatus" Classes="muted" VerticalAlignment="Center" HorizontalAlignment="Center"
                        TextAlignment="Center" TextWrapping="Wrap" Margin="8,0" IsVisible="False" />
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Top" Spacing="2" Margin="0,4,6,0">
+              <Button x:Name="ZoomInButton" Classes="quiet" Content="＋" Width="28" Height="26" MinHeight="0" Padding="0"
+                      ToolTip.Tip="Zoom in — also scroll on the waveform" AutomationProperties.Name="Zoom waveform in" />
+              <Button x:Name="ZoomOutButton" Classes="quiet" Content="－" Width="28" Height="26" MinHeight="0" Padding="0"
+                      ToolTip.Tip="Zoom out" AutomationProperties.Name="Zoom waveform out" />
+              <Button x:Name="FitWaveButton" Classes="quiet" Content="Fit" MinHeight="26" Height="26" Padding="8,0"
+                      ToolTip.Tip="Show the whole recording" AutomationProperties.Name="Fit the whole recording in the waveform" />
+            </StackPanel>
           </Panel>
         </Border>
         <ScrollViewer x:Name="TranscriptScroll" Grid.Row="5" HorizontalScrollBarVisibility="Disabled">
