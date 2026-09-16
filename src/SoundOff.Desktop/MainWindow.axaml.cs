@@ -66,7 +66,7 @@ public sealed partial class MainWindow : Window
         startDemo.Click += async (_, _) => await GuardAsync(LoadDemoAsync);
         open.Click += async (_, _) => await GuardAsync(OpenAsync);
         startOpen.Click += async (_, _) => await GuardAsync(OpenAsync);
-        startImport.Click += async (_, _) => await GuardAsync(ImportMediaAsync);
+        startImport.Click += async (_, _) => await GuardAsync(() => ImportMediaAsync());
         save.Click += async (_, _) => await GuardAsync(() => { Save(); return Task.CompletedTask; });
         undo.Click += async (_, _) => await GuardAsync(() => { snapshot = store!.Undo(snapshot!.Revision); Render(); SavedStatus(); return Task.CompletedTask; });
         redo.Click += async (_, _) => await GuardAsync(() => { snapshot = store!.Redo(snapshot!.Revision); Render(); SavedStatus(); return Task.CompletedTask; });

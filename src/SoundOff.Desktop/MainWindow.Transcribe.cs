@@ -1,5 +1,7 @@
 using System.Text.Json;
 using Avalonia.Controls;
+using Avalonia.Input;
+using Avalonia.Platform.Storage;
 using Avalonia.Threading;
 using Avalonia.Layout;
 using Avalonia.Media;
@@ -36,11 +38,37 @@ public sealed partial class MainWindow
         languageChoice = this.FindControl<ComboBox>("LanguageChoice")!; deviceChoice = this.FindControl<ComboBox>("DeviceChoice")!; runHost = this.FindControl<StackPanel>("RunHost")!;
         jobProgress = this.FindControl<ProgressBar>("JobProgressBar")!; runsExpander = this.FindControl<Expander>("RunsExpander")!;
         transcribeCard = this.FindControl<Control>("TranscribeCard")!;
-        importMedia.Click += async (_, _) => await GuardAsync(ImportMediaAsync);
+        importMedia.Click += async (_, _) => await GuardAsync(() => ImportMediaAsync());
         preparePack.Click += (_, _) => StartJob(PreparePackAsync);
         transcribe.Click += (_, _) => StartJob(TranscribeJobAsync);
         cancelRun.Click += (_, _) => { job?.Cancel(); SetJobText("Stopping…"); UpdateControls(); };
         applyResult.Click += async (_, _) => await GuardAsync(ApplyPendingResultAsync);
+        AddHandler(DragDrop.DragOverEvent, OnDragOver);
+        AddHandler(DragDrop.DropEvent, OnDrop);
+    }
+
+    private void OnDragOver(object? sender, DragEventArgs e)
+    {
+        e.DragEffects = DroppedMedia(e) is null ? DragDropEffects.None : DragDropEffects.Copy;
+        e.Handled = true;
+    }
+    private async void OnDrop(object? sender, DragEventArgs e)
+    {
+        var dropped = DroppedMedia(e);
+        e.Handled = true;
+        if (dropped is null) return;
+        await GuardAsync(() => ImportMediaAsync(dropped));
+    }
+    // Exactly one file, and only one this build can identify as media: a dropped project or bundle would
+    // otherwise be imported as if it were a recording.
+    private string? DroppedMedia(DragEventArgs e)
+    {
+        if (busy || JobRunning || Recording) return null;
+        var files = e.DataTransfer.TryGetFiles()?.Select(f => f.TryGetLocalPath()).Where(p => p is not null).Take(2).ToList();
+        if (files is not { Count: 1 } || files[0] is not { } local) return null;
+        if (local.EndsWith(".soundoff.sqlite", StringComparison.OrdinalIgnoreCase) ||
+            local.EndsWith(SoundOff.Core.ProjectBundle.Extension, StringComparison.OrdinalIgnoreCase)) return null;
+        return MediaFormats.IsRecognized(local) ? local : null;
     }
 
     private void SetJobText(string text) { jobText.Text = text; jobText.IsVisible = text.Length > 0; }
@@ -96,10 +124,11 @@ public sealed partial class MainWindow
             : store?.MediaAssets().Count > 0 ? "Transcribe the latest recording on this computer" : "Import or record audio first.");
     }
 
-    private async Task ImportMediaAsync()
+    // dropped: a file dragged onto the window, which skips the picker but takes exactly the same path after that.
+    private async Task ImportMediaAsync(string? dropped = null)
     {
         if (Recording || JobRunning) return;
-        var media = await picker.PickMediaAsync();
+        var media = dropped ?? await picker.PickMediaAsync();
         if (media is null) return;
         if (store is null)
         {

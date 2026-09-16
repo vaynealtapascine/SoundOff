@@ -8,6 +8,19 @@ public sealed class MediaTests
 {
     private static string Clip => Path.Combine(AppContext.BaseDirectory, "fixtures", "tts-english.wav");
 
+    // The file picker's filter and the drag-and-drop handler must offer the same set, and neither may
+    // treat a project or a bundle as something to import as a recording.
+    [Fact] public void Offerable_media_extensions_are_one_list_and_exclude_projects_and_bundles()
+    {
+        Assert.All(SoundOff.Desktop.MediaFormats.Extensions, e => Assert.StartsWith(".", e));
+        Assert.Equal(SoundOff.Desktop.MediaFormats.Extensions.Select(e => "*" + e), SoundOff.Desktop.MediaFormats.Patterns);
+        Assert.True(SoundOff.Desktop.MediaFormats.IsRecognized(@"C:\takes\Interview.WAV"));
+        Assert.True(SoundOff.Desktop.MediaFormats.IsRecognized("meeting.mp4"));
+        Assert.False(SoundOff.Desktop.MediaFormats.IsRecognized("notes.txt"));
+        Assert.False(SoundOff.Desktop.MediaFormats.IsRecognized("Project.soundoff.sqlite"));
+        Assert.False(SoundOff.Desktop.MediaFormats.IsRecognized("Project" + ProjectBundle.Extension));
+    }
+
     [Fact] public void Probe_json_is_parsed_strictly_enough_to_reject_silent_or_broken_files()
     {
         var probe = MediaTools.Parse("{\"streams\":[{\"codec_type\":\"audio\",\"codec_name\":\"pcm_s16le\",\"sample_rate\":\"16000\",\"channels\":1}],\"format\":{\"format_name\":\"wav\",\"duration\":\"9.335000\"}}");

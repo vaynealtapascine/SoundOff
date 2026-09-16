@@ -54,7 +54,7 @@ public sealed class LocalProjectPicker(Window owner) : IProjectPicker
         var files = await owner.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
         {
             Title = "Import a recording (a copy is kept with the project; the original is never modified)", AllowMultiple = false,
-            FileTypeFilter = [new FilePickerFileType("Audio or video") { Patterns = ["*.wav", "*.mp3", "*.m4a", "*.aac", "*.flac", "*.ogg", "*.opus", "*.mp4", "*.mov", "*.mkv", "*.webm"] },
+            FileTypeFilter = [new FilePickerFileType("Audio or video") { Patterns = MediaFormats.Patterns },
                 new FilePickerFileType("All files") { Patterns = ["*"] }]
         });
         return PathOf(files.FirstOrDefault());
