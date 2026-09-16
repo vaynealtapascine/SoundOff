@@ -55,10 +55,11 @@ internal static class WaveformAnalysis
     }
 }
 
-// A horizontal waveform of the recording with a playhead. In Review it shows a sliding window centred on the
-// playhead that scrolls with playback; in Document it shows the whole recording at once. Clicking or dragging
-// moves the playhead. It is a viewing and seeking surface only: it never starts playback and never touches the
-// document, mirroring the position slider's contract.
+// A horizontal waveform of the recording with a playhead. The visible span zooms from the whole recording down
+// to a quarter second: buttons halve/double the span, the wheel zooms gradually under the cursor, and when zoomed in
+// the strip follows the playhead unless the user is dragging it. Clicking or dragging moves the playhead. It is
+// a viewing and seeking surface only: it never starts playback and never touches the document, mirroring the
+// position slider's contract.
 public sealed class WaveformOverview : Control
 {
     private float[]? peaks;
@@ -137,6 +138,7 @@ public sealed class WaveformOverview : Control
     protected override void OnPointerPressed(PointerPressedEventArgs e)
     {
         if (duration <= 0) return;
+        if (!e.GetCurrentPoint(this).Properties.IsLeftButtonPressed) return;
         dragging = true; e.Pointer.Capture(this); e.Handled = true;
         SeekTo(e);
     }
@@ -145,6 +147,7 @@ public sealed class WaveformOverview : Control
         if (dragging) SeekTo(e);
     }
     protected override void OnPointerReleased(PointerReleasedEventArgs e) { dragging = false; e.Pointer.Capture(null); }
+    protected override void OnPointerCaptureLost(PointerCaptureLostEventArgs e) { dragging = false; base.OnPointerCaptureLost(e); }
 
     private void SeekTo(PointerEventArgs e)
     {

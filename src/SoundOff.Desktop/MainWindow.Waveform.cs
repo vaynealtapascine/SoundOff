@@ -17,8 +17,8 @@ public sealed partial class MainWindow
             if (Recording || playback.DurationMicroseconds <= 0) return;
             playback.Seek(target); RefreshPlaybackHighlight(true);
         };
-        this.FindControl<Button>("ZoomInButton")!.Click += (_, _) => waveform.Zoom(1 / 1.5);
-        this.FindControl<Button>("ZoomOutButton")!.Click += (_, _) => waveform.Zoom(1.5);
+        this.FindControl<Button>("ZoomInButton")!.Click += (_, _) => waveform.Zoom(0.5);
+        this.FindControl<Button>("ZoomOutButton")!.Click += (_, _) => waveform.Zoom(2);
         this.FindControl<Button>("FitWaveButton")!.Click += (_, _) => waveform.WindowSeconds = 0;
     }
 
@@ -26,7 +26,7 @@ public sealed partial class MainWindow
     {
         waveformGeneration++;
         waveformLoad?.Cancel(); waveformLoad?.Dispose(); waveformLoad = null;
-        waveform.SetPeaks(null); waveform.Duration = 0;
+        waveform.SetPeaks(null); waveform.Duration = 0; waveform.WindowSeconds = 30;
         this.FindControl<Control>("WaveformHost")!.IsVisible = false;
     }
 
