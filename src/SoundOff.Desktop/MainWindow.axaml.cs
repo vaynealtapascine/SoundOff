@@ -44,6 +44,7 @@ public sealed partial class MainWindow : Window
         InitializePlayback(playbackEngine);
         InitializeVideoPreview(videoDecoder);
         InitializeRecording(captureEngine);
+        InitializeLayout();
         documentHost = this.FindControl<StackPanel>("DocumentHost")!;
         speakerHost = this.FindControl<StackPanel>("SpeakerHost")!;
         startScreen = this.FindControl<Control>("StartScreen")!;
@@ -87,6 +88,8 @@ public sealed partial class MainWindow : Window
         applyingSettings = true;
         themeChoice.SelectedIndex = Array.IndexOf(AppearanceSettings.Themes, appearance.Theme);
         reducedMotionChoice.IsChecked = appearance.ReducedMotion;
+        sidebarToggle.IsChecked = !appearance.SidebarCollapsed;
+        ApplySidebar(persist: false);
         applyingSettings = false;
         themeChoice.SelectionChanged += (_, _) => ApplyAppearance(persist: true);
         reducedMotionChoice.IsCheckedChanged += (_, _) => ApplyAppearance(persist: true);
@@ -129,15 +132,17 @@ public sealed partial class MainWindow : Window
     private async Task GuardAsync(Func<Task> action)
     {
         if (busy) return;
-        busy = true; UpdateControls();
+        busy = true; lastActionFailed = false; UpdateControls();
+        var failed = false;
         try { await action(); }
         catch (OperationCanceledException) when (lifetime.IsCancellationRequested) { }
         catch (Exception e)
         {
             // Visible error; the inputs and authoritative saved snapshot are not discarded.
             status.Text = (dirty ? "Not saved — your changes are still here. " : "Operation failed. ") + e.Message;
+            failed = true;
         }
-        finally { busy = false; if (!lifetime.IsCancellationRequested) UpdateControls(); }
+        finally { busy = false; lastActionFailed = failed; if (!lifetime.IsCancellationRequested) UpdateControls(); }
     }
 
     private async Task<bool> MayReplaceAsync() => !JobRunning && !Recording && (!dirty || await ConfirmAsync("Discard unsaved changes?",
@@ -450,7 +455,7 @@ public sealed partial class MainWindow : Window
         findNext.IsEnabled = replaceOne.IsEnabled = replaceAll.IsEnabled = !busy && snapshot is not null && snapshot.Blocks.Length != 0;
         documentHost.IsEnabled = speakerHost.IsEnabled = historyHost.IsEnabled = !busy;
         recentHost.IsEnabled = !busy && !JobRunning && !Recording;
-        UpdateTranscribeControls(); RefreshRecording();
+        UpdateTranscribeControls(); RefreshRecording(); RefreshStateDot();
     }
 
     private async Task<bool> ConfirmAsync(string title, string message, string affirmative)

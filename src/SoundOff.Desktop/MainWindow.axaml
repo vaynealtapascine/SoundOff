@@ -37,6 +37,9 @@
           <ToggleButton x:Name="FindToggle" Content="Find" ToolTip.Tip="Find and replace (Ctrl+F)" />
         </StackPanel>
         <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6">
+          <ToggleButton x:Name="SidebarToggle" Content="Panel" IsChecked="True" ToolTip.Tip="Show the side panel (Ctrl+B)"
+                        AutomationProperties.Name="Show or hide the side panel" />
+          <Border Classes="divider" />
           <Button x:Name="HelpButton" Content="Help" ToolTip.Tip="Help (F1)" />
           <Button x:Name="SettingsButton" Content="Settings">
             <Button.Flyout>
@@ -57,7 +60,7 @@
       </Grid>
     </Border>
 
-    <Grid Grid.Row="1" ColumnDefinitions="*,320" Margin="20,16,20,0" ColumnSpacing="20">
+    <Grid x:Name="WorkArea" Grid.Row="1" ColumnDefinitions="*,320" Margin="20,16,20,0" ColumnSpacing="20">
       <Grid x:Name="ReviewArea" RowDefinitions="Auto,Auto,Auto,*">
         <Border x:Name="FindBar" Classes="findbar" IsVisible="False" Margin="0,0,0,12" MaxWidth="880">
           <Grid ColumnDefinitions="*,*,Auto,Auto,Auto,Auto" ColumnSpacing="8" RowDefinitions="Auto,Auto">
@@ -104,7 +107,7 @@
         </ScrollViewer>
       </Grid>
 
-      <ScrollViewer Grid.Column="1" HorizontalScrollBarVisibility="Disabled">
+      <ScrollViewer x:Name="Sidebar" Grid.Column="1" HorizontalScrollBarVisibility="Disabled">
         <StackPanel Spacing="14" Margin="0,0,4,24">
           <Border Classes="card"><StackPanel Spacing="10">
             <Grid ColumnDefinitions="*,Auto">
@@ -183,9 +186,10 @@
     </Border>
 
     <Border Grid.Row="3" Classes="statusbar">
-      <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
-        <TextBlock x:Name="StatusText" Text="No project open" TextWrapping="Wrap" VerticalAlignment="Center" />
-        <TextBlock x:Name="PathText" Grid.Column="1" Classes="muted" TextTrimming="PathSegmentEllipsis" MaxWidth="520" VerticalAlignment="Center" />
+      <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
+        <Ellipse x:Name="StateDot" Classes="state" VerticalAlignment="Center" AutomationProperties.Name="Project state" />
+        <TextBlock x:Name="StatusText" Grid.Column="1" Text="No project open" TextWrapping="Wrap" VerticalAlignment="Center" />
+        <TextBlock x:Name="PathText" Grid.Column="2" Classes="muted" TextTrimming="PathSegmentEllipsis" MaxWidth="520" VerticalAlignment="Center" />
       </Grid>
     </Border>
   </Grid>

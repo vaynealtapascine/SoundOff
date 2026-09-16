@@ -34,7 +34,7 @@ public sealed partial class MainWindow
         else findStatus.Text = "";
     }
 
-    // Ctrl+S save, Ctrl+Z undo, Ctrl+Y redo, Ctrl+F find, F3 find next, Esc close find, F1 help. Paragraph controls have
+    // Ctrl+S save, Ctrl+Z undo, Ctrl+Y redo, Ctrl+F find, F3 find next, Esc close find, Ctrl+B side panel, F1 help. Paragraph controls have
     // their own undo disabled, so Ctrl+Z never silently discards typed text: while a draft exists undo/redo do nothing.
     private void OnShortcut(object? sender, KeyEventArgs e)
     {
@@ -43,6 +43,7 @@ public sealed partial class MainWindow
         if (control && e.Key == Key.F) { ShowFindBar(true); e.Handled = true; return; }
         if (none && e.Key == Key.Escape && findBar.IsVisible) { ShowFindBar(false); e.Handled = true; return; }
         if (none && e.Key == Key.F1) { ShowHelp(); e.Handled = true; return; }
+        if (control && e.Key == Key.B) { ToggleSidebar(); e.Handled = true; return; }
         Button? target = (e.Key, control) switch
         {
             (Key.S, true) => save, (Key.Z, true) => undo, (Key.Y, true) => redo,

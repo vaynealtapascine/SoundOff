@@ -14,8 +14,14 @@ public sealed class SettingsTests
         var (initial, problem) = store.Load(); Assert.Equal(AppearanceSettings.Default, initial); Assert.Null(problem);
         Assert.False(File.Exists(store.PathName));
         store.Save(new AppearanceSettings(1, "dark", false));
-        Assert.Equal("{\"version\":1,\"theme\":\"dark\",\"reducedMotion\":false}\n", File.ReadAllText(store.PathName));
+        Assert.Equal("{\"version\":1,\"theme\":\"dark\",\"reducedMotion\":false,\"sidebarCollapsed\":false}\n", File.ReadAllText(store.PathName));
         Assert.Equal((new AppearanceSettings(1, "dark", false), (string?)null), store.Load());
+        // A settings file written before the side panel could be collapsed is still a valid version 1 file:
+        // it loads, with the panel shown, instead of being reported as unreadable.
+        File.WriteAllText(store.PathName, "{\"version\":1,\"theme\":\"light\",\"reducedMotion\":true}\n");
+        Assert.Equal((new AppearanceSettings(1, "light", true, false), (string?)null), store.Load());
+        store.Save(new AppearanceSettings(1, "dark", false, true));
+        Assert.Equal((new AppearanceSettings(1, "dark", false, true), (string?)null), store.Load());
         Assert.Throws<ArgumentException>(() => store.Save(new AppearanceSettings(1, "sepia", true)));
         Assert.Throws<ArgumentException>(() => store.Save(new AppearanceSettings(2, "dark", true)));
         Assert.Single(Directory.GetFiles(Path.GetDirectoryName(store.PathName)!));
@@ -59,7 +65,7 @@ public sealed class SettingsTests
             Assert.Equal(ThemeVariant.Dark, window.ActualThemeVariant); Assert.DoesNotContain("reducedMotion", window.Classes);
         }
         finally { window.Close(); }
-        Assert.Equal("{\"version\":1,\"theme\":\"dark\",\"reducedMotion\":false}\n", File.ReadAllText(folder.SettingsPath));
+        Assert.Equal("{\"version\":1,\"theme\":\"dark\",\"reducedMotion\":false,\"sidebarCollapsed\":false}\n", File.ReadAllText(folder.SettingsPath));
         window = new MainWindow(null, folder.Settings); window.Show();
         try
         {
@@ -68,7 +74,7 @@ public sealed class SettingsTests
             Assert.Equal(ThemeVariant.Dark, window.ActualThemeVariant); Assert.DoesNotContain("reducedMotion", window.Classes);
         }
         finally { window.Close(); }
-        Assert.Equal("{\"version\":1,\"theme\":\"dark\",\"reducedMotion\":false}\n", File.ReadAllText(folder.SettingsPath)); // reopening does not rewrite
+        Assert.Equal("{\"version\":1,\"theme\":\"dark\",\"reducedMotion\":false,\"sidebarCollapsed\":false}\n", File.ReadAllText(folder.SettingsPath)); // reopening does not rewrite
         File.WriteAllText(folder.SettingsPath, "{\"version\":1,\"theme\":\"dark\",\"reducedMotion\":false,\"telemetry\":true}");
         window = new MainWindow(null, folder.Settings); window.Show();
         try
@@ -79,7 +85,7 @@ public sealed class SettingsTests
             window.FindControl<ComboBox>("ThemeChoice")!.SelectedIndex = 1;
         }
         finally { window.Close(); }
-        Assert.Equal("{\"version\":1,\"theme\":\"light\",\"reducedMotion\":true}\n", File.ReadAllText(folder.SettingsPath));
+        Assert.Equal("{\"version\":1,\"theme\":\"light\",\"reducedMotion\":true,\"sidebarCollapsed\":false}\n", File.ReadAllText(folder.SettingsPath));
     }
 
     [AvaloniaFact] public void Unsaveable_settings_are_reported_while_the_window_still_applies_the_choice()

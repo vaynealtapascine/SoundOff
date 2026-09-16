@@ -498,6 +498,41 @@ public sealed class UiTests
         finally { foreach (var owned in window.OwnedWindows.ToArray()) owned.Close(false); Discard(window); window.Close(); }
     }
 
+    // The side panel holds recording, transcription and history; hiding it hands the transcript the whole
+    // window. Ctrl+B does the same thing as the button, and the choice outlives the window.
+    [AvaloniaFact] public void Side_panel_collapses_by_button_or_shortcut_and_the_choice_is_remembered()
+    {
+        using var folder = new TestDirectory();
+        var window = new MainWindow(null, folder.Settings); window.Show();
+        var work = window.FindControl<Grid>("WorkArea")!;
+        try
+        {
+            Assert.True(window.FindControl<Control>("Sidebar")!.IsVisible);
+            Assert.Equal(320, work.ColumnDefinitions[1].Width.Value);
+
+            Key(window, Avalonia.Input.Key.B, Avalonia.Input.KeyModifiers.Control);
+            Assert.False(window.FindControl<Control>("Sidebar")!.IsVisible);
+            Assert.Equal(0, work.ColumnDefinitions[1].Width.Value);
+            Assert.Equal(0, work.ColumnSpacing);
+        }
+        finally { window.Close(); }
+
+        window = new MainWindow(null, folder.Settings); window.Show();
+        try
+        {
+            Assert.False(window.FindControl<Control>("Sidebar")!.IsVisible);
+            var toggle = window.FindControl<Avalonia.Controls.Primitives.ToggleButton>("SidebarToggle")!;
+            toggle.IsChecked = true;
+            Assert.True(window.FindControl<Control>("Sidebar")!.IsVisible);
+            Assert.Equal(320, window.FindControl<Grid>("WorkArea")!.ColumnDefinitions[1].Width.Value);
+        }
+        finally { window.Close(); }
+
+        window = new MainWindow(null, folder.Settings); window.Show();
+        try { Assert.True(window.FindControl<Control>("Sidebar")!.IsVisible); }
+        finally { window.Close(); }
+    }
+
     [AvaloniaFact] public void Themes_and_reduced_motion_affect_real_controls_and_template_parts()
     {
         using var folder = new TestDirectory(); var window = new MainWindow(null, folder.Settings); window.Show();

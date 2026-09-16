@@ -29,10 +29,22 @@ public sealed partial class MainWindow
         // Default on a Window inherits the application theme. Reset that too for a true OS-following choice.
         if (Application.Current is { } application) application.RequestedThemeVariant = theme;
         RequestedThemeVariant = theme;
-        var reduced = reducedMotionChoice.IsChecked == true;
-        Classes.Set("reducedMotion", reduced);
+        Classes.Set("reducedMotion", reducedMotionChoice.IsChecked == true);
         if (!persist || applyingSettings) return;
-        try { settings.Save(new AppearanceSettings(AppearanceSettings.CurrentVersion, AppearanceSettings.Themes[index], reduced)); }
+        SaveAppearance();
+    }
+
+    // Every persisted appearance choice is written through here, so adding one never means finding the save call.
+    private void SaveAppearance()
+    {
+        var index = themeChoice.SelectedIndex;
+        if (index < 0 || index >= AppearanceSettings.Themes.Length)
+            index = Array.IndexOf(AppearanceSettings.Themes, AppearanceSettings.Default.Theme);
+        try
+        {
+            settings.Save(new AppearanceSettings(AppearanceSettings.CurrentVersion, AppearanceSettings.Themes[index],
+                reducedMotionChoice.IsChecked == true, sidebarToggle.IsChecked != true));
+        }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException)
         { status.Text = $"Appearance applies to this window but could not be saved to {settings.PathName}: {e.Message}"; }
     }

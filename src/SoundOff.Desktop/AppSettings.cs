@@ -7,8 +7,10 @@ namespace SoundOff.Desktop;
 
 // Appearance preferences only. The file is strict camelCase JSON; anything unexpected yields the defaults
 // with a visible reason instead of a crash, and the next change replaces it atomically.
+// SidebarCollapsed is deliberately NOT required: a settings file written before it existed is still a valid
+// version 1 file and must keep loading, with the panel shown, rather than being rejected as unreadable.
 public sealed record AppearanceSettings([property: JsonRequired] int Version, [property: JsonRequired] string Theme,
-    [property: JsonRequired] bool ReducedMotion)
+    [property: JsonRequired] bool ReducedMotion, bool SidebarCollapsed = false)
 {
     public const int CurrentVersion = 1;
     public static readonly string[] Themes = ["system", "light", "dark"];
