@@ -1,0 +1,60 @@
+using Avalonia.Controls;
+using Avalonia.Headless.XUnit;
+using Avalonia.Threading;
+using Avalonia.VisualTree;
+using SoundOff.Core;
+using SoundOff.Desktop;
+using Xunit;
+
+namespace SoundOff.Tests;
+
+public sealed class DocumentViewTests
+{
+    private sealed class Picker(string project, string output) : IProjectPicker
+    {
+        public Task<string?> CreateProjectAsync() => Task.FromResult<string?>(project);
+        public Task<string?> OpenProjectAsync() => Task.FromResult<string?>(project);
+        public Task<string?> ExportTextAsync(bool isDraft) => Task.FromResult<string?>(output);
+    }
+
+    [Fact] public void Document_export_keeps_order_unicode_and_notice_but_omits_speakers_and_timestamps()
+    {
+        var source = SyntheticFixture.Create(Guid.NewGuid(), 0);
+        source = source with { Blocks = source.Blocks.SetItem(0, source.Blocks[0] with { Text = "Kumusta 👋\nSecond line", Timing = new TimeRange(1_000_000, 2_000_000) }) };
+        var text = TextExport.Render(source, document: true);
+        Assert.Contains(source.Provenance.Notice, text);
+        Assert.Contains("Kumusta 👋\nSecond line", text);
+        Assert.DoesNotContain("0:00:01", text);
+        Assert.DoesNotContain(source.Speakers[0].Name + ":", text);
+        Assert.Contains("0:00:01", TextExport.Render(source));
+        Assert.NotNull(source.Blocks[0].Timing);
+    }
+
+    [AvaloniaFact] public async Task Switching_views_keeps_draft_and_selection_and_document_export_uses_it()
+    {
+        using var folder = new TestDirectory();
+        using (var store = ProjectStore.Create(folder.Project, SyntheticFixture.Create(Guid.NewGuid(), 0))) { }
+        var output = Path.Combine(folder.Root, "document.txt");
+        var window = new MainWindow(new Picker(folder.Project, output), folder.Settings);
+        window.Show();
+        try
+        {
+            UiDriver.Click(window, "OpenProjectItem");
+            await Task.Delay(50); Dispatcher.UIThread.RunJobs();
+            var choice = window.FindControl<ComboBox>("ViewChoice")!;
+            Assert.Equal(0, choice.SelectedIndex);
+            var input = window.GetVisualDescendants().OfType<TextBox>().First(t => t.Classes.Contains("transcript"));
+            input.Text = "Edited words 👋"; input.SelectionStart = 2; input.SelectionEnd = 8;
+            choice.SelectedIndex = 1; choice.SelectedIndex = 0;
+            Assert.Equal("Edited words 👋", input.Text); Assert.Equal(2, input.SelectionStart); Assert.Equal(8, input.SelectionEnd);
+            Assert.True(window.FindControl<Button>("SaveButton")!.IsEnabled);
+            UiDriver.Click(window, "ExportDocumentItem"); await Task.Delay(50);
+            Assert.Contains("Edited words 👋", File.ReadAllText(output)); Assert.Contains("UNSAVED DRAFT", File.ReadAllText(output));
+            UiDriver.Click(window, "SaveButton"); await Task.Delay(50);
+            Assert.False(window.FindControl<Button>("SaveButton")!.IsEnabled);
+        }
+        finally { UiDriver.Discard(window); window.Close(); }
+        using var reopened = ProjectStore.Open(folder.Project);
+        Assert.Equal("Edited words 👋", reopened.Read().Blocks[0].Text);
+    }
+}

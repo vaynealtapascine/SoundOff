@@ -83,6 +83,7 @@ public sealed partial class MainWindow : Window
         this.FindControl<Button>("HelpButton")!.Click += (_, _) => ShowHelp();
         recent = settings.RecentProjects; recentHost = this.FindControl<StackPanel>("RecentHost")!; historyHost = this.FindControl<StackPanel>("HistoryHost")!;
         InitializeSearch();
+        InitializeDocumentView();
         themeChoice = this.FindControl<ComboBox>("ThemeChoice")!; reducedMotionChoice = this.FindControl<CheckBox>("ReducedMotionChoice")!;
         var (appearance, settingsProblem) = settings.Load();
         applyingSettings = true;
@@ -217,7 +218,7 @@ public sealed partial class MainWindow : Window
         }
         return result;
     }
-    private string ExportText() => dirty ? TextExport.RenderDraft(snapshot!, DraftEdits(includeTiming: false)) : TextExport.Render(snapshot!);
+    private string ExportText(bool document = false) => dirty ? TextExport.RenderDraft(snapshot!, DraftEdits(includeTiming: false), document) : TextExport.Render(snapshot!, document: document);
     private static void RequireProjectExtension(string local)
     {
         if (!local.EndsWith(".soundoff.sqlite", StringComparison.OrdinalIgnoreCase))
@@ -277,10 +278,11 @@ public sealed partial class MainWindow : Window
         Render(); SavedStatus();
         if (snapshot.Title != title) RememberCurrent();
     }
-    private async Task ExportAsync()
+    private Task ExportAsync() => ExportAsync(false);
+    private async Task ExportAsync(bool document)
     {
         var revision = snapshot!.Revision; var wasDraft = dirty;
-        var text = ExportText();
+        var text = ExportText(document);
         var local = await picker.ExportTextAsync(wasDraft);
         if (local is null) return;
         lifetime.Token.ThrowIfCancellationRequested();
@@ -289,10 +291,11 @@ public sealed partial class MainWindow : Window
         TextExport.WriteAtomic(local, text, overwrite: true);
         status.Text = wasDraft ? "Exported the unsaved draft. Your changes are still not saved." : $"Exported revision {revision} as text.";
     }
-    private async Task CopyAsync()
+    private Task CopyAsync() => CopyAsync(false);
+    private async Task CopyAsync(bool document)
     {
         var clipboard = GetTopLevel(this)?.Clipboard ?? throw new IOException("Clipboard is unavailable. Use Export text instead.");
-        var text = ExportText();
+        var text = ExportText(document);
         await clipboard.SetTextAsync(text);
         if (await clipboard.TryGetTextAsync() != text) throw new IOException("Clipboard read-back did not match. Use Export text instead.");
         status.Text = dirty ? "Copied the unsaved draft." : $"Copied saved revision {snapshot!.Revision}.";
@@ -317,7 +320,7 @@ public sealed partial class MainWindow : Window
     private void Render()
     {
         rendering = true; dirty = false; titleInput = null; documentHost.Children.Clear(); speakerHost.Children.Clear();
-        speakerInputs.Clear(); blockInputs.Clear(); blockSpeakerInputs.Clear(); blockTimingInputs.Clear(); blockCards.Clear(); blockRibbons.Clear();
+        speakerInputs.Clear(); blockInputs.Clear(); blockSpeakerInputs.Clear(); blockTimingInputs.Clear(); blockCards.Clear(); blockRibbons.Clear(); reviewHeaders.Clear();
         path.Text = store?.PathName ?? "";
         ToolTip.SetTip(path, store?.PathName);
         startScreen.IsVisible = store is null;
@@ -387,7 +390,7 @@ public sealed partial class MainWindow : Window
                 menu.Items.Add(MenuAction("Delete paragraph", $"Delete paragraph {ordinal}", () => CommitStructuralAsync(new DeleteBlock(id))));
                 more.Flyout = menu;
                 Grid.SetColumn(more, 5); header.Children.Add(more);
-                group.Children.Add(header);
+                reviewHeaders.Add(header); group.Children.Add(header);
                 input.Classes.Add("transcript"); AutomationProperties.SetName(input, "Transcript block by " + name);
                 input.PropertyChanged += OnDraftChanged; blockInputs.Add(id, input); group.Children.Add(input);
                 // Filled only while this paragraph is the active one, so a long document never builds thousands of word buttons.
@@ -401,6 +404,7 @@ public sealed partial class MainWindow : Window
                 enabled: snapshot.Speakers.Length > 0 && snapshot.Blocks.Length < DocumentRules.MaxBlocks);
             add.Classes.Add("quiet"); documentHost.Children.Add(add);
         }
+        ApplyDocumentView();
         rendering = false; RenderHistory(); RenderTranscribe(); RefreshPlaybackHighlight(force: true); UpdateControls();
     }
 
@@ -448,6 +452,7 @@ public sealed partial class MainWindow : Window
         undo.IsEnabled = !busy && !dirty && store?.CanUndo == true;
         redo.IsEnabled = !busy && !dirty && store?.CanRedo == true;
         export.IsEnabled = copy.IsEnabled = !busy && snapshot is not null && snapshot.Provenance != Provenance.Empty;
+        exportDocument.IsEnabled = copyDocument.IsEnabled = export.IsEnabled;
         exportBundle.IsEnabled = !busy && store is not null; importBundle.IsEnabled = !busy && !JobRunning && !Recording;
         var timed = snapshot is not null && snapshot.Blocks.Length != 0 && snapshot.Blocks.All(b => b.Timing is not null);
         srt.IsEnabled = !busy && timed;

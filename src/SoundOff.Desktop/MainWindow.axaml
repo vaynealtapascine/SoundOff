@@ -22,10 +22,13 @@
           <Button x:Name="ExportMenuButton" Content="Export" Classes="menu" AutomationProperties.Name="Export menu">
             <Button.Flyout>
               <MenuFlyout Placement="BottomEdgeAlignedLeft">
-                <MenuItem x:Name="ExportTextItem" Header="Text (.txt)…" />
+                <MenuItem x:Name="ExportDocumentItem" Header="Document (.txt, no timestamps)…" />
+                <MenuItem x:Name="CopyDocumentItem" Header="Copy document (no timestamps)" />
+                <Separator />
+                <MenuItem x:Name="ExportTextItem" Header="Transcript with timestamps (.txt)…" />
                 <MenuItem x:Name="ExportSrtItem" Header="Subtitles (.srt)…" ToolTip.ShowOnDisabled="True" />
                 <Separator />
-                <MenuItem x:Name="CopyTextItem" Header="Copy text" />
+                <MenuItem x:Name="CopyTextItem" Header="Copy transcript with timestamps" />
               </MenuFlyout>
             </Button.Flyout>
           </Button>
@@ -38,7 +41,7 @@
           <ToggleButton x:Name="FindToggle" Content="Find" ToolTip.Tip="Find and replace (Ctrl+F)" />
         </StackPanel>
         <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6">
-          <ToggleButton x:Name="SidebarToggle" Content="Panel" Classes="subtle" IsChecked="True" ToolTip.Tip="Show the side panel (Ctrl+B)"
+          <ToggleButton x:Name="SidebarToggle" Content="Tools" Classes="subtle" IsChecked="True" ToolTip.Tip="Show the side panel (Ctrl+B)"
                         AutomationProperties.Name="Show or hide the side panel" />
           <Border Classes="divider" />
           <Button x:Name="HelpButton" Content="Help" Classes="quiet" ToolTip.Tip="Help (F1)" />
@@ -62,7 +65,7 @@
     </Border>
 
     <Grid x:Name="WorkArea" Grid.Row="1" ColumnDefinitions="*,320" Margin="20,16,20,0" ColumnSpacing="20">
-      <Grid x:Name="ReviewArea" RowDefinitions="Auto,Auto,Auto,*">
+      <Grid x:Name="ReviewArea" RowDefinitions="Auto,Auto,Auto,Auto,*">
         <Border x:Name="FindBar" Classes="findbar" IsVisible="False" Margin="0,0,0,12" MaxWidth="880">
           <Grid ColumnDefinitions="*,*,Auto,Auto,Auto,Auto" ColumnSpacing="8" RowDefinitions="Auto,Auto">
             <TextBox x:Name="FindInput" Watermark="Find" AutomationProperties.Name="Find text" IsUndoEnabled="False" />
@@ -86,10 +89,19 @@
           </Border>
           <TextBlock x:Name="VideoPreviewStatus" TextWrapping="Wrap" Classes="muted" />
         </StackPanel>
-        <ScrollViewer Grid.Row="3" HorizontalScrollBarVisibility="Disabled">
+        <StackPanel x:Name="ViewBar" Grid.Row="3" Spacing="6" Margin="0,0,0,12" IsVisible="False">
+          <WrapPanel Orientation="Horizontal">
+            <ComboBox x:Name="ViewChoice" SelectedIndex="0" MinWidth="220" AutomationProperties.Name="Transcript view">
+              <ComboBoxItem>Document · just the words</ComboBoxItem>
+              <ComboBoxItem>Review · audio and timing</ComboBoxItem>
+            </ComboBox>
+          </WrapPanel>
+          <TextBlock x:Name="ViewHint" Classes="muted" TextWrapping="Wrap" />
+        </StackPanel>
+        <ScrollViewer x:Name="TranscriptScroll" Grid.Row="4" HorizontalScrollBarVisibility="Disabled">
           <StackPanel x:Name="DocumentHost" Spacing="14" MaxWidth="880" HorizontalAlignment="Stretch" Margin="0,0,0,24" />
         </ScrollViewer>
-        <ScrollViewer x:Name="StartScreen" Grid.Row="3" HorizontalScrollBarVisibility="Disabled">
+        <ScrollViewer x:Name="StartScreen" Grid.Row="4" HorizontalScrollBarVisibility="Disabled">
           <StackPanel MaxWidth="560" Spacing="28" Margin="0,44,0,24" HorizontalAlignment="Center">
             <StackPanel Spacing="10" HorizontalAlignment="Center">
               <Border Width="64" Height="64" CornerRadius="20" HorizontalAlignment="Center"
@@ -97,7 +109,7 @@
                 <PathIcon Classes="volume" Width="30" Height="30" Foreground="{DynamicResource PrimaryBrush}" />
               </Border>
               <TextBlock Text="SoundOff" Classes="heading" HorizontalAlignment="Center" />
-              <TextBlock Text="Transcribe and edit recordings on this computer." Classes="muted" FontSize="14"
+              <TextBlock Text="Turn a recording into a document. On this computer." Classes="muted" FontSize="14"
                          HorizontalAlignment="Center" TextAlignment="Center" />
             </StackPanel>
             <StackPanel Spacing="10" HorizontalAlignment="Center">

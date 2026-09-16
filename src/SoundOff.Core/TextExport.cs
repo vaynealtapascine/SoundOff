@@ -5,15 +5,15 @@ namespace SoundOff.Core;
 
 public static class TextExport
 {
-    public static string Render(Transcript snapshot, bool isDraft = false)
+    public static string Render(Transcript snapshot, bool isDraft = false, bool document = false)
     {
         DocumentRules.Validate(snapshot);
-        return RenderUnchecked(snapshot, isDraft);
+        return RenderUnchecked(snapshot, isDraft, document);
     }
 
     // Emergency text rescue permits blank speaker names, but never writes an invalid project.
     // It retains raw input (no normalization or invented replacement names).
-    public static string RenderDraft(Transcript snapshot, EditBatch draft)
+    public static string RenderDraft(Transcript snapshot, EditBatch draft, bool document = false)
     {
         DocumentRules.Validate(snapshot);
         draft.RequireKnownTargets(snapshot);
@@ -33,10 +33,10 @@ public static class TextExport
                 return block;
             }).ToImmutableArray()
         };
-        return RenderUnchecked(frozen, true);
+        return RenderUnchecked(frozen, true, document);
     }
 
-    private static string RenderUnchecked(Transcript snapshot, bool isDraft)
+    private static string RenderUnchecked(Transcript snapshot, bool isDraft, bool document)
     {
         var text = new StringBuilder();
         text.Append(snapshot.Title).Append('\n').Append(snapshot.Provenance.Notice).Append('\n');
@@ -44,6 +44,11 @@ public static class TextExport
         var names = snapshot.Speakers.ToDictionary(s => s.Id, s => s.Name);
         foreach (var block in snapshot.Blocks)
         {
+            if (document)
+            {
+                text.Append(block.Text).Append("\n\n");
+                continue;
+            }
             text.Append(names[block.SpeakerId]);
             // Timecodes appear only where an interval is actually stored; untimed paragraphs get no invented placeholder.
             if (block.Timing is { } timing)
