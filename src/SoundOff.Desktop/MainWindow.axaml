@@ -38,7 +38,7 @@
           <ToggleButton x:Name="FindToggle" Content="Find" ToolTip.Tip="Find and replace (Ctrl+F)" />
         </StackPanel>
         <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="6">
-          <ToggleButton x:Name="SidebarToggle" Content="Panel" IsChecked="True" ToolTip.Tip="Show the side panel (Ctrl+B)"
+          <ToggleButton x:Name="SidebarToggle" Content="Panel" Classes="subtle" IsChecked="True" ToolTip.Tip="Show the side panel (Ctrl+B)"
                         AutomationProperties.Name="Show or hide the side panel" />
           <Border Classes="divider" />
           <Button x:Name="HelpButton" Content="Help" Classes="quiet" ToolTip.Tip="Help (F1)" />

@@ -217,8 +217,13 @@
       <Setter Property="FontWeight" Value="SemiBold" />
     </Style>
 
-    <!-- Buttons. Focus rings are colour-only: raising BorderThickness would change a control's
-         measured size and shift its neighbours by a pixel every time focus moves. -->
+    <!-- Buttons. Fluent's own template sets pointerover/pressed/checked colours on the button's inner
+         ContentPresenter, which beats a setter on the button itself: only the resting state arrives
+         through a TemplateBinding. So the resting state is set on the control and every other state on
+         ContentPresenter#PART_ContentPresenter — without that, hovering any button drops back to Fluent
+         grey and a checked toggle to the Windows system accent, neither of which is in this palette.
+         Focus rings stay colour-only: raising BorderThickness would change a control's measured size and
+         shift its neighbours by a pixel every time focus moves. -->
     <Style Selector="Button, ToggleButton">
       <Setter Property="MinHeight" Value="34" /><Setter Property="Padding" Value="12,6" />
       <Setter Property="Background" Value="{DynamicResource ButtonSurfaceBrush}" />
@@ -229,31 +234,53 @@
       <Setter Property="HorizontalContentAlignment" Value="Center" />
       <Setter Property="VerticalContentAlignment" Value="Center" />
     </Style>
-    <Style Selector="Button:pointerover, ToggleButton:pointerover">
+    <Style Selector="Button:pointerover /template/ ContentPresenter#PART_ContentPresenter, ToggleButton:pointerover /template/ ContentPresenter#PART_ContentPresenter">
       <Setter Property="Background" Value="{DynamicResource ButtonHoverBrush}" />
       <Setter Property="BorderBrush" Value="{DynamicResource MutedBrush}" />
+      <Setter Property="TextElement.Foreground" Value="{DynamicResource TextBrush}" />
     </Style>
-    <Style Selector="Button:pressed, ToggleButton:pressed">
+    <Style Selector="Button:pressed /template/ ContentPresenter#PART_ContentPresenter, ToggleButton:pressed /template/ ContentPresenter#PART_ContentPresenter">
       <Setter Property="Background" Value="{DynamicResource ButtonPressedBrush}" />
       <Setter Property="BorderBrush" Value="{DynamicResource MutedBrush}" />
+      <Setter Property="TextElement.Foreground" Value="{DynamicResource TextBrush}" />
+    </Style>
+    <Style Selector="Button:disabled /template/ ContentPresenter#PART_ContentPresenter, ToggleButton:disabled /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource ButtonSurfaceBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource EdgeBrush}" />
+      <Setter Property="TextElement.Foreground" Value="{DynamicResource MutedBrush}" />
     </Style>
     <Style Selector="Button:disabled, ToggleButton:disabled">
-      <Setter Property="Opacity" Value="0.45" />
+      <Setter Property="Opacity" Value="0.55" />
     </Style>
-    <Style Selector="Button:focus-visible, ToggleButton:focus-visible">
+    <Style Selector="Button:focus-visible /template/ ContentPresenter#PART_ContentPresenter, ToggleButton:focus-visible /template/ ContentPresenter#PART_ContentPresenter">
       <Setter Property="BorderBrush" Value="{DynamicResource FocusRingBrush}" />
       <Setter Property="Background" Value="{DynamicResource AccentSoftBrush}" />
     </Style>
-    <!-- A checked ToggleButton (Find, Follow, Show video) must look pressed, not merely hovered. -->
-    <Style Selector="ToggleButton:checked">
+
+    <!-- Checked is the exception for Find and Follow, so it is loud. -->
+    <Style Selector="ToggleButton:checked /template/ ContentPresenter#PART_ContentPresenter">
       <Setter Property="Background" Value="{DynamicResource AccentSoftBrush}" />
       <Setter Property="BorderBrush" Value="{DynamicResource PrimaryBrush}" />
-      <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
-      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="TextElement.Foreground" Value="{DynamicResource TextBrush}" />
+      <Setter Property="TextElement.FontWeight" Value="SemiBold" />
     </Style>
-    <Style Selector="ToggleButton:checked:pointerover">
+    <Style Selector="ToggleButton:checked:pointerover /template/ ContentPresenter#PART_ContentPresenter">
       <Setter Property="Background" Value="{DynamicResource GhostHoverBrush}" />
       <Setter Property="BorderBrush" Value="{DynamicResource AccentHoverBrush}" />
+      <Setter Property="TextElement.Foreground" Value="{DynamicResource TextBrush}" />
+    </Style>
+    <!-- .subtle is for a toggle whose ON state is the default (the side panel). Reusing the loud checked
+         look there would make a resting default the brightest thing in the top bar, ahead of Save. -->
+    <Style Selector="ToggleButton.subtle:checked /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource GhostHoverBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource EdgeBrush}" />
+      <Setter Property="TextElement.Foreground" Value="{DynamicResource MutedBrush}" />
+      <Setter Property="TextElement.FontWeight" Value="Normal" />
+    </Style>
+    <Style Selector="ToggleButton.subtle:checked:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource ButtonHoverBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource MutedBrush}" />
+      <Setter Property="TextElement.Foreground" Value="{DynamicResource TextBrush}" />
     </Style>
 
     <!-- The one action to take next. Previously this class existed in markup but had no style at
@@ -264,17 +291,33 @@
       <Setter Property="BorderBrush" Value="{DynamicResource PrimaryBrush}" />
       <Setter Property="FontWeight" Value="SemiBold" />
     </Style>
-    <Style Selector="Button.accent:pointerover">
+    <Style Selector="Button.accent /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource PrimaryBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource PrimaryBrush}" />
+      <Setter Property="TextElement.Foreground" Value="{DynamicResource PrimaryForegroundBrush}" />
+    </Style>
+    <!-- A disabled primary keeps its shape but drops the fill. Dimming the accent alone still read as
+         available next to a genuinely disabled neutral button, which is exactly the wrong thing for Save
+         to say while there is nothing to save. -->
+    <Style Selector="Button.accent:disabled /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource ButtonSurfaceBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource EdgeBrush}" />
+      <Setter Property="TextElement.Foreground" Value="{DynamicResource MutedBrush}" />
+    </Style>
+    <Style Selector="Button.accent:pointerover /template/ ContentPresenter#PART_ContentPresenter">
       <Setter Property="Background" Value="{DynamicResource AccentHoverBrush}" />
       <Setter Property="BorderBrush" Value="{DynamicResource AccentHoverBrush}" />
+      <Setter Property="TextElement.Foreground" Value="{DynamicResource PrimaryForegroundBrush}" />
     </Style>
-    <Style Selector="Button.accent:pressed">
+    <Style Selector="Button.accent:pressed /template/ ContentPresenter#PART_ContentPresenter">
       <Setter Property="Background" Value="{DynamicResource PrimaryPressedBrush}" />
       <Setter Property="BorderBrush" Value="{DynamicResource PrimaryPressedBrush}" />
+      <Setter Property="TextElement.Foreground" Value="{DynamicResource PrimaryForegroundBrush}" />
     </Style>
-    <Style Selector="Button.accent:focus-visible">
+    <Style Selector="Button.accent:focus-visible /template/ ContentPresenter#PART_ContentPresenter">
       <Setter Property="Background" Value="{DynamicResource PrimaryBrush}" />
       <Setter Property="BorderBrush" Value="{DynamicResource TextBrush}" />
+      <Setter Property="TextElement.Foreground" Value="{DynamicResource PrimaryForegroundBrush}" />
     </Style>
 
     <!-- Quiet: secondary actions inside a card or a list row, where a full button border would
@@ -283,16 +326,23 @@
       <Setter Property="Background" Value="Transparent" /><Setter Property="BorderThickness" Value="0" />
       <Setter Property="Foreground" Value="{DynamicResource MutedBrush}" />
     </Style>
-    <Style Selector="Button.quiet:pointerover, Button.more:pointerover">
-      <Setter Property="Background" Value="{DynamicResource GhostHoverBrush}" />
-      <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+    <Style Selector="Button.quiet /template/ ContentPresenter#PART_ContentPresenter, Button.more /template/ ContentPresenter#PART_ContentPresenter, Button.quiet:disabled /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderBrush" Value="Transparent" />
+      <Setter Property="TextElement.Foreground" Value="{DynamicResource MutedBrush}" />
     </Style>
-    <Style Selector="Button.quiet:pressed, Button.more:pressed">
+    <Style Selector="Button.quiet:pointerover /template/ ContentPresenter#PART_ContentPresenter, Button.more:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource GhostHoverBrush}" />
+      <Setter Property="BorderBrush" Value="Transparent" />
+      <Setter Property="TextElement.Foreground" Value="{DynamicResource TextBrush}" />
+    </Style>
+    <Style Selector="Button.quiet:pressed /template/ ContentPresenter#PART_ContentPresenter, Button.more:pressed /template/ ContentPresenter#PART_ContentPresenter">
       <Setter Property="Background" Value="{DynamicResource GhostPressedBrush}" />
+      <Setter Property="BorderBrush" Value="Transparent" />
+      <Setter Property="TextElement.Foreground" Value="{DynamicResource TextBrush}" />
     </Style>
-    <Style Selector="Button.quiet:focus-visible, Button.more:focus-visible">
+    <Style Selector="Button.quiet:focus-visible /template/ ContentPresenter#PART_ContentPresenter, Button.more:focus-visible /template/ ContentPresenter#PART_ContentPresenter">
       <Setter Property="Background" Value="{DynamicResource GhostHoverBrush}" />
-      <Setter Property="BorderThickness" Value="1" />
       <Setter Property="BorderBrush" Value="{DynamicResource FocusRingBrush}" />
     </Style>
     <Style Selector="Button.more">
@@ -348,6 +398,27 @@
       <Setter Property="BorderBrush" Value="{DynamicResource EdgeBrush}" />
       <Setter Property="CornerRadius" Value="{StaticResource RadiusLg}" />
     </Style>
+    <!-- An Expander's header is a ToggleButton inside its own template, so the button rules above reach it
+         and drew History and Previous runs as a bordered pill floating inside the expander's frame — and,
+         once expanded, as a checked toggle. The header is a header: it only lights on hover. -->
+    <Style Selector="Expander ToggleButton">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="CornerRadius" Value="{StaticResource RadiusLg}" />
+    </Style>
+    <Style Selector="Expander ToggleButton /template/ ContentPresenter#PART_ContentPresenter,
+                     Expander ToggleButton:checked /template/ ContentPresenter#PART_ContentPresenter,
+                     Expander ToggleButton:pressed /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderBrush" Value="Transparent" />
+      <Setter Property="TextElement.Foreground" Value="{DynamicResource TextBrush}" />
+      <Setter Property="TextElement.FontWeight" Value="Normal" />
+    </Style>
+    <Style Selector="Expander ToggleButton:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource GhostHoverBrush}" />
+      <Setter Property="BorderBrush" Value="Transparent" />
+      <Setter Property="TextElement.Foreground" Value="{DynamicResource TextBrush}" />
+    </Style>
     <Style Selector="PathIcon.volume">
       <Setter Property="Data" Value="M3,9 H7 L12,5 V19 L7,15 H3 Z M15,10 H16.5 V14 H15 Z M18,8 H19.5 V16 H18 Z" />
       <Setter Property="Foreground" Value="{DynamicResource MutedBrush}" />
@@ -365,14 +436,26 @@
       <Setter Property="CornerRadius" Value="{StaticResource RadiusSm}" />
       <Setter Property="Foreground" Value="{DynamicResource MutedBrush}" />
     </Style>
-    <Style Selector="Button.word:pointerover">
+    <Style Selector="Button.word /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderBrush" Value="Transparent" />
+      <Setter Property="TextElement.Foreground" Value="{DynamicResource MutedBrush}" />
+    </Style>
+    <Style Selector="Button.word:pointerover /template/ ContentPresenter#PART_ContentPresenter">
       <Setter Property="Background" Value="{DynamicResource WordHoverBrush}" />
-      <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+      <Setter Property="BorderBrush" Value="Transparent" />
+      <Setter Property="TextElement.Foreground" Value="{DynamicResource TextBrush}" />
     </Style>
     <Style Selector="Button.word.current">
       <Setter Property="FontWeight" Value="Bold" />
       <Setter Property="Background" Value="{DynamicResource PrimaryBrush}" />
       <Setter Property="Foreground" Value="{DynamicResource PrimaryForegroundBrush}" />
+    </Style>
+    <Style Selector="Button.word.current /template/ ContentPresenter#PART_ContentPresenter, Button.word.current:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource PrimaryBrush}" />
+      <Setter Property="BorderBrush" Value="Transparent" />
+      <Setter Property="TextElement.Foreground" Value="{DynamicResource PrimaryForegroundBrush}" />
+      <Setter Property="TextElement.FontWeight" Value="Bold" />
     </Style>
 
     <!-- List rows (recent projects, history revisions, transcription runs): hovering the row is the
