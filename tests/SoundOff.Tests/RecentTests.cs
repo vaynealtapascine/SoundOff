@@ -53,7 +53,7 @@ public sealed class RecentTests
     private static void Click(MainWindow window, string name) => UiDriver.Click(window, name);
     private static void Discard(MainWindow window) => UiDriver.Discard(window);
     private static string Status(MainWindow window) => window.FindControl<TextBlock>("StatusText")!.Text ?? "";
-    private static StackPanel[] Rows(MainWindow window) => window.FindControl<StackPanel>("RecentHost")!.Children.OfType<StackPanel>().Where(p => p.Classes.Contains("recent")).ToArray();
+    private static StackPanel[] Rows(MainWindow window) => window.FindControl<StackPanel>("RecentHost")!.GetVisualDescendants().OfType<StackPanel>().Where(p => p.Classes.Contains("recent")).ToArray();
     private static Button RowButton(StackPanel row, string label) => row.GetVisualDescendants().OfType<Button>().Single(b => (string?)b.Content == label);
     private static async Task Idle(MainWindow window)
     {

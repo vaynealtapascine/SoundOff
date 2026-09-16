@@ -58,7 +58,7 @@ public sealed class TranscribeUiTests
             Assert.Equal(2, Blocks(window).Length); Assert.StartsWith("Hello. This is a synthetic", Blocks(window)[0].Text);
             var badge = window.GetVisualDescendants().OfType<Border>().Single(b => b.Classes.Contains("provenance"));
             Assert.StartsWith("Machine transcript", ((TextBlock)badge.Child!).Text); Assert.Contains("MODEL OUTPUT", (string)ToolTip.GetTip(badge)!);
-            Assert.Contains(window.FindControl<StackPanel>("RunHost")!.Children.OfType<Grid>().Select(g => g.Children.OfType<TextBlock>().Single().Text), t => t!.Contains("completed"));
+            Assert.Contains(window.FindControl<StackPanel>("RunHost")!.GetVisualDescendants().OfType<Grid>().Where(g => g.Classes.Contains("run")).Select(g => g.Children.OfType<TextBlock>().Single().Text), t => t!.Contains("completed"));
             Assert.False(Button(window, "ApplyResultButton").IsEnabled);
             // A second run over a non-empty document is kept pending until applied explicitly.
             Click(window, "TranscribeButton"); await JobDone(window);
@@ -70,7 +70,7 @@ public sealed class TranscribeUiTests
             await Idle(window); Assert.Contains("Applied the transcription result", Status(window)); Assert.Contains("revision 2", Status(window));
             Assert.False(Button(window, "ApplyResultButton").IsEnabled);
             Assert.Equal(2, window.FindControl<StackPanel>("RunHost")!.Children.Count);
-            Assert.Contains("Transcription applied", window.FindControl<StackPanel>("HistoryHost")!.Children.OfType<Grid>().First().Children.OfType<TextBlock>().Single().Text);
+            Assert.Contains("Transcription applied", window.FindControl<StackPanel>("HistoryHost")!.GetVisualDescendants().OfType<Grid>().First(g => g.Classes.Contains("revision")).Children.OfType<TextBlock>().Single().Text);
         }
         finally { foreach (var owned in window.OwnedWindows.ToArray()) owned.Close(false); window.Close(); }
         using var store = ProjectStore.Open(folder.Project);

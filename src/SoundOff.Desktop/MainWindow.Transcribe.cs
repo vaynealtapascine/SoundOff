@@ -105,7 +105,7 @@ public sealed partial class MainWindow
             var id = run.Id; var artifact = run.ArtifactRelativePath;
             var apply = Action("Apply", $"Apply run {run.Id[..Math.Min(8, run.Id.Length)]}", () => GuardAsync(() => ApplyStoredRunAsync(id)), enabled: run.Status == "completed" && artifact is not null);
             apply.Classes.Add("quiet");
-            Grid.SetColumn(apply, 1); row.Children.Add(apply); runHost.Children.Add(row);
+            Grid.SetColumn(apply, 1); row.Children.Add(apply); runHost.Children.Add(Row(row));
         }
     }
 

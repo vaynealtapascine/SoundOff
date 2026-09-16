@@ -14,6 +14,10 @@ public sealed partial class MainWindow
     private readonly MenuItem recentMenu;
     private const int HistoryRows = 50;
 
+    // A hover surface behind a list row is the cue that its trailing Open/Restore/Apply button belongs to that row
+    // and not to the one below it. Purely visual: it adds no click target of its own.
+    private static Border Row(Control content) => new() { Child = content, Classes = { "row" } };
+
     private void RenderHistory()
     {
         historyHost.Children.Clear();
@@ -29,7 +33,7 @@ public sealed partial class MainWindow
             var revision = info.Revision;
             var restore = Action("Restore", $"Restore revision {revision}", () => GuardAsync(() => RestoreAsync(revision)), enabled: !current);
             restore.Classes.Add("quiet");
-            Grid.SetColumn(restore, 1); row.Children.Add(restore); historyHost.Children.Add(row);
+            Grid.SetColumn(restore, 1); row.Children.Add(restore); historyHost.Children.Add(Row(row));
         }
         if (rows.Count == HistoryRows) historyHost.Children.Add(new TextBlock { Text = $"Showing the newest {HistoryRows}.", Classes = { "muted" } });
     }
@@ -89,7 +93,7 @@ public sealed partial class MainWindow
             });
             openRow.Classes.Add("quiet"); forget.Classes.Add("quiet");
             buttons.Children.Add(openRow); buttons.Children.Add(forget);
-            row.Children.Add(buttons); recentHost.Children.Add(row);
+            row.Children.Add(buttons); recentHost.Children.Add(Row(row));
             var item = new MenuItem { Header = exists ? entry.Title : entry.Title + " (missing)", IsEnabled = exists };
             ToolTip.SetTip(item, entry.Path); AutomationProperties.SetName(item, "Open recent project " + entry.Title);
             item.Click += async (_, _) => await GuardAsync(() => OpenPathAsync(entry.Path));

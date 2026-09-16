@@ -47,7 +47,7 @@ public sealed class HistoryTests
     private static void Click(MainWindow window, string name) => UiDriver.Click(window, name);
     private static void Discard(MainWindow window) => UiDriver.Discard(window);
     private static string Status(MainWindow window) => window.FindControl<TextBlock>("StatusText")!.Text ?? "";
-    private static Grid[] Rows(MainWindow window) => window.FindControl<StackPanel>("HistoryHost")!.Children.OfType<Grid>().Where(g => g.Classes.Contains("revision")).ToArray();
+    private static Grid[] Rows(MainWindow window) => window.FindControl<StackPanel>("HistoryHost")!.GetVisualDescendants().OfType<Grid>().Where(g => g.Classes.Contains("revision")).ToArray();
     private static string RowText(Grid row) => row.Children.OfType<TextBlock>().Single().Text ?? "";
     private static Button Restore(Grid row) => row.Children.OfType<Button>().Single();
     private static async Task Idle(MainWindow window)
