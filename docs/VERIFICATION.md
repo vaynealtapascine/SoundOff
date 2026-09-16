@@ -9,6 +9,8 @@ Added since the reviews below, all interface work: hand-built Light and Dark tok
 
 **Contrast is measured, not asserted.** Every foreground/background pair in both palettes was computed with the WCAG relative-luminance formula from the exact hex values committed in `App.axaml`, and the ratios are recorded beside the tokens. The lowest pairs are 5.0:1 (light accent on surface, white on light accent) and 5.2:1 (dark accent on surface); all clear AA 4.5:1. White on the dark accent measured **3.2:1** and was rejected, which is why the primary button's foreground is a theme token (white in Light, ink in Dark, 6.1:1) rather than a hard-coded white. No claim is made about non-text contrast, focus-indicator sizing, or any other success criterion: this is a measured colour-pair check, not a WCAG conformance audit, and accessibility remains untested overall.
 
+**The window was run, not only tested.** The compiled Release build was launched against a synthetic demo project (with `SOUNDOFF_SETTINGS_PATH` redirected away from the real user's settings) and looked at, which caught three things the headless suite could not: Fluent's templates were overriding every non-resting button colour, so hovers fell back to Fluent grey and a checked toggle to the Windows system accent; a disabled accent Save still read as available; and the Expander header, a ToggleButton inside its own template, was being drawn as a bordered pill. Each was fixed and the window re-run.
+
 **Not covered:** no screen-reader, keyboard-only or high-contrast-mode pass was run on the new controls. Drag-and-drop was exercised only through its extension-filter decision function in tests; a real Explorer drag onto the window was not automated.
 
 ## Combined capture and video preview (2026-09-15)
