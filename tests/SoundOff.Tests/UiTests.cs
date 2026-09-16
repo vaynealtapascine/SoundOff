@@ -67,10 +67,10 @@ public sealed class UiTests
             timing = TimingBoxes(window); timing[4].Text = ""; timing[5].Text = ""; Click(window, "SaveButton"); await Idle(window);
             Assert.Contains("Saved · revision 5", Status(window)); Assert.False(UiDriver.Item(window, "ExportSrtItem").IsEnabled);
             timing = TimingBoxes(window); timing[1].Text = "0.5"; Click(window, "SaveButton"); await Idle(window);
-            Assert.Contains("Paragraph 1 timing: The end must be later than the start", Status(window)); Click(window, "DiscardButton");
+            Assert.Contains("Paragraph 1 timing: The end must be later than the start", Status(window)); Discard(window);
             Assert.Equal("0:00:02.500000", TimingBoxes(window)[1].Text);
         }
-        finally { Click(window, "DiscardButton"); window.Close(); }
+        finally { Discard(window); window.Close(); }
         using var store = ProjectStore.Open(folder.Project); var saved = store.Read();
         Assert.Equal(5, saved.Revision); Assert.Equal(new TimeRange(1_000_000, 2_500_000), saved.Blocks[0].Timing); Assert.Equal(new TimeRange(2_000_000, 4_000_000), saved.Blocks[1].Timing);
         Assert.Null(saved.Blocks[2].Timing); Assert.Equal("changed again", saved.Blocks[2].Text); Assert.Equal(Provenance.Synthetic, saved.Provenance);
@@ -101,12 +101,12 @@ public sealed class UiTests
             var srt = File.ReadAllText(picker.Subtitles!);
             Assert.StartsWith("1\n00:00:01,000 --> 00:00:05,000\nDemo speaker A: ", srt); Assert.Contains("\n2\n00:00:06,000 --> 00:00:07,000\n", srt);
             Blocks(window)[0].Text = "edited draft"; Click(window, "ExportSrtItem"); await Idle(window);
-            Assert.Contains("The unsaved draft is not included", Status(window)); Click(window, "DiscardButton");
+            Assert.Contains("The unsaved draft is not included", Status(window)); Discard(window);
             window.GetVisualDescendants().OfType<TextBox>().First(t => t.Classes.Contains("transcript")).Text = "now untimed";
             Click(window, "SaveButton"); await Idle(window);
             Assert.False(UiDriver.Item(window, "ExportSrtItem").IsEnabled); // the edited paragraph lost its timing
         }
-        finally { Click(window, "DiscardButton"); window.Close(); }
+        finally { Discard(window); window.Close(); }
     }
 
     [AvaloniaFact] public async Task Bundles_export_only_the_saved_revision_and_import_into_a_new_project()
@@ -123,7 +123,7 @@ public sealed class UiTests
             Click(window, "ExportBundleItem"); await Idle(window);
             Assert.Contains("Exported a bundle of revision 2", Status(window)); Assert.Contains("The unsaved draft is not included", Status(window));
             Assert.True(File.Exists(picker.Bundle)); Assert.True(Button(window, "SaveButton").IsEnabled);
-            Click(window, "DiscardButton");
+            Discard(window);
             picker.CreatePath = Path.Combine(folder.Root, "Imported.soundoff.sqlite");
             Click(window, "ImportBundleItem"); await Idle(window);
             Assert.Contains("Saved · revision 2", Status(window)); Assert.Contains("Imported from a bundle of revision 2", Status(window));
@@ -134,7 +134,7 @@ public sealed class UiTests
             picker.Bundle = Path.Combine(folder.Root, "wrong.txt"); Click(window, "ExportBundleItem"); await Idle(window);
             Assert.Contains("Bundle filenames must end in .soundoff.zip", Status(window)); Assert.False(File.Exists(picker.Bundle));
         }
-        finally { Click(window, "DiscardButton"); window.Close(); }
+        finally { Discard(window); window.Close(); }
         using var original = ProjectStore.Open(folder.Project); Assert.Equal(2, original.Read().Revision);
         using var imported = ProjectStore.Open(Path.Combine(folder.Root, "Imported.soundoff.sqlite"));
         Assert.Equal(original.Read().ProjectId, imported.Read().ProjectId); Assert.Equal("Bundled 👩🏽‍💻", imported.Read().Speakers[0].Name);
@@ -142,6 +142,7 @@ public sealed class UiTests
     }
     private static Button Button(MainWindow window, string name) => window.FindControl<Button>(name)!;
     private static void Click(MainWindow window, string name) => UiDriver.Click(window, name);
+    private static void Discard(MainWindow window) => UiDriver.Discard(window);
     private static string Status(MainWindow window) => window.FindControl<TextBlock>("StatusText")!.Text ?? "";
     private static TextBox SpeakerBox(MainWindow window, int index = 0) =>
         window.FindControl<StackPanel>("SpeakerHost")!.GetVisualDescendants().OfType<TextBox>().ElementAt(index);
@@ -181,7 +182,7 @@ public sealed class UiTests
             Click(window, "UndoButton"); await Idle(window); Assert.Contains("Saved · revision 3", Status(window));
             Assert.Equal("Demo speaker A", SpeakerBox(window).Text);
         }
-        finally { Click(window, "DiscardButton"); window.Close(); }
+        finally { Discard(window); window.Close(); }
         using var reopened = ProjectStore.Open(folder.Project); Assert.Equal("Demo speaker A", reopened.Read().Speakers[0].Name);
     }
 
@@ -251,7 +252,7 @@ public sealed class UiTests
             Key(window, Avalonia.Input.Key.F, Avalonia.Input.KeyModifiers.Control);
             Assert.True(window.FindControl<TextBox>("FindInput")!.IsFocused);
         }
-        finally { Click(window, "DiscardButton"); window.Close(); }
+        finally { Discard(window); window.Close(); }
         using var store = ProjectStore.Open(folder.Project); Assert.Equal(4, store.Read().Revision);
     }
 
@@ -291,7 +292,7 @@ public sealed class UiTests
             Click(window, "SaveButton"); await Idle(window); Assert.Contains("Saved · revision 2", Status(window));
             title = window.GetVisualDescendants().OfType<TextBox>().Single(t => t.Classes.Contains("title"));
             title.Text = ""; Click(window, "SaveButton"); await Idle(window); Assert.Contains("Not saved", Status(window));
-            Click(window, "DiscardButton"); Assert.Contains("Saved · revision 2", Status(window));
+            Discard(window); Assert.Contains("Saved · revision 2", Status(window));
         }
         finally { window.Close(); }
         using var store = ProjectStore.Open(folder.Project); Assert.Equal("Meeting notes 👩🏽‍💻", store.Read().Title); Assert.Equal(2, store.Read().Revision);
@@ -312,7 +313,7 @@ public sealed class UiTests
             Press(Structural(window, "Split at cursor")[1]); await Idle(window);
             Assert.Contains("Not saved", Status(window)); Assert.Equal("Draft kept 👩🏽‍💻", Blocks(window)[1].Text);
         }
-        finally { Click(window, "DiscardButton"); window.Close(); }
+        finally { Discard(window); window.Close(); }
         using var store = ProjectStore.Open(folder.Project); Assert.Equal(1, store.Read().Revision);
     }
 
@@ -360,7 +361,7 @@ public sealed class UiTests
             speaker = SpeakerBox(window);
             Assert.Equal("Demo speaker A", speaker.Text);
             speaker.Text = "Typing disables redo"; Assert.False(Button(window, "RedoButton").IsEnabled); Assert.False(Button(window, "UndoButton").IsEnabled);
-            Click(window, "DiscardButton"); Assert.True(Button(window, "RedoButton").IsEnabled);
+            Discard(window); Assert.True(Button(window, "RedoButton").IsEnabled);
             Click(window, "RedoButton"); await Idle(window); Assert.Contains("Saved · revision 4", Status(window));
             Assert.Equal("Redo me 👩🏽‍💻", SpeakerBox(window).Text);
             Assert.False(Button(window, "RedoButton").IsEnabled); Assert.True(Button(window, "UndoButton").IsEnabled);
@@ -401,7 +402,7 @@ public sealed class UiTests
             Assert.Contains("UNSAVED DRAFT", text); Assert.Contains("Immediate draft piña 👩🏽‍💻", text);
             Assert.True(Button(window, "SaveButton").IsEnabled);
         }
-        finally { Click(window, "DiscardButton"); window.Close(); }
+        finally { Discard(window); window.Close(); }
         using var store = ProjectStore.Open(folder.Project);
         Assert.Equal(1, store.Read().Revision); Assert.DoesNotContain("Immediate draft", store.Read().Blocks[0].Text);
     }
@@ -427,7 +428,7 @@ public sealed class UiTests
         finally
         {
             foreach (var dialog in window.OwnedWindows.ToArray()) dialog.Close(false);
-            Click(window, "DiscardButton"); window.Close();
+            Discard(window); window.Close();
         }
         using var store = ProjectStore.Open(folder.Project);
         Assert.Equal(1, store.Read().Revision); Assert.Equal("Demo speaker A", store.Read().Speakers[0].Name);
@@ -466,9 +467,35 @@ public sealed class UiTests
             Assert.Contains("Not saved", Status(window)); Assert.Equal("", input.Text); Assert.True(Button(window, "DiscardButton").IsEnabled);
             Click(window, "ExportTextItem"); await Idle(window);
             Assert.Contains("UNSAVED DRAFT", File.ReadAllText(output)); Assert.True(Button(window, "SaveButton").IsEnabled);
-            Click(window, "DiscardButton"); Assert.Contains("Saved · revision 1", Status(window));
+            Discard(window); Assert.Contains("Saved · revision 1", Status(window));
         }
-        finally { Click(window, "DiscardButton"); window.Close(); }
+        finally { Discard(window); window.Close(); }
+    }
+
+    // Discard is irreversible: undo and redo are unavailable while a draft exists, so the typed text is gone
+    // for good. It asks first, and answering no keeps every character.
+    [AvaloniaFact] public async Task Discard_asks_first_and_cancelling_keeps_the_whole_draft()
+    {
+        using var folder = new TestDirectory(); var window = new MainWindow(new Picker(folder.Project, Path.Combine(folder.Root, "d.txt")), folder.Settings); window.Show();
+        try
+        {
+            Click(window, "DemoItem"); await Idle(window);
+            Blocks(window)[0].Text = "typed but not saved";
+            await Task.Delay(20); Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+            Assert.Contains("Unsaved changes", Status(window));
+
+            UiDriver.Press(Button(window, "DiscardButton")); Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+            var dialog = Assert.Single(window.OwnedWindows); Assert.Equal("Discard unsaved changes?", dialog.Title);
+            dialog.Close(false); Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+            Assert.Equal("typed but not saved", Blocks(window)[0].Text);
+            Assert.Contains("Unsaved changes", Status(window));
+
+            Discard(window);
+            Assert.Contains("Saved · revision 1", Status(window));
+            Assert.DoesNotContain("typed but not saved", Blocks(window)[0].Text);
+            Assert.False(Button(window, "DiscardButton").IsEnabled);
+        }
+        finally { foreach (var owned in window.OwnedWindows.ToArray()) owned.Close(false); Discard(window); window.Close(); }
     }
 
     [AvaloniaFact] public void Themes_and_reduced_motion_affect_real_controls_and_template_parts()
@@ -527,9 +554,9 @@ public sealed class UiTests
             window.GetVisualDescendants().OfType<TextBox>().First(t => t.Classes.Contains("transcript")).Text = "Unsaved draft 👩🏽‍💻";
             await Task.Delay(20); Click(window, "ExportTextItem"); await Idle(window);
             Assert.Contains("UNSAVED DRAFT", File.ReadAllText(output)); Assert.Contains("Unsaved draft 👩🏽‍💻", File.ReadAllText(output));
-            Assert.True(Button(window, "SaveButton").IsEnabled); Click(window, "DiscardButton");
+            Assert.True(Button(window, "SaveButton").IsEnabled); Discard(window);
         }
-        finally { Click(window, "DiscardButton"); window.Close(); }
+        finally { Discard(window); window.Close(); }
         using var store = ProjectStore.Open(folder.Project); Assert.Equal(1, store.Read().Revision); Assert.DoesNotContain("Unsaved draft", store.Read().Blocks[0].Text);
     }
 }

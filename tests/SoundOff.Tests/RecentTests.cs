@@ -51,6 +51,7 @@ public sealed class RecentTests
         public Task<string?> ExportTextAsync(bool isDraft) => Task.FromResult<string?>(null);
     }
     private static void Click(MainWindow window, string name) => UiDriver.Click(window, name);
+    private static void Discard(MainWindow window) => UiDriver.Discard(window);
     private static string Status(MainWindow window) => window.FindControl<TextBlock>("StatusText")!.Text ?? "";
     private static StackPanel[] Rows(MainWindow window) => window.FindControl<StackPanel>("RecentHost")!.Children.OfType<StackPanel>().Where(p => p.Classes.Contains("recent")).ToArray();
     private static Button RowButton(StackPanel row, string label) => row.GetVisualDescendants().OfType<Button>().Single(b => (string?)b.Content == label);
@@ -94,9 +95,9 @@ public sealed class RecentTests
             var dialog = Assert.Single(window.OwnedWindows); Assert.Equal("Discard unsaved changes?", dialog.Title);
             dialog.GetVisualDescendants().OfType<Button>().Single(b => b.IsCancel).RaiseEvent(new RoutedEventArgs(Avalonia.Controls.Button.ClickEvent));
             await Idle(window); Assert.Equal("dirty", window.GetVisualDescendants().OfType<TextBox>().Single(t => t.Classes.Contains("title")).Text);
-            Click(window, "DiscardButton");
+            Discard(window);
         }
-        finally { foreach (var owned in window.OwnedWindows.ToArray()) owned.Close(false); Click(window, "DiscardButton"); window.Close(); }
+        finally { foreach (var owned in window.OwnedWindows.ToArray()) owned.Close(false); Discard(window); window.Close(); }
         File.Delete(second); File.Delete(second + ".writer.lock");
         window = new MainWindow(new Picker(folder.Project), folder.Settings); window.Show();
         try

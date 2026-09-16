@@ -69,7 +69,14 @@ public sealed partial class MainWindow : Window
         save.Click += async (_, _) => await GuardAsync(() => { Save(); return Task.CompletedTask; });
         undo.Click += async (_, _) => await GuardAsync(() => { snapshot = store!.Undo(snapshot!.Revision); Render(); SavedStatus(); return Task.CompletedTask; });
         redo.Click += async (_, _) => await GuardAsync(() => { snapshot = store!.Redo(snapshot!.Revision); Render(); SavedStatus(); return Task.CompletedTask; });
-        discard.Click += (_, _) => { Render(); SavedStatus(); };
+        // Discard is the one destructive top-bar action and had no confirmation at all, while every other
+        // path that loses a draft (open, apply, restore, close) asks. It asks now too.
+        discard.Click += async (_, _) => await GuardAsync(async () =>
+        {
+            if (!dirty || await ConfirmAsync("Discard unsaved changes?",
+                "Your changes are thrown away and the last saved revision comes back. Saved revisions stay on disk.", "Discard"))
+            { Render(); SavedStatus(); }
+        });
         export.Click += async (_, _) => await GuardAsync(ExportAsync);
         copy.Click += async (_, _) => await GuardAsync(CopyAsync);
         this.FindControl<Button>("HelpButton")!.Click += (_, _) => ShowHelp();

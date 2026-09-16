@@ -48,6 +48,7 @@ public sealed class SearchTests
         public Task<string?> ExportTextAsync(bool isDraft) => Task.FromResult<string?>(export);
     }
     private static void Click(MainWindow window, string name) => UiDriver.Click(window, name);
+    private static void Discard(MainWindow window) => UiDriver.Discard(window);
     private static string FindStatus(MainWindow window) => window.FindControl<TextBlock>("FindStatus")!.Text ?? "";
     private static TextBox[] Blocks(MainWindow window) => window.GetVisualDescendants().OfType<TextBox>().Where(t => t.Classes.Contains("transcript")).ToArray();
     private static async Task Idle(MainWindow window)
@@ -97,7 +98,7 @@ public sealed class SearchTests
             Assert.StartsWith("Replaced one occurrence in the draft. Match 2 of 2 · paragraph 3.", FindStatus(window));
             Assert.Contains("authored SYNTHETIC 👩🏽‍💻 example", Blocks(window)[0].Text);
             Assert.True(window.FindControl<Button>("SaveButton")!.IsEnabled);
-            Click(window, "DiscardButton"); Assert.Contains("authored synthetic example", Blocks(window)[0].Text);
+            Discard(window); Assert.Contains("authored synthetic example", Blocks(window)[0].Text);
             window.FindControl<TextBox>("FindInput")!.Text = "KUMUSTA"; window.FindControl<TextBox>("ReplaceInput")!.Text = "Hello";
             Click(window, "ReplaceAllButton");
             Assert.StartsWith("Replaced 1 occurrence(s) in 1 paragraph(s)", FindStatus(window));
@@ -105,7 +106,7 @@ public sealed class SearchTests
             Click(window, "ReplaceAllButton"); Assert.Equal("No matches in the draft.", FindStatus(window));
             Click(window, "SaveButton"); await Idle(window);
         }
-        finally { Click(window, "DiscardButton"); window.Close(); }
+        finally { Discard(window); window.Close(); }
         using var store = ProjectStore.Open(folder.Project); var saved = store.Read();
         Assert.Equal(2, saved.Revision); Assert.StartsWith("Hello! Halimbawang", saved.Blocks[1].Text); Assert.Contains("authored synthetic example", saved.Blocks[0].Text);
         Assert.Null(saved.Blocks[1].Timing); Assert.True(saved.Blocks[1].ManuallyEdited);

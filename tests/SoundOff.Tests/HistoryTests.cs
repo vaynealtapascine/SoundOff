@@ -45,6 +45,7 @@ public sealed class HistoryTests
         public Task<string?> ExportTextAsync(bool isDraft) => Task.FromResult<string?>(null);
     }
     private static void Click(MainWindow window, string name) => UiDriver.Click(window, name);
+    private static void Discard(MainWindow window) => UiDriver.Discard(window);
     private static string Status(MainWindow window) => window.FindControl<TextBlock>("StatusText")!.Text ?? "";
     private static Grid[] Rows(MainWindow window) => window.FindControl<StackPanel>("HistoryHost")!.Children.OfType<Grid>().Where(g => g.Classes.Contains("revision")).ToArray();
     private static string RowText(Grid row) => row.Children.OfType<TextBlock>().Single().Text ?? "";
@@ -84,9 +85,9 @@ public sealed class HistoryTests
             await Idle(window);
             Assert.Contains("Unsaved changes · based on revision 4", Status(window)); Assert.Equal("unsaved", window.FindControl<StackPanel>("SpeakerHost")!.GetVisualDescendants().OfType<TextBox>().First().Text);
             Assert.True(window.FindControl<Button>("SaveButton")!.IsEnabled);
-            Click(window, "DiscardButton");
+            Discard(window);
         }
-        finally { foreach (var owned in window.OwnedWindows.ToArray()) owned.Close(false); Click(window, "DiscardButton"); window.Close(); }
+        finally { foreach (var owned in window.OwnedWindows.ToArray()) owned.Close(false); Discard(window); window.Close(); }
         using var store = ProjectStore.Open(folder.Project); Assert.Equal(4, store.Read().Revision); Assert.Equal(5, store.History().Count);
     }
 }

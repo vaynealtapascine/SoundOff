@@ -40,6 +40,7 @@ public sealed class VideoPreviewUiTests
         public Task<string?> ExportTextAsync(bool isDraft) => Task.FromResult<string?>(null);
     }
     private static void Click(MainWindow w, string name) => UiDriver.Click(w, name);
+    private static void Discard(MainWindow w) => UiDriver.Discard(w);
     private static async Task PumpUntil(Func<bool> predicate) => await VideoFixtures.WaitAsync(() => { Dispatcher.UIThread.RunJobs(); return predicate(); });
     private static async Task PrepareAsync(TestDirectory folder)
     {
@@ -120,7 +121,7 @@ public sealed class VideoPreviewUiTests
             var input = window.GetVisualDescendants().OfType<TextBox>().First(b => b.Classes.Contains("transcript"));
             input.Text = "An editable transcript despite missing video tools."; Dispatcher.UIThread.RunJobs();
             Assert.True(window.FindControl<Button>("SaveButton")!.IsEnabled);
-            Click(window, "DiscardButton");
+            Discard(window);
             var toggle = window.FindControl<ToggleButton>("VideoPreviewToggle")!;
             toggle.IsChecked = false; toggle.IsChecked = true;
             await PumpUntil(() => window.FindControl<TextBlock>("VideoPreviewStatus")!.Text!.Contains("SOUNDOFF_FFMPEG_DIR"));

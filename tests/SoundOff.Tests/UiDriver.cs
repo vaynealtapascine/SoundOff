@@ -11,6 +11,17 @@ internal static class UiDriver
     public static void Press(Control control) =>
         control.RaiseEvent(new RoutedEventArgs(control is MenuItem ? MenuItem.ClickEvent : Button.ClickEvent));
     public static void Click(Window window, string name) => Press(window.FindControl<Control>(name)!);
+
+    // Discard asks before throwing a draft away, the same as every other path that loses one, so a test that
+    // discards has to answer the question. Pressing it with no draft opens nothing and this still works.
+    public static void Discard(Window window)
+    {
+        Press(window.FindControl<Control>("DiscardButton")!);
+        Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+        foreach (var dialog in window.OwnedWindows.ToArray())
+            if (dialog.Title == "Discard unsaved changes?") dialog.Close(true);
+        Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+    }
     public static Control Named(Window window, string name) => window.FindControl<Control>(name)!;
     public static MenuItem Item(Window window, string name) => window.FindControl<MenuItem>(name)!;
 

@@ -51,6 +51,7 @@ public sealed class PlaybackUiTests
     private static string Clip => Path.Combine(AppContext.BaseDirectory, "fixtures", "tts-english.wav");
     private static Button Button(MainWindow w, string name) => w.FindControl<Button>(name)!;
     private static void Click(MainWindow w, string name) => UiDriver.Click(w, name);
+    private static void Discard(MainWindow w) => UiDriver.Discard(w);
     private static void Press(Button b) => b.RaiseEvent(new RoutedEventArgs(Avalonia.Controls.Button.ClickEvent));
     private static Border[] Cards(MainWindow w) => w.GetVisualDescendants().OfType<Border>().Where(b => b.Classes.Contains("card")).ToArray();
     private static Border[] Playing(MainWindow w) => Cards(w).Where(b => b.Classes.Contains("playing")).ToArray();
@@ -196,8 +197,8 @@ public sealed class PlaybackUiTests
             Blocks(window)[0].Text = "edited again";
             Dispatcher.UIThread.RunJobs();
             Assert.Contains("Follow paused", Playback(window));
-            Click(window, "DiscardButton");
+            Discard(window);
         }
-        finally { Click(window, "DiscardButton"); window.Close(); }
+        finally { Discard(window); window.Close(); }
     }
 }
