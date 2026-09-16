@@ -8,42 +8,58 @@ namespace SoundOff.Desktop;
 
 public sealed partial class MainWindow
 {
-    private sealed record Section(Control Heading, ToggleButton Toggle, Control Details, TextBox Input, Control Ribbon, TextBlock Preview, ToggleButton DetailsToggle);
+    private sealed record Section(int Ordinal, ToggleButton Toggle, Control Details, TextBox Input, Control Ribbon, TextBlock Preview);
     private readonly Dictionary<Guid, Section> sections = [];
     private readonly HashSet<Guid> collapsedSections = [];
 
     private void ConfigureSection(Guid id, int ordinal, string speaker, StackPanel group, WrapPanel details, TextBox input, Control ribbon)
     {
         foreach (var child in details.Children) child.Margin = new Thickness(0, 0, 6, 6);
-        var heading = new Grid { ColumnDefinitions = new ColumnDefinitions("*,Auto") };
-        var toggle = new ToggleButton { Content = $"{ordinal} · {speaker}", IsChecked = !collapsedSections.Contains(id), HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Stretch, HorizontalContentAlignment = Avalonia.Layout.HorizontalAlignment.Left };
-        AutomationProperties.SetName(toggle, $"Expand paragraph {ordinal}");
-        var detailToggle = new ToggleButton { Content = "Details", Margin = new Thickness(8, 0, 0, 0) };
-        AutomationProperties.SetName(detailToggle, $"Show speaker and timing for paragraph {ordinal}");
-        heading.Children.Add(toggle); Grid.SetColumn(detailToggle, 1); heading.Children.Add(detailToggle);
-        var preview = new TextBlock { Text = input.Text, MaxLines = 1, TextTrimming = TextTrimming.CharacterEllipsis, Classes = { "muted" } };
-        group.Children.Insert(0, heading); group.Children.Add(preview);
-        var section = new Section(heading, toggle, details, input, ribbon, preview, detailToggle);
+        var preview = new TextBlock { Text = input.Text, MaxLines = 2, TextWrapping = TextWrapping.Wrap, TextTrimming = TextTrimming.CharacterEllipsis, FontSize = 17 };
+        var toggle = new ToggleButton
+        {
+            IsChecked = !collapsedSections.Contains(id),
+            HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Stretch,
+            HorizontalContentAlignment = Avalonia.Layout.HorizontalAlignment.Left,
+            Classes = { "section-toggle" }
+        };
+        group.Children.Insert(0, toggle);
+        var section = new Section(ordinal, toggle, details, input, ribbon, preview);
         sections.Add(id, section);
-        input.PropertyChanged += (_, e) => { if (e.Property == TextBox.TextProperty) preview.Text = input.Text; };
+        input.PropertyChanged += (_, e) =>
+        {
+            if (e.Property == TextBox.TextProperty)
+            {
+                preview.Text = string.IsNullOrWhiteSpace(input.Text) ? "Empty paragraph — click to edit" : input.Text;
+                UpdateSectionName(section);
+            }
+        };
         toggle.IsCheckedChanged += (_, _) =>
         {
             if (toggle.IsChecked == true) collapsedSections.Remove(id); else collapsedSections.Add(id);
             ApplySection(section);
         };
-        detailToggle.IsCheckedChanged += (_, _) => ApplySection(section);
+    }
+
+    private static void UpdateSectionName(Section section)
+    {
+        var expanded = section.Toggle.IsChecked == true;
+        AutomationProperties.SetName(section.Toggle, expanded
+            ? $"Collapse paragraph {section.Ordinal}"
+            : $"Expand paragraph {section.Ordinal}: {section.Preview.Text}");
+        ToolTip.SetTip(section.Toggle, expanded ? "Collapse this paragraph" : "Edit paragraph, speaker and timestamps");
     }
 
     private void ApplySection(Section section)
     {
         var expanded = DocumentView || section.Toggle.IsChecked == true;
-        section.Heading.IsVisible = !DocumentView;
+        section.Toggle.IsVisible = !DocumentView;
         section.Input.IsVisible = expanded;
         section.Ribbon.IsVisible = expanded && !DocumentView;
-        section.Details.IsVisible = expanded && !DocumentView && section.DetailsToggle.IsChecked == true;
-        section.Preview.IsVisible = !expanded;
-        section.DetailsToggle.IsVisible = expanded;
-        ToolTip.SetTip(section.Toggle, expanded ? "Collapse this paragraph" : "Expand this paragraph");
+        section.Details.IsVisible = expanded && !DocumentView;
+        section.Preview.Text = string.IsNullOrWhiteSpace(section.Input.Text) ? "Empty paragraph — click to edit" : section.Input.Text;
+        section.Toggle.Content = expanded ? $"⌃ Collapse paragraph {section.Ordinal}" : section.Preview;
+        UpdateSectionName(section);
     }
 
     private void SetAllSections(bool expanded)

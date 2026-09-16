@@ -1,3 +1,6 @@
+using Avalonia;
+using Avalonia.Headless;
+using Avalonia.Input;
 using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
 using Avalonia.Threading;
@@ -48,6 +51,20 @@ public sealed class DocumentViewTests
             choice.SelectedIndex = 1; choice.SelectedIndex = 0;
             Assert.Equal("Edited words 👋", input.Text); Assert.Equal(2, input.SelectionStart); Assert.Equal(8, input.SelectionEnd);
             choice.SelectedIndex = 1;
+            UiDriver.Click(window, "CollapseSectionsButton"); Assert.False(input.IsVisible);
+            var section = window.GetVisualDescendants().OfType<Avalonia.Controls.Primitives.ToggleButton>().First(t => t.Classes.Contains("section-toggle"));
+            Assert.Equal("Edited words 👋", Assert.IsType<TextBlock>(section.Content).Text);
+            var timing = window.GetVisualDescendants().OfType<TextBox>().First(t => t.Classes.Contains("timing"));
+            Assert.False(timing.IsEffectivelyVisible);
+            section.BringIntoView(); window.UpdateLayout(); Dispatcher.UIThread.RunJobs();
+            var clickPoint = section.TranslatePoint(new Point(section.Bounds.Width / 2, section.Bounds.Height / 2), window)!.Value;
+            window.MouseDown(clickPoint, MouseButton.Left);
+            window.MouseUp(clickPoint, MouseButton.Left);
+            Dispatcher.UIThread.RunJobs();
+            Assert.True(input.IsVisible);
+            Assert.True(timing.IsEffectivelyVisible);
+            var speaker = window.GetVisualDescendants().OfType<ComboBox>().First(t => Avalonia.Automation.AutomationProperties.GetName(t) == "Speaker for paragraph 1");
+            Assert.True(speaker.IsEffectivelyVisible);
             UiDriver.Click(window, "CollapseSectionsButton"); Assert.False(input.IsVisible);
             choice.SelectedIndex = 0; Assert.True(input.IsVisible);
             choice.SelectedIndex = 1; Assert.False(input.IsVisible);
