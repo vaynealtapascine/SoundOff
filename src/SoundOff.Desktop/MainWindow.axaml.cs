@@ -320,7 +320,7 @@ public sealed partial class MainWindow : Window
 
     private void Render()
     {
-        rendering = true; dirty = false; titleInput = null; documentHost.Children.Clear(); speakerHost.Children.Clear();
+        rendering = true; dirty = false; sections.Clear(); titleInput = null; documentHost.Children.Clear(); speakerHost.Children.Clear();
         speakerInputs.Clear(); blockInputs.Clear(); blockSpeakerInputs.Clear(); blockTimingInputs.Clear(); blockCards.Clear(); blockRibbons.Clear(); reviewHeaders.Clear();
         path.Text = store?.PathName ?? "";
         ToolTip.SetTip(path, store?.PathName);
@@ -363,7 +363,7 @@ public sealed partial class MainWindow : Window
                 var block = snapshot.Blocks[index]; var id = block.Id; var ordinal = index + 1;
                 var name = snapshot.Speakers.Single(s => s.Id == block.SpeakerId).Name;
                 var group = new StackPanel { Spacing = 8 };
-                var header = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,Auto,Auto,Auto,*,Auto"), ColumnSpacing = 6 };
+                var header = new WrapPanel { Orientation = Orientation.Horizontal };
                 var choice = new ComboBox { ItemsSource = names, SelectedIndex = snapshot.Speakers.IndexOf(snapshot.Speakers.Single(s => s.Id == block.SpeakerId)), MinWidth = 170 };
                 AutomationProperties.SetName(choice, $"Speaker for paragraph {ordinal}"); choice.SelectionChanged += (_, _) => RecomputeDraft();
                 blockSpeakerInputs.Add(id, choice); header.Children.Add(choice);
@@ -397,7 +397,9 @@ public sealed partial class MainWindow : Window
                 // Filled only while this paragraph is the active one, so a long document never builds thousands of word buttons.
                 var ribbon = new WrapPanel { Orientation = Orientation.Horizontal }; ribbon.Classes.Add("ribbon");
                 blockRibbons.Add(id, ribbon); group.Children.Add(ribbon);
-                var card = new Border { Child = group }; card.Classes.Add("card"); blockCards.Add(id, card); documentHost.Children.Add(card);
+                var card = new Border { Child = group }; card.Classes.Add("card"); blockCards.Add(id, card);
+                ConfigureSection(id, ordinal, name, group, header, input, ribbon);
+                documentHost.Children.Add(card);
             }
             if (snapshot.Blocks.Length == 0) documentHost.Children.Add(new TextBlock { Text = "Every paragraph was deleted. Undo restores them.", Classes = { "muted" } });
             var add = Action("+ Add paragraph", "Add paragraph at end",

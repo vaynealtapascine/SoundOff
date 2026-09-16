@@ -68,6 +68,7 @@ public sealed partial class MainWindow
         else if (lastFind is { } previous && previous.Paragraph < boxes.Count) (paragraph, offset) = (previous.Paragraph, previous.Offset + previous.Length);
         var index = TextSearch.Next(matches, paragraph, offset); var match = matches[index];
         var box = boxes[match.Paragraph];
+        RevealSection(snapshot!.Blocks[match.Paragraph].Id);
         box.Focus(); box.CaretIndex = match.Offset + query.Length; box.SelectionStart = match.Offset; box.SelectionEnd = match.Offset + query.Length;
         box.BringIntoView();
         lastFind = (match.Paragraph, match.Offset, query.Length);

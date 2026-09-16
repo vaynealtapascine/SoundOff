@@ -21,6 +21,8 @@ public sealed partial class MainWindow
         exportDocument.Click += async (_, _) => await GuardAsync(() => ExportAsync(true));
         copyDocument.Click += async (_, _) => await GuardAsync(() => CopyAsync(true));
         viewChoice.SelectionChanged += (_, _) => ApplyDocumentView();
+        this.FindControl<Button>("CollapseSectionsButton")!.Click += (_, _) => SetAllSections(false);
+        this.FindControl<Button>("ExpandSectionsButton")!.Click += (_, _) => SetAllSections(true);
         var scroll = this.FindControl<ScrollViewer>("TranscriptScroll")!;
         scroll.AddHandler(PointerWheelChangedEvent, (_, _) => SuspendFollow(), Avalonia.Interactivity.RoutingStrategies.Tunnel);
         scroll.AddHandler(PointerPressedEvent, (_, _) => SuspendFollow(), Avalonia.Interactivity.RoutingStrategies.Tunnel);
@@ -41,5 +43,8 @@ public sealed partial class MainWindow
         foreach (var ribbon in blockRibbons.Values) ribbon.IsVisible = !document;
         foreach (var card in blockCards.Values) card.Classes.Set("document", document);
         foreach (var input in blockInputs.Values) input.Classes.Set("document", document);
+        this.FindControl<Control>("CollapseSectionsButton")!.IsVisible = !document;
+        this.FindControl<Control>("ExpandSectionsButton")!.IsVisible = !document;
+        foreach (var section in sections.Values) ApplySection(section);
     }
 }

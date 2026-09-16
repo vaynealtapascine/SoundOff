@@ -47,6 +47,16 @@ public sealed class DocumentViewTests
             input.Text = "Edited words 👋"; input.SelectionStart = 2; input.SelectionEnd = 8;
             choice.SelectedIndex = 1; choice.SelectedIndex = 0;
             Assert.Equal("Edited words 👋", input.Text); Assert.Equal(2, input.SelectionStart); Assert.Equal(8, input.SelectionEnd);
+            choice.SelectedIndex = 1;
+            UiDriver.Click(window, "CollapseSectionsButton"); Assert.False(input.IsVisible);
+            choice.SelectedIndex = 0; Assert.True(input.IsVisible);
+            choice.SelectedIndex = 1; Assert.False(input.IsVisible);
+            UiDriver.Click(window, "ExpandSectionsButton"); Assert.True(input.IsVisible);
+            UiDriver.Click(window, "CollapseSectionsButton");
+            window.FindControl<TextBox>("FindInput")!.Text = "Edited words";
+            UiDriver.Click(window, "FindNextButton"); Assert.True(input.IsVisible);
+            Assert.Equal("Edited words 👋", input.Text);
+            choice.SelectedIndex = 0;
             Assert.True(window.FindControl<Button>("SaveButton")!.IsEnabled);
             UiDriver.Click(window, "ExportDocumentItem"); await Task.Delay(50);
             Assert.Contains("Edited words 👋", File.ReadAllText(output)); Assert.Contains("UNSAVED DRAFT", File.ReadAllText(output));
