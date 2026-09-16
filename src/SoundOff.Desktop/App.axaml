@@ -498,6 +498,41 @@
     <Style Selector="Ellipse.state.working"><Setter Property="Fill" Value="{DynamicResource AccentHoverBrush}" /></Style>
     <Style Selector="Ellipse.state.failed"><Setter Property="Fill" Value="{DynamicResource DangerBrush}" /></Style>
 
+    <!-- Content-led editing: transparent at rest, explicit hover/focus cues. Scoped to the transcript. -->
+    <Style Selector="StackPanel#DocumentHost TextBox, StackPanel#DocumentHost ComboBox">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderBrush" Value="Transparent" />
+    </Style>
+    <Style Selector="StackPanel#DocumentHost TextBox:pointerover, StackPanel#DocumentHost ComboBox:pointerover">
+      <Setter Property="Background" Value="{DynamicResource GhostHoverBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource MutedBrush}" />
+    </Style>
+    <Style Selector="StackPanel#DocumentHost TextBox:focus-within, StackPanel#DocumentHost ComboBox:focus-within">
+      <Setter Property="BorderBrush" Value="{DynamicResource FocusRingBrush}" />
+    </Style>
+    <Style Selector="ToggleButton.section-toggle">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderBrush" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="Padding" Value="8,6" />
+    </Style>
+    <Style Selector="ToggleButton.section-toggle /template/ ContentPresenter#PART_ContentPresenter,
+                     ToggleButton.section-toggle:checked /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderBrush" Value="Transparent" />
+      <Setter Property="TextElement.Foreground" Value="{DynamicResource TextBrush}" />
+      <Setter Property="TextElement.FontWeight" Value="Normal" />
+    </Style>
+    <Style Selector="ToggleButton.section-toggle:pointerover /template/ ContentPresenter#PART_ContentPresenter,
+                     ToggleButton.section-toggle:checked:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource GhostHoverBrush}" />
+      <Setter Property="BorderBrush" Value="Transparent" />
+    </Style>
+    <Style Selector="ToggleButton.section-toggle:focus-visible /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource GhostHoverBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource FocusRingBrush}" />
+    </Style>
+
     <!-- Include template parts: disabling only the outer Button misses Fluent transitions. -->
     <Style Selector="Window.reducedMotion :is(Control), Window.reducedMotion :is(TemplatedControl) /template/ :is(Control)">
       <Setter Property="Transitions" Value="{x:Null}" />

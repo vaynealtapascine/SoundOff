@@ -65,6 +65,16 @@ public sealed class DocumentViewTests
             Assert.True(timing.IsEffectivelyVisible);
             var speaker = window.GetVisualDescendants().OfType<ComboBox>().First(t => Avalonia.Automation.AutomationProperties.GetName(t) == "Speaker for paragraph 1");
             Assert.True(speaker.IsEffectivelyVisible);
+            window.MouseMove(new Point(0, 0));
+            foreach (var field in new Avalonia.Controls.Primitives.TemplatedControl[] { input, timing, speaker })
+            {
+                Assert.Equal(Avalonia.Media.Colors.Transparent, Assert.IsAssignableFrom<Avalonia.Media.ISolidColorBrush>(field.Background).Color);
+                Assert.Equal(Avalonia.Media.Colors.Transparent, Assert.IsAssignableFrom<Avalonia.Media.ISolidColorBrush>(field.BorderBrush).Color);
+            }
+            timing.Focus(); Dispatcher.UIThread.RunJobs();
+            Assert.NotEqual(Avalonia.Media.Colors.Transparent, Assert.IsAssignableFrom<Avalonia.Media.ISolidColorBrush>(timing.BorderBrush).Color);
+            var presenter = section.GetVisualDescendants().OfType<Avalonia.Controls.Presenters.ContentPresenter>().First(p => p.Name == "PART_ContentPresenter");
+            Assert.Equal(Avalonia.Media.Colors.Transparent, Assert.IsAssignableFrom<Avalonia.Media.ISolidColorBrush>(presenter.Background).Color);
             UiDriver.Click(window, "CollapseSectionsButton"); Assert.False(input.IsVisible);
             choice.SelectedIndex = 0; Assert.True(input.IsVisible);
             choice.SelectedIndex = 1; Assert.False(input.IsVisible);

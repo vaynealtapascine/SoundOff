@@ -96,8 +96,8 @@
               <ComboBoxItem>Document · just the words</ComboBoxItem>
               <ComboBoxItem>Review · audio and timing</ComboBoxItem>
             </ComboBox>
-            <Button x:Name="CollapseSectionsButton" Content="Collapse all" Margin="8,0,0,0" />
-            <Button x:Name="ExpandSectionsButton" Content="Expand all" Margin="6,0,0,0" />
+            <Button x:Name="CollapseSectionsButton" Classes="quiet" Content="Collapse all" Margin="8,0,0,0" />
+            <Button x:Name="ExpandSectionsButton" Classes="quiet" Content="Expand all" Margin="6,0,0,0" />
           </WrapPanel>
           <TextBlock x:Name="ViewHint" Classes="muted" TextWrapping="Wrap" />
         </StackPanel>
