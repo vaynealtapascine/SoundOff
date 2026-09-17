@@ -90,7 +90,9 @@
           </Border>
           <TextBlock x:Name="VideoPreviewStatus" TextWrapping="Wrap" Classes="muted" />
         </StackPanel>
-        <StackPanel x:Name="ViewBar" Grid.Row="3" Spacing="6" Margin="0,0,0,12" IsVisible="False">
+        <!-- Same 800px measure and 28px text inset as the document below it, so the view controls line up
+             with the title and paragraphs rather than with the invisible column edge. -->
+        <Border x:Name="ViewBar" Grid.Row="3" MaxWidth="800" Padding="28,0,0,0" Margin="0,0,0,12" IsVisible="False">
           <WrapPanel Orientation="Horizontal">
             <ComboBox x:Name="ViewChoice" SelectedIndex="0" MinWidth="150" ToolTip.Tip="Document keeps the words in focus. Timings shows speakers and timing. Switching preserves your edits." AutomationProperties.Name="Transcript view">
               <ComboBoxItem>Document</ComboBoxItem>
@@ -99,8 +101,7 @@
             <Button x:Name="CollapseSectionsButton" Classes="quiet" Content="Collapse all" Margin="8,0,0,0" />
             <Button x:Name="ExpandSectionsButton" Classes="quiet" Content="Expand all" Margin="6,0,0,0" />
           </WrapPanel>
-          <TextBlock x:Name="ViewHint" Classes="muted" TextWrapping="Wrap" IsVisible="False" />
-        </StackPanel>
+        </Border>
 
         <ScrollViewer x:Name="TranscriptScroll" Grid.Row="4" HorizontalScrollBarVisibility="Disabled">
           <StackPanel x:Name="DocumentHost" Spacing="14" MaxWidth="800" HorizontalAlignment="Stretch" Margin="0,12,0,32" />

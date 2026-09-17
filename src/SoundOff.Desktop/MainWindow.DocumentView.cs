@@ -34,9 +34,6 @@ public sealed partial class MainWindow
         var document = DocumentView;
         // Keep the user's chosen audio zoom when switching text views.
         this.FindControl<Control>("ViewBar")!.IsVisible = snapshot is not null && snapshot.Provenance != Provenance.Empty;
-        this.FindControl<TextBlock>("ViewHint")!.Text = document
-            ? "Edit the words, then Export → Document. Timings shows speakers and timing; switching keeps your changes."
-            : "Listen and check each passage. Timing is optional; Document hides it without deleting it.";
         documentHost.Classes.Set("document", document);
         documentHost.Spacing = document ? 0 : 14;
         foreach (var header in reviewHeaders) header.IsVisible = !document;

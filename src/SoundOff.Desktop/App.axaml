@@ -413,6 +413,15 @@
     <Style Selector="StackPanel#DocumentHost TextBox:focus-within, StackPanel#DocumentHost ComboBox:focus-within">
       <Setter Property="BorderBrush" Value="{DynamicResource FocusRingBrush}" />
     </Style>
+    <!-- Direct children sit on the same 28px text column as the title, badge and paragraph text;
+         a quiet button's own 12px padding makes up the rest of its offset. -->
+    <Style Selector="StackPanel#DocumentHost > Button">
+      <Setter Property="Margin" Value="16,0,0,0" />
+      <Setter Property="HorizontalAlignment" Value="Left" />
+    </Style>
+    <Style Selector="StackPanel#DocumentHost > TextBlock">
+      <Setter Property="Margin" Value="28,0,0,0" />
+    </Style>
     <Style Selector="ToggleButton.section-toggle">
       <Setter Property="Background" Value="Transparent" />
       <Setter Property="BorderBrush" Value="Transparent" />
