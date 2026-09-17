@@ -12,13 +12,32 @@ Choose **Review · audio and timing** to listen and check passages:
 
 ## Audio waveform
 
-The strip directly above the transcript uses peaks read from the playback WAV or proxy, not placeholder graphics. Long recordings initially show a playback-following 30-second window in either view; shorter clips fit within it. **+** halves the visible span, **−** doubles it, and **Fit** shows the whole recording. Scrolling over the waveform zooms gradually around the pointer. Zoom ranges down to a quarter-second span and survives switches between Document and Review. The main playback slider lets you navigate to a distant part of the recording.
+The strip beside the playback controls uses peaks read from the playback WAV or proxy, not placeholder graphics. Long recordings initially show a playback-following 30-second window in either view; shorter clips fit within it. **+** halves the visible span, **−** doubles it, and **Fit** shows the whole recording. Scrolling over the waveform zooms gradually around the pointer. Zoom ranges down to a quarter-second span and survives switches between Document and Review. The main playback slider lets you navigate to a distant part of the recording.
 
 Click or drag the waveform to seek without automatically starting playback. The existing slider remains the keyboard-accessible seeking alternative; zoom buttons are also keyboard accessible.
 
-Waveform analysis currently supports 16/32-bit PCM and 32-bit floating-point WAV data, **up to six hours**, at 60 peak buckets per second. Zoom does not add sample-level detail beyond that resolution. Unsupported data or analysis failures display an unavailable message without disabling playback. The entire supported recording is analyzed before its waveform appears. This is an amplitude waveform, not a spectrogram or a subtitle timing editor.
+Waveform analysis supports 16/32-bit PCM and 32-bit floating-point WAV data, **up to six hours** (sample rates up to 192 kHz, up to 64 channels). The overview retains 60 peak buckets per second. At spans of eight seconds or less, a background reader loads a bounded twelve-second window of actual per-frame channel minima and maxima. Rendering recomputes extrema for each display column at the current width and display scale; it does not stretch a bitmap or interpolate invented samples. Channel extrema preserve opposite-polarity stereo rather than cancelling it. Detailed reads are cancelled on source changes, and failures leave the overview and playback available with a visible reason. The overview is analyzed before it appears. This is an amplitude waveform, not a spectrogram or a subtitle timing editor.
 
-## Verification
+## Current refinement and verification
+
+The workspace uses neutral paper/graphite surfaces, restrained teal actions, quieter secondary controls, 18 px transcript type with 29 px line spacing, and an 800 px reading measure. Waveform and playback now share the bottom transport. Document/Review explanations are in the view selector tooltip rather than repeated above the document. Provenance remains visible in words without a filled warning badge.
+
+The cleanup shares WAV format validation and sample decoding, consolidates duplicate style selectors, removes historical comments and ineffective Grid column assignments on WrapPanel children, and retains explicit failure/cancellation paths. This is a focused presentation/waveform audit, not a repository-wide proof against all failures.
+
+Verified in Release:
+
+- Forced locked restore and Release rebuild: success, zero warnings/errors.
+- Final suite: **336 passed, 0 failed, 0 skipped**, parsed from `artifacts/humanist-tests/final.trx`.
+- Focused waveform/document tests: **11 passed** in `focused-final.trx`.
+- Isolated actual-control render test: **1 passed**, `render-isolated.trx`. It draws a 250 ms 48 kHz fixture through `WaveformOverview.Render` at 500 and 1000 px, inspecting the generated rectangles for positive/negative impulses separated by silence. This verifies drawing geometry, not a raster screenshot or physical display scaling.
+- Desktop and worker self-tests passed; these are non-GUI fixture/storage checks.
+- A native dark editor was launched and captured using a disposable synthetic project. Native waveform zoom, light appearance, screen readers and six-hour performance were not visually/end-to-end verified in this pass. The test window was stopped afterward.
+
+A style-consolidation regression initially made a transcript speaker ComboBox opaque. Restoring base-before-context style ordering fixed it; the existing draft/view/transparent-field regression test and final full suite pass.
+
+The two refinement commits are separable by concern: sample-detail rendering, then workspace styling/docs. Revert newest-first for a complete rollback. No models, accounts or inference dependencies were added.
+
+## Earlier verification
 
 The final refinement build and automated suite ran in Debug: **332 passed, 0 failed, 0 skipped**, recorded in `artifacts/redesign-tests/final-refinements.trx` (local, not committed). Release rebuilding was blocked earlier by the running demo process locking its DLLs; the previous redesign's Release build had passed, but that is not a Release verification of these refinements.
 

@@ -13,7 +13,7 @@ public sealed partial class MainWindow
     private Grid workArea = null!;
     private Control sidebar = null!;
     private Ellipse stateDot = null!;
-    private const double SidebarWidth = 320, SidebarGap = 20;
+    private const double SidebarWidth = 320, SidebarGap = 24;
     // Set when an action failed, so the dot stays red until the next state change that is not a failure.
     private bool lastActionFailed;
 

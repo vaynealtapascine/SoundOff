@@ -7,7 +7,7 @@
     <Border Classes="topbar">
       <Grid ColumnDefinitions="*,Auto">
         <StackPanel Orientation="Horizontal" Spacing="6">
-          <Button x:Name="ProjectMenuButton" Content="Project" Classes="menu" AutomationProperties.Name="Project menu">
+          <Button x:Name="ProjectMenuButton" Content="Project" Classes="quiet" AutomationProperties.Name="Project menu">
             <Button.Flyout>
               <MenuFlyout Placement="BottomEdgeAlignedLeft">
                 <MenuItem x:Name="OpenProjectItem" Header="Open project…" />
@@ -20,7 +20,7 @@
               </MenuFlyout>
             </Button.Flyout>
           </Button>
-          <Button x:Name="ExportMenuButton" Content="Export" Classes="menu" AutomationProperties.Name="Export menu">
+          <Button x:Name="ExportMenuButton" Content="Export" Classes="quiet" AutomationProperties.Name="Export menu">
             <Button.Flyout>
               <MenuFlyout Placement="BottomEdgeAlignedLeft">
                 <MenuItem x:Name="ExportDocumentItem" Header="Document (.txt, no timestamps)…" />
@@ -34,8 +34,8 @@
             </Button.Flyout>
           </Button>
           <Border Classes="divider" />
-          <Button x:Name="UndoButton" Content="Undo" ToolTip.Tip="Undo (Ctrl+Z)" />
-          <Button x:Name="RedoButton" Content="Redo" ToolTip.Tip="Redo (Ctrl+Y)" />
+          <Button x:Name="UndoButton" Classes="quiet" Content="Undo" ToolTip.Tip="Undo (Ctrl+Z)" />
+          <Button x:Name="RedoButton" Classes="quiet" Content="Redo" ToolTip.Tip="Redo (Ctrl+Y)" />
           <Button x:Name="SaveButton" Content="Save" Classes="accent" ToolTip.Tip="Save (Ctrl+S)" />
           <Button x:Name="DiscardButton" Content="Discard" Classes="quiet" ToolTip.Tip="Discard unsaved changes" />
           <Border Classes="divider" />
@@ -65,9 +65,9 @@
       </Grid>
     </Border>
 
-    <Grid x:Name="WorkArea" Grid.Row="1" ColumnDefinitions="*,320" Margin="20,16,20,0" ColumnSpacing="20">
-      <Grid x:Name="ReviewArea" RowDefinitions="Auto,Auto,Auto,Auto,Auto,*">
-        <Border x:Name="FindBar" Classes="findbar" IsVisible="False" Margin="0,0,0,12" MaxWidth="880">
+    <Grid x:Name="WorkArea" Grid.Row="1" ColumnDefinitions="*,320" Margin="24,20,24,0" ColumnSpacing="24">
+      <Grid x:Name="ReviewArea" RowDefinitions="Auto,Auto,Auto,Auto,*">
+        <Border x:Name="FindBar" Classes="findbar" IsVisible="False" Margin="0,0,0,12" MaxWidth="800">
           <Grid ColumnDefinitions="*,*,Auto,Auto,Auto,Auto" ColumnSpacing="8" RowDefinitions="Auto,Auto">
             <TextBox x:Name="FindInput" Watermark="Find" AutomationProperties.Name="Find text" IsUndoEnabled="False" />
             <TextBox x:Name="ReplaceInput" Grid.Column="1" Watermark="Replace with" AutomationProperties.Name="Replace with" IsUndoEnabled="False" />
@@ -78,13 +78,13 @@
             <TextBlock x:Name="FindStatus" Grid.Row="1" Grid.ColumnSpan="6" Classes="muted" Margin="2,6,0,0" />
           </Grid>
         </Border>
-        <WrapPanel x:Name="VideoControls" Grid.Row="1" IsVisible="False" Orientation="Horizontal" Margin="0,0,0,8" MaxWidth="880">
+        <WrapPanel x:Name="VideoControls" Grid.Row="1" IsVisible="False" Orientation="Horizontal" Margin="0,0,0,8" MaxWidth="800">
           <ToggleButton x:Name="VideoPreviewToggle" Content="Hide video" IsChecked="True" Margin="0,0,12,0"
                         AutomationProperties.Name="Show or hide video preview (audio continues)" />
           <Slider x:Name="VideoSizeSlider" Minimum="120" Maximum="320" Value="200" SmallChange="20" LargeChange="40"
                   Width="120" ToolTip.Tip="Preview size" AutomationProperties.Name="Video preview height" />
         </WrapPanel>
-        <StackPanel x:Name="VideoPreviewPanel" Grid.Row="2" IsVisible="False" Spacing="4" Margin="0,0,0,12" MaxWidth="880">
+        <StackPanel x:Name="VideoPreviewPanel" Grid.Row="2" IsVisible="False" Spacing="4" Margin="0,0,0,12" MaxWidth="800">
           <Border x:Name="VideoSurface" Height="200" Background="Black" CornerRadius="6" ClipToBounds="True">
             <Image x:Name="VideoPreviewImage" Stretch="Uniform" AutomationProperties.Name="Imported video frame at the audio playhead" />
           </Border>
@@ -92,35 +92,20 @@
         </StackPanel>
         <StackPanel x:Name="ViewBar" Grid.Row="3" Spacing="6" Margin="0,0,0,12" IsVisible="False">
           <WrapPanel Orientation="Horizontal">
-            <ComboBox x:Name="ViewChoice" SelectedIndex="0" MinWidth="220" AutomationProperties.Name="Transcript view">
-              <ComboBoxItem>Document · just the words</ComboBoxItem>
-              <ComboBoxItem>Review · audio and timing</ComboBoxItem>
+            <ComboBox x:Name="ViewChoice" SelectedIndex="0" MinWidth="150" ToolTip.Tip="Document keeps the words in focus. Review adds speakers and timing. Switching preserves your edits." AutomationProperties.Name="Transcript view">
+              <ComboBoxItem>Document</ComboBoxItem>
+              <ComboBoxItem>Review</ComboBoxItem>
             </ComboBox>
             <Button x:Name="CollapseSectionsButton" Classes="quiet" Content="Collapse all" Margin="8,0,0,0" />
             <Button x:Name="ExpandSectionsButton" Classes="quiet" Content="Expand all" Margin="6,0,0,0" />
           </WrapPanel>
-          <TextBlock x:Name="ViewHint" Classes="muted" TextWrapping="Wrap" />
+          <TextBlock x:Name="ViewHint" Classes="muted" TextWrapping="Wrap" IsVisible="False" />
         </StackPanel>
-        <Border x:Name="WaveformHost" Classes="waveform" Grid.Row="4" IsVisible="False" Height="64" Margin="0,0,0,10" MaxWidth="880">
-          <Panel>
-            <controls:WaveformOverview x:Name="Waveform" Margin="0,0,100,0" AutomationProperties.Name="Recording waveform. Click to move the playhead"
-                                       ToolTip.Tip="Click or drag to move the playhead. Scroll on the strip or use the zoom buttons to change the time span shown." />
-            <TextBlock x:Name="WaveformStatus" Classes="muted" VerticalAlignment="Center" HorizontalAlignment="Center"
-                       TextAlignment="Center" TextWrapping="Wrap" Margin="8,0" IsVisible="False" />
-            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Top" Spacing="2" Margin="0,4,6,0">
-              <Button x:Name="ZoomInButton" Classes="quiet" Content="＋" Width="28" Height="26" MinHeight="0" Padding="0"
-                      ToolTip.Tip="Zoom in — also scroll on the waveform" AutomationProperties.Name="Zoom waveform in" />
-              <Button x:Name="ZoomOutButton" Classes="quiet" Content="－" Width="28" Height="26" MinHeight="0" Padding="0"
-                      ToolTip.Tip="Zoom out" AutomationProperties.Name="Zoom waveform out" />
-              <Button x:Name="FitWaveButton" Classes="quiet" Content="Fit" MinHeight="26" Height="26" Padding="8,0"
-                      ToolTip.Tip="Show the whole recording" AutomationProperties.Name="Fit the whole recording in the waveform" />
-            </StackPanel>
-          </Panel>
-        </Border>
-        <ScrollViewer x:Name="TranscriptScroll" Grid.Row="5" HorizontalScrollBarVisibility="Disabled">
-          <StackPanel x:Name="DocumentHost" Spacing="14" MaxWidth="880" HorizontalAlignment="Stretch" Margin="0,0,0,24" />
+
+        <ScrollViewer x:Name="TranscriptScroll" Grid.Row="4" HorizontalScrollBarVisibility="Disabled">
+          <StackPanel x:Name="DocumentHost" Spacing="14" MaxWidth="800" HorizontalAlignment="Stretch" Margin="0,12,0,32" />
         </ScrollViewer>
-        <ScrollViewer x:Name="StartScreen" Grid.Row="5" HorizontalScrollBarVisibility="Disabled">
+        <ScrollViewer x:Name="StartScreen" Grid.Row="4" HorizontalScrollBarVisibility="Disabled">
           <StackPanel MaxWidth="560" Spacing="28" Margin="0,44,0,24" HorizontalAlignment="Center">
             <StackPanel Spacing="10" HorizontalAlignment="Center">
               <Border Width="64" Height="64" CornerRadius="20" HorizontalAlignment="Center"
@@ -185,7 +170,7 @@
               </ComboBox>
             </Grid>
             <Grid ColumnDefinitions="*,Auto" ColumnSpacing="6">
-              <Button x:Name="TranscribeButton" Content="Transcribe" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" ToolTip.ShowOnDisabled="True" />
+              <Button x:Name="TranscribeButton" Classes="accent" Content="Transcribe" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" ToolTip.ShowOnDisabled="True" />
               <Button x:Name="CancelRunButton" Grid.Column="1" Content="Cancel" IsVisible="False" />
             </Grid>
             <ProgressBar x:Name="JobProgressBar" Minimum="0" Maximum="1" Height="4" IsVisible="False" AutomationProperties.Name="Job progress" />
@@ -210,13 +195,29 @@
 
     <Border Grid.Row="2" x:Name="TransportBar" Classes="transport" IsVisible="False">
       <StackPanel Spacing="4">
+        <Border x:Name="WaveformHost" Classes="waveform" IsVisible="False" Height="72" Margin="0,0,0,10">
+          <Panel>
+            <controls:WaveformOverview x:Name="Waveform" Margin="0,0,100,0" AutomationProperties.Name="Recording waveform. Click to move the playhead"
+                                       ToolTip.Tip="Click or drag to move the playhead. Scroll on the strip or use the zoom buttons to change the time span shown." />
+            <TextBlock x:Name="WaveformStatus" Classes="muted" VerticalAlignment="Center" HorizontalAlignment="Center"
+                       TextAlignment="Center" TextWrapping="Wrap" Margin="8,0" IsVisible="False" />
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Top" Spacing="2" Margin="0,4,6,0">
+              <Button x:Name="ZoomInButton" Classes="quiet" Content="＋" Width="28" Height="26" MinHeight="0" Padding="0"
+                      ToolTip.Tip="Zoom in — also scroll on the waveform" AutomationProperties.Name="Zoom waveform in" />
+              <Button x:Name="ZoomOutButton" Classes="quiet" Content="－" Width="28" Height="26" MinHeight="0" Padding="0"
+                      ToolTip.Tip="Zoom out" AutomationProperties.Name="Zoom waveform out" />
+              <Button x:Name="FitWaveButton" Classes="quiet" Content="Fit" MinHeight="26" Height="26" Padding="8,0"
+                      ToolTip.Tip="Show the whole recording" AutomationProperties.Name="Fit the whole recording in the waveform" />
+            </StackPanel>
+          </Panel>
+        </Border>
         <Grid ColumnDefinitions="Auto,Auto,Auto,*,Auto,Auto,Auto,Auto" ColumnSpacing="8">
-          <Button x:Name="SkipBackButton" Content="−5s" ToolTip.Tip="Back 5 seconds" AutomationProperties.Name="Skip back five seconds" />
+          <Button x:Name="SkipBackButton" Classes="quiet" Content="−5s" ToolTip.Tip="Back 5 seconds" AutomationProperties.Name="Skip back five seconds" />
           <Button x:Name="PlayPauseButton" Grid.Column="1" Classes="accent round" AutomationProperties.Name="Play" ToolTip.Tip="Play" />
-          <Button x:Name="SkipForwardButton" Grid.Column="2" Content="+5s" ToolTip.Tip="Forward 5 seconds" AutomationProperties.Name="Skip forward five seconds" />
+          <Button x:Name="SkipForwardButton" Classes="quiet" Grid.Column="2" Content="+5s" ToolTip.Tip="Forward 5 seconds" AutomationProperties.Name="Skip forward five seconds" />
           <Slider x:Name="PositionSlider" Grid.Column="3" Minimum="0" Maximum="1000" Value="0" VerticalAlignment="Center" AutomationProperties.Name="Playback position" />
           <TextBlock x:Name="PositionText" Grid.Column="4" VerticalAlignment="Center" MinWidth="96" />
-          <ToggleButton x:Name="FollowButton" Grid.Column="5" Content="Follow" IsChecked="True"
+          <ToggleButton x:Name="FollowButton" Classes="subtle" Grid.Column="5" Content="Follow" IsChecked="True"
                         ToolTip.Tip="Keep the playing paragraph in view" AutomationProperties.Name="Follow playback while it plays" />
           <PathIcon Grid.Column="6" Width="16" Height="16" VerticalAlignment="Center" Classes="volume" />
           <Slider x:Name="VolumeSlider" Grid.Column="7" Minimum="0" Maximum="1" Value="1" Width="96" VerticalAlignment="Center" AutomationProperties.Name="Volume" ToolTip.Tip="Volume" />

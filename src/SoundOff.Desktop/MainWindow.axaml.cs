@@ -374,12 +374,12 @@ public sealed partial class MainWindow : Window
                 ToolTip.SetTip(startBox, "h:mm:ss.ffffff · leave both blank for untimed"); ToolTip.SetTip(endBox, "h:mm:ss.ffffff · leave both blank for untimed");
                 startBox.PropertyChanged += OnDraftChanged; endBox.PropertyChanged += OnDraftChanged;
                 blockTimingInputs.Add(id, (startBox, endBox));
-                Grid.SetColumn(startBox, 1); header.Children.Add(startBox);
-                Grid.SetColumn(endBox, 2); header.Children.Add(endBox);
+                 header.Children.Add(startBox);
+                 header.Children.Add(endBox);
                 var go = Action("Go to", $"Go to paragraph {ordinal}", () => { SeekToBlock(id); return Task.CompletedTask; }, enabled: block.Timing is not null);
                 go.Classes.Add("quiet"); ToolTip.SetShowOnDisabled(go, true);
                 ToolTip.SetTip(go, block.Timing is null ? "This paragraph has no timing." : "Move the playhead here");
-                Grid.SetColumn(go, 3); header.Children.Add(go);
+                 header.Children.Add(go);
                 var more = new Button { Content = "⋯" }; more.Classes.Add("more");
                 AutomationProperties.SetName(more, $"More actions for paragraph {ordinal}"); ToolTip.SetTip(more, "Paragraph actions");
                 var input = new TextBox { Text = block.Text, AcceptsReturn = true, TextWrapping = TextWrapping.Wrap, MaxLength = DocumentRules.MaxBlockLength, IsUndoEnabled = false };
@@ -390,7 +390,7 @@ public sealed partial class MainWindow : Window
                 menu.Items.Add(new Separator());
                 menu.Items.Add(MenuAction("Delete paragraph", $"Delete paragraph {ordinal}", () => CommitStructuralAsync(new DeleteBlock(id))));
                 more.Flyout = menu;
-                Grid.SetColumn(more, 5); header.Children.Add(more);
+                 header.Children.Add(more);
                 reviewHeaders.Add(header); group.Children.Add(header);
                 input.Classes.Add("transcript"); AutomationProperties.SetName(input, "Transcript block by " + name);
                 input.PropertyChanged += OnDraftChanged; blockInputs.Add(id, input); group.Children.Add(input);
