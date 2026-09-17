@@ -3,6 +3,21 @@
 - Repository: `C:/Users/pcuser/source/repos/SoundOff`, branch `main`.
 - Scope: Windows development build, existing local WhisperX runtime/model pack, synthetic English TTS and video input, Windows playback, output-endpoint loopback, and combined microphone+system capture. This is not a release or completion of the architecture's acceptance matrix.
 
+## Interface audit (2026-09-18)
+
+A consistency pass over `App.axaml` and the window's layout. See [the view guide](ui-redesign.md#interface-audit-2026-09-18) for what changed and why.
+
+- `dotnet build SoundOff.sln -c Release`: passed, **zero warnings/errors**.
+- `dotnet test SoundOff.sln -c Release --no-build`: **341 passed, 0 failed, 0 skipped**, unchanged from the run below. No test was added or modified in this pass.
+- **The window was run and measured, not only tested.** The Release build was launched against a synthetic demo project and against a project holding the `moving-tts.mp4` fixture, with `SOUNDOFF_SETTINGS_PATH` redirected away from the real user's settings. Only SoundOff's own window was captured, by `PrintWindow` on its HWND rather than a desktop screenshot.
+- Left edges in the dark document view, before → after: view bar 24 → 96, `+ Add paragraph` 82 → 98, against title 98, provenance 97 and body text 100. Side-panel headings after: Audio 952, Transcribe 952, Speakers 952, History 953 (History was 1031).
+- Surfaces sampled after: History expander `#222524`, matching the Audio and Transcribe cards; it had been `#1C1E1D`, the canvas colour.
+- The failure state was exercised, not assumed: launching with a missing `.soundoff.sqlite` path produced "Operation failed. Project does not exist." rendered in the danger colour (sampled `#EE5D38` with subpixel antialiasing, against `#EE7E6D`) beside a red state dot.
+- Removing the shadowed style rules and unreferenced tokens was checked to be visually inert: a sampled pixel diff of the document view before and after differed only in the top bar and at `+ Add paragraph`, the two places this pass deliberately changed.
+- A misread screenshot claimed the light theme was half-dark. Sampling the pixels disproved it: light canvas `#F5F5F4`, cards `#FFFFFF`, chrome `#F0F1EF`, all correct. Colour claims in this section come from sampled pixels, not from looking at an image.
+
+**Not covered:** no screen-reader, keyboard-only or high-contrast pass on the changed controls. The chevrons added to Project/Export/Settings were checked visually but not with assistive technology. `Previous runs` header alignment was fixed through the same expander rule as History but was not photographed with a real run present. The removed tokens were unreferenced, so no contrast pair recorded below changed.
+
 ## Current editor and speaker operations (2026-09-17)
 
 Current mode labels are **Document** and **Timings**; **Tools** toggles the side panel. Waveform and playback share the bottom transport. Split/merge speaker corrections are available under each speaker's **⋯** menu. See [the view guide](ui-redesign.md) and [in-app help](HELP.md).

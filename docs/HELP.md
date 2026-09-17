@@ -18,7 +18,7 @@ SoundOff turns recordings into editable transcripts on this computer. Nothing is
 ## Editing and saving
 
 - Typing creates unsaved changes. **Save** (Ctrl+S) records them as a new revision; **Discard** throws them away and asks first, because undo cannot bring them back.
-- The dot at the left of the status bar is the state: saved, unsaved changes, working, or the last action failed.
+- The dot at the left of the status bar is the state: saved, unsaved changes, working, or the last action failed. When something fails, the message beside it turns red until the next action succeeds.
 - **Undo** (Ctrl+Z) and **Redo** (Ctrl+Y) step through saved revisions and still work after you reopen the project. They are unavailable while you have unsaved changes, so undo never silently throws away typing.
 - In Timings, each paragraph's **⋯** menu can split it at the cursor, merge it with the next one, insert a paragraph below or delete it. Each action saves your current changes together with the action as one revision.
 - **History** lists saved revisions, newest first. **Restore** brings an earlier one back as a new revision; nothing is rewritten or removed.

@@ -29,6 +29,22 @@ Click or drag the waveform to seek without automatically starting playback. The 
 
 Waveform analysis supports 16/32-bit PCM and 32-bit floating-point WAV data, **up to six hours** (sample rates up to 192 kHz, up to 64 channels). The overview retains 60 peak buckets per second. At spans of eight seconds or less, a background reader loads a bounded twelve-second window of actual per-frame channel minima and maxima. Rendering recomputes extrema for each display column at the current width and display scale; it does not stretch a bitmap or interpolate invented samples. Channel extrema preserve opposite-polarity stereo rather than cancelling it. Detailed reads are cancelled on source changes, and failures leave the overview and playback available with a visible reason. The overview is analyzed before it appears. This is an amplitude waveform, not a spectrogram or a subtitle timing editor.
 
+## Interface audit (2026-09-18)
+
+A pass over the stylesheet and the running window for consistency rather than new features. Nothing here changes what the app can do.
+
+- **One column in the transcript.** The document text sits 28 px inside the 800 px measure. The view selector was hugging the far left edge of the work area and **+ Add paragraph** fell 16 px short of the paragraph text, so three left edges were visible at once. All three now share the column; `DocumentHost`'s direct children inherit it from `App.axaml`.
+- **The retired view hint is gone.** When the Document/Timings explanation moved into the view selector's tooltip, its `TextBlock` was left permanently hidden while its text was still recomputed on every view switch.
+- **History looks like the cards beside it.** Fluent's `Expander` puts its header in a `ToggleButton`, so the generic button rules centred the heading, and the control's `Background` only ever reaches `Border#ExpanderContent`, which is hidden while collapsed. The panel showed three filled cards and one bare row. History is now wrapped in the same card `Border` its siblings use, and expander headers are left-aligned with no extra padding, which lines **Previous runs** up inside its card too.
+- **Failures are legible.** `GuardAsync` writes errors into the status `TextBlock`, which the status-bar styles render as muted 12 px — identical to "Saved · revision 7". The state dot was the only cue. The dot's state is now mirrored onto the text.
+- **Menus are marked.** Project, Export and Settings open flyouts but looked exactly like Undo, Redo and Help, which act immediately. A chevron now separates the two kinds.
+- **Two quieter corrections.** The video preview toggle is shown by default, so it takes the `subtle` treatment that Tools and Follow already use; the loud checked look stays for toggles where being on is the exception, such as Find. The start screen is centred rather than stranded at the top of an otherwise empty window.
+- **Dead style rules removed.** `Border.card.document` and `Border.card.playing` were declared before the base `Border.card` rule and its `DocumentHost`-scoped variants, so Avalonia's document-order cascade meant neither ever applied — the same base-before-context ordering trap recorded below. The `Notice*` and `DangerSurface`/`DangerBorder` tokens had no reference left once the provenance badge became plain muted text.
+
+`structural`, `revision`, `recent` and `run` look like unstyled classes but are test selectors (`UiDriver.Actions`, `HistoryTests`, `RecentTests`, `TranscribeUiTests`); they were left alone. So was the transparent-field treatment in the transcript, which `DocumentViewTests` asserts deliberately.
+
+Verification for this pass is in [VERIFICATION.md](VERIFICATION.md#interface-audit-2026-09-18).
+
 ## Workspace refinement and verification history
 
 The workspace uses neutral paper/graphite surfaces, restrained teal actions, quieter secondary controls, 18 px transcript type with 29 px line spacing, and an 800 px reading measure. Waveform and playback now share the bottom transport. Document/Timings explanations are in the view selector tooltip rather than repeated above the document. Provenance remains visible in words without a filled warning badge.
