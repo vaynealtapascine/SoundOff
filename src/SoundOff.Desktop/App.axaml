@@ -27,14 +27,8 @@
           <Color x:Key="FieldSurfaceColor">#FFFFFF</Color>
           <Color x:Key="FieldHoverColor">#F7F8F7</Color>
           <Color x:Key="TrackSurfaceColor">#E3E7E4</Color>
-          <Color x:Key="DangerSurfaceColor">#FDF0EE</Color>
-          <Color x:Key="DangerBorderColor">#EDC9C3</Color>
           <Color x:Key="FocusRingColor">#0B5D66</Color>
           <Color x:Key="ChromeColor">#F0F1EF</Color>
-
-          <Color x:Key="NoticeSurfaceColor">#FBEFD6</Color>
-          <Color x:Key="NoticeBorderColor">#E6D2A6</Color>
-          <Color x:Key="NoticeTextColor">#8A5A0B</Color>
 
           <Color x:Key="WordHoverColor">#ECEEEC</Color>
 
@@ -58,13 +52,8 @@
           <SolidColorBrush x:Key="FieldSurfaceBrush" Color="{StaticResource FieldSurfaceColor}" />
           <SolidColorBrush x:Key="FieldHoverBrush" Color="{StaticResource FieldHoverColor}" />
           <SolidColorBrush x:Key="TrackSurfaceBrush" Color="{StaticResource TrackSurfaceColor}" />
-          <SolidColorBrush x:Key="DangerSurfaceBrush" Color="{StaticResource DangerSurfaceColor}" />
-          <SolidColorBrush x:Key="DangerBorderBrush" Color="{StaticResource DangerBorderColor}" />
           <SolidColorBrush x:Key="FocusRingBrush" Color="{StaticResource FocusRingColor}" />
           <SolidColorBrush x:Key="ChromeBrush" Color="{StaticResource ChromeColor}" />
-          <SolidColorBrush x:Key="NoticeSurfaceBrush" Color="{StaticResource NoticeSurfaceColor}" />
-          <SolidColorBrush x:Key="NoticeBorderBrush" Color="{StaticResource NoticeBorderColor}" />
-          <SolidColorBrush x:Key="NoticeTextBrush" Color="{StaticResource NoticeTextColor}" />
           <SolidColorBrush x:Key="WordHoverBrush" Color="{StaticResource WordHoverColor}" />
         </ResourceDictionary>
 
@@ -90,14 +79,8 @@
           <Color x:Key="FieldSurfaceColor">#252A26</Color>
           <Color x:Key="FieldHoverColor">#2C332E</Color>
           <Color x:Key="TrackSurfaceColor">#363D38</Color>
-          <Color x:Key="DangerSurfaceColor">#301C19</Color>
-          <Color x:Key="DangerBorderColor">#4E2A24</Color>
           <Color x:Key="FocusRingColor">#38C3CC</Color>
           <Color x:Key="ChromeColor">#252A26</Color>
-
-          <Color x:Key="NoticeSurfaceColor">#33291A</Color>
-          <Color x:Key="NoticeBorderColor">#4B3B22</Color>
-          <Color x:Key="NoticeTextColor">#E3C68A</Color>
 
           <Color x:Key="WordHoverColor">#353D37</Color>
 
@@ -121,13 +104,8 @@
           <SolidColorBrush x:Key="FieldSurfaceBrush" Color="{StaticResource FieldSurfaceColor}" />
           <SolidColorBrush x:Key="FieldHoverBrush" Color="{StaticResource FieldHoverColor}" />
           <SolidColorBrush x:Key="TrackSurfaceBrush" Color="{StaticResource TrackSurfaceColor}" />
-          <SolidColorBrush x:Key="DangerSurfaceBrush" Color="{StaticResource DangerSurfaceColor}" />
-          <SolidColorBrush x:Key="DangerBorderBrush" Color="{StaticResource DangerBorderColor}" />
           <SolidColorBrush x:Key="FocusRingBrush" Color="{StaticResource FocusRingColor}" />
           <SolidColorBrush x:Key="ChromeBrush" Color="{StaticResource ChromeColor}" />
-          <SolidColorBrush x:Key="NoticeSurfaceBrush" Color="{StaticResource NoticeSurfaceColor}" />
-          <SolidColorBrush x:Key="NoticeBorderBrush" Color="{StaticResource NoticeBorderColor}" />
-          <SolidColorBrush x:Key="NoticeTextBrush" Color="{StaticResource NoticeTextColor}" />
           <SolidColorBrush x:Key="WordHoverBrush" Color="{StaticResource WordHoverColor}" />
         </ResourceDictionary>
       </ResourceDictionary.ThemeDictionaries>
@@ -333,10 +311,6 @@
       <Setter Property="Padding" Value="12,10" /><Setter Property="MinHeight" Value="64" />
     </Style>
 
-    <Style Selector="Border.card.document">
-      <Setter Property="CornerRadius" Value="0" /><Setter Property="Padding" Value="20,2" />
-      <Setter Property="BorderThickness" Value="2,0,0,0" /><Setter Property="BorderBrush" Value="Transparent" />
-    </Style>
     <Style Selector="TextBox.transcript.document">
       <Setter Property="Background" Value="Transparent" /><Setter Property="BorderBrush" Value="Transparent" />
       <Setter Property="MinHeight" Value="0" /><Setter Property="Padding" Value="8,10" />
@@ -381,10 +355,6 @@
       <Setter Property="Foreground" Value="{DynamicResource MutedBrush}" />
     </Style>
 
-    <Style Selector="Border.card.playing">
-      <Setter Property="BorderThickness" Value="2" />
-      <Setter Property="BorderBrush" Value="{DynamicResource PrimaryBrush}" />
-    </Style>
     <Style Selector="Button.word">
       <Setter Property="Margin" Value="0,0,4,4" /><Setter Property="Padding" Value="6,2" />
       <Setter Property="MinHeight" Value="0" /><Setter Property="FontSize" Value="13" />
@@ -498,7 +468,6 @@
     </Style>
     <Style Selector="Border.badge.provenance">
       <Setter Property="Background" Value="Transparent" />
-      <Setter Property="BorderBrush" Value="{DynamicResource NoticeBorderBrush}" />
       <Setter Property="BorderThickness" Value="0" />
       <Setter Property="Margin" Value="28,0,0,18" />
       <Setter Property="Padding" Value="0" />
