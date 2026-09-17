@@ -46,6 +46,7 @@ public sealed class DocumentViewTests
             await Task.Delay(50); Dispatcher.UIThread.RunJobs();
             var choice = window.FindControl<ComboBox>("ViewChoice")!;
             Assert.Equal(0, choice.SelectedIndex);
+            Assert.Equal("Timings", Assert.IsType<ComboBoxItem>(choice.Items[1]).Content);
             var input = window.GetVisualDescendants().OfType<TextBox>().First(t => t.Classes.Contains("transcript"));
             input.Text = "Edited words 👋"; input.SelectionStart = 2; input.SelectionEnd = 8;
             choice.SelectedIndex = 1; choice.SelectedIndex = 0;

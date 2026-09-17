@@ -2,17 +2,17 @@
 
 SoundOff opens transcripts in **Document · just the words**. Edit paragraphs, then choose **Export → Document** for plain text without paragraph timestamps or speaker labels. Export retains the title, provenance notice and revision/draft status. This is text export, not Word (.docx) export.
 
-Choose **Review · audio and timing** to listen and check passages:
+Choose **Timings** to listen and check passages:
 
 - The collapsed transcript text itself is clickable. One click reveals its text editor, speaker selector and both timestamp fields together; there is no separate Details step.
 - **Collapse all** shows short text previews; **Expand all** restores all editors. Each expanded paragraph has a collapse action.
 - Find expands a collapsed matching paragraph.
-- Switching views preserves draft text and selection without deleting stored timing. Returning to Review restores its collapsed sections.
+- Switching views preserves draft text and selection without deleting stored timing. Returning to Timings restores its collapsed sections.
 - Transcript fields and paragraph controls blend into the background at rest. Hover and keyboard-focus cues remain. Styling changes are scoped to the transcript rather than removing every button border throughout the app.
 
 ## Audio waveform
 
-The strip beside the playback controls uses peaks read from the playback WAV or proxy, not placeholder graphics. Long recordings initially show a playback-following 30-second window in either view; shorter clips fit within it. **+** halves the visible span, **−** doubles it, and **Fit** shows the whole recording. Scrolling over the waveform zooms gradually around the pointer. Zoom ranges down to a quarter-second span and survives switches between Document and Review. The main playback slider lets you navigate to a distant part of the recording.
+The strip beside the playback controls uses peaks read from the playback WAV or proxy, not placeholder graphics. Long recordings initially show a playback-following 30-second window in either view; shorter clips fit within it. **+** halves the visible span, **−** doubles it, and **Fit** shows the whole recording. Scrolling over the waveform zooms gradually around the pointer. Zoom ranges down to a quarter-second span and survives switches between Document and Timings. The main playback slider lets you navigate to a distant part of the recording.
 
 Click or drag the waveform to seek without automatically starting playback. The existing slider remains the keyboard-accessible seeking alternative; zoom buttons are also keyboard accessible.
 
@@ -20,7 +20,7 @@ Waveform analysis supports 16/32-bit PCM and 32-bit floating-point WAV data, **u
 
 ## Current refinement and verification
 
-The workspace uses neutral paper/graphite surfaces, restrained teal actions, quieter secondary controls, 18 px transcript type with 29 px line spacing, and an 800 px reading measure. Waveform and playback now share the bottom transport. Document/Review explanations are in the view selector tooltip rather than repeated above the document. Provenance remains visible in words without a filled warning badge.
+The workspace uses neutral paper/graphite surfaces, restrained teal actions, quieter secondary controls, 18 px transcript type with 29 px line spacing, and an 800 px reading measure. Waveform and playback now share the bottom transport. Document/Timings explanations are in the view selector tooltip rather than repeated above the document. Provenance remains visible in words without a filled warning badge.
 
 The cleanup shares WAV format validation and sample decoding, consolidates duplicate style selectors, removes historical comments and ineffective Grid column assignments on WrapPanel children, and retains explicit failure/cancellation paths. This is a focused presentation/waveform audit, not a repository-wide proof against all failures.
 

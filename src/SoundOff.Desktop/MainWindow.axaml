@@ -92,9 +92,9 @@
         </StackPanel>
         <StackPanel x:Name="ViewBar" Grid.Row="3" Spacing="6" Margin="0,0,0,12" IsVisible="False">
           <WrapPanel Orientation="Horizontal">
-            <ComboBox x:Name="ViewChoice" SelectedIndex="0" MinWidth="150" ToolTip.Tip="Document keeps the words in focus. Review adds speakers and timing. Switching preserves your edits." AutomationProperties.Name="Transcript view">
+            <ComboBox x:Name="ViewChoice" SelectedIndex="0" MinWidth="150" ToolTip.Tip="Document keeps the words in focus. Timings shows speakers and timing. Switching preserves your edits." AutomationProperties.Name="Transcript view">
               <ComboBoxItem>Document</ComboBoxItem>
-              <ComboBoxItem>Review</ComboBoxItem>
+              <ComboBoxItem>Timings</ComboBoxItem>
             </ComboBox>
             <Button x:Name="CollapseSectionsButton" Classes="quiet" Content="Collapse all" Margin="8,0,0,0" />
             <Button x:Name="ExpandSectionsButton" Classes="quiet" Content="Expand all" Margin="6,0,0,0" />
