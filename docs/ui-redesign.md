@@ -10,6 +10,17 @@ Choose **Timings** to listen and check passages:
 - Switching views preserves draft text and selection without deleting stored timing. Returning to Timings restores its collapsed sections.
 - Transcript fields and paragraph controls blend into the background at rest. Hover and keyboard-focus cues remain. Styling changes are scoped to the transcript rather than removing every button border throughout the app.
 
+## Split and merge speakers
+
+In **Tools → Speakers**, open **⋯** beside a speaker:
+
+- **Split speaker…**: name the new speaker and select their paragraphs. Click a row to toggle it; leave at least one paragraph with the original speaker. Paragraph numbers follow document order. If both people share one paragraph, split that paragraph first in Timings mode (paragraph splitting clears its timing).
+- **Merge into…**: explicitly choose the speaker to keep. All paragraphs assigned to the source move to that speaker, and the source speaker is removed. Paragraphs are not joined.
+
+Both operations preserve text, timestamps, word evidence and manual-text flags. Confirmation commits the operation and any current draft as one undoable revision; Cancel changes neither. Invalid drafts must be corrected or discarded first. These are manual corrections, not voice re-clustering or an inference rerun.
+
+Verification: Release build had zero warnings/errors and **341 tests passed** (`artifacts/speaker-tests/release-full.trx`). The final Debug build and five focused core/UI tests also passed. Tests exercise selection, cancellation, invalid drafts, split/merge, durable undo/redo, invalid IDs, speaker limits and timing preservation. UI evidence is headless real-control testing; no new native dialog screenshot is claimed.
+
 ## Audio waveform
 
 The strip beside the playback controls uses peaks read from the playback WAV or proxy, not placeholder graphics. Long recordings initially show a playback-following 30-second window in either view; shorter clips fit within it. **+** halves the visible span, **−** doubles it, and **Fit** shows the whole recording. Scrolling over the waveform zooms gradually around the pointer. Zoom ranges down to a quarter-second span and survives switches between Document and Timings. The main playback slider lets you navigate to a distant part of the recording.

@@ -354,7 +354,17 @@ public sealed partial class MainWindow : Window
                 var remove = Action("Remove", "Remove speaker " + speaker.Name, () => CommitStructuralAsync(new RemoveSpeaker(id)), enabled: !used.Contains(id));
                 ToolTip.SetShowOnDisabled(remove, true);
                 ToolTip.SetTip(remove, used.Contains(id) ? "Reassign this speaker's paragraphs first." : null);
-                Grid.SetColumn(remove, 1); row.Children.Add(remove); speakerHost.Children.Add(row);
+                var menu = new MenuFlyout();
+                menu.Items.Add(MenuAction("Split speaker…", "Split speaker " + speaker.Name,
+                    () => ChangeSpeakerAsync(id, true)));
+                menu.Items.Add(MenuAction("Merge into…", "Merge speaker " + speaker.Name,
+                    () => ChangeSpeakerAsync(id, false), enabled: snapshot.Speakers.Length > 1));
+                var more = new Button { Content = "⋯", Flyout = menu, Classes = { "more", "structural" } };
+                AutomationProperties.SetName(more, "Actions for speaker " + speaker.Name);
+                ToolTip.SetTip(more, "Split or merge this speaker");
+                var actions = new StackPanel { Orientation = Orientation.Horizontal };
+                remove.Classes.Add("quiet"); actions.Children.Add(remove); actions.Children.Add(more);
+                Grid.SetColumn(actions, 1); row.Children.Add(actions); speakerHost.Children.Add(row);
             }
             speakerHost.Children.Add(Action("Add speaker", "Add speaker", () => CommitStructuralAsync(new AddSpeaker(Guid.NewGuid(), NewSpeakerName())),
                 enabled: snapshot.Speakers.Length < DocumentRules.MaxSpeakers));

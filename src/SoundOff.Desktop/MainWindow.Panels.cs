@@ -46,7 +46,8 @@ public sealed partial class MainWindow
         {
             "create" => "Created", "manual-edit" => "Edited", "load-synthetic-fixture" => "Demo loaded", "undo" => "Undo", "redo" => "Redo",
             "split-block" => "Split", "merge-blocks" => "Merged", "insert-block" => "Paragraph added", "delete-block" => "Paragraph deleted",
-            "add-speaker" => "Speaker added", "remove-speaker" => "Speaker removed", _ => part
+            "add-speaker" => "Speaker added", "remove-speaker" => "Speaker removed",
+            "split-speaker" => "Speaker split", "merge-speakers" => "Speakers merged", _ => part
         }).ToList();
         return string.Join(", ", words.Select((w, i) => i == 0 ? w : w.ToLowerInvariant()));
     }
