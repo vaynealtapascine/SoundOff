@@ -19,9 +19,7 @@ internal static class WaveformAnalysis
         return await Task.Run(() =>
         {
             using var reader = new WaveFileReader(wavPath);
-            var format = reader.WaveFormat is WaveFormatExtensible extended ? extended.ToStandardWaveFormat() : reader.WaveFormat;
-            if (format.Encoding is not (WaveFormatEncoding.Pcm or WaveFormatEncoding.IeeeFloat) || format.BitsPerSample is not (16 or 32))
-                throw new InvalidDataException("Only PCM wave data can be drawn.");
+            var format = WaveformSamples.Format(reader);
             var bytesPerSample = format.BitsPerSample / 8;
             var frameBytes = bytesPerSample * format.Channels;
             if (frameBytes <= 0 || reader.Length < frameBytes) throw new InvalidDataException("The wave data is empty.");
@@ -43,9 +41,7 @@ internal static class WaveformAnalysis
                     for (var channel = 0; channel < format.Channels; channel++)
                     {
                         var at = offset + channel * bytesPerSample;
-                        var sample = bytesPerSample == 2 ? BitConverter.ToInt16(buffer, at) / 32768f
-                            : format.Encoding == WaveFormatEncoding.IeeeFloat ? BitConverter.ToSingle(buffer, at)
-                            : BitConverter.ToInt32(buffer, at) / 2147483648f;
+                        var sample = WaveformSamples.Decode(buffer, at, format);
                         if (float.IsFinite(sample)) values[bucket] = Math.Max(values[bucket], Math.Clamp(MathF.Abs(sample), 0, 1));
                     }
                 }
@@ -55,13 +51,62 @@ internal static class WaveformAnalysis
     }
 }
 
-// A horizontal waveform of the recording with a playhead. The visible span zooms from the whole recording down
-// to a quarter second: buttons halve/double the span, the wheel zooms gradually under the cursor, and when zoomed in
-// the strip follows the playhead unless the user is dragging it. Clicking or dragging moves the playhead. It is
-// a viewing and seeking surface only: it never starts playback and never touches the document, mirroring the
-// position slider's contract.
+// Zoom and seeking never alter playback state or transcript data.
 public sealed class WaveformOverview : Control
 {
+    private string? sourcePath;
+    private WaveformDetail? detail;
+    private CancellationTokenSource? detailLoad;
+    private long detailRequestedStart = -1;
+    private bool detailFailed;
+    public event EventHandler<string?>? DetailStatusChanged;
+    internal bool HasSampleDetail => detail is not null && detail.Covers(viewStart, viewStart + Window);
+
+    public void SetSource(string? path)
+    {
+        detailLoad?.Cancel(); detailLoad = null;
+        sourcePath = path; detail = null; detailFailed = false; detailRequestedStart = -1;
+        DetailStatusChanged?.Invoke(this, null);
+        InvalidateVisual();
+    }
+
+    internal async Task RequestDetailAsync()
+    {
+        if (sourcePath is null || detailFailed || Window > 8_000_000 || HasSampleDetail) return;
+        var start = Math.Max(0, viewStart - 2_000_000);
+        if (detailLoad is not null && Math.Abs(start - detailRequestedStart) < 500_000) return;
+        detailLoad?.Cancel();
+        var cancellation = new CancellationTokenSource();
+        detailLoad = cancellation; detailRequestedStart = start;
+        var path = sourcePath;
+        try
+        {
+            var result = await WaveformSamples.ReadAsync(path, start, cancellation.Token);
+            if (cancellation.IsCancellationRequested || path != sourcePath) return;
+            detail = result; InvalidateVisual();
+        }
+        catch (OperationCanceledException) { }
+        catch (Exception e)
+        {
+            if (!cancellation.IsCancellationRequested && path == sourcePath)
+            {
+                detailFailed = true;
+                DetailStatusChanged?.Invoke(this, "Detailed waveform unavailable: " + e.Message + " Overview and playback are unchanged.");
+            }
+        }
+        finally
+        {
+            if (ReferenceEquals(detailLoad, cancellation)) detailLoad = null;
+            cancellation.Dispose();
+        }
+    }
+
+    protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        SetSource(null);
+        base.OnDetachedFromVisualTree(e);
+    }
+
     private float[]? peaks;
     public float[]? Peaks => peaks;
     private bool dragging;
@@ -71,7 +116,6 @@ public sealed class WaveformOverview : Control
     private long duration, position;
     public event EventHandler<long>? SeekRequested;
 
-    // The smallest zoomable span: a quarter second of context is enough to place a click.
     private static long MinWindow => 250_000;
 
     public long Duration
@@ -161,23 +205,27 @@ public sealed class WaveformOverview : Control
     {
         var width = Bounds.Width; var height = Bounds.Height;
         if (width <= 0 || height <= 0 || duration <= 0) return;
-        var background = Resource("TrackSurfaceBrush") ?? Brushes.Transparent;
+        var background = Resource("ChromeBrush") ?? Brushes.Transparent;
         var idle = Resource("MutedBrush") ?? Brushes.Gray;
         var played = Resource("PrimaryBrush") ?? Brushes.DodgerBlue;
         var head = Resource("TextBrush") ?? Brushes.Black;
-        var radius = 3;
-        context.FillRectangle(background, new Rect(0, 0, width, height), radius);
+        _ = RequestDetailAsync();
+        context.FillRectangle(background, new Rect(0, 0, width, height));
         var span = Window;
         var ticks = peaks is { Length: > 0 } ? peaks.Length : 0;
-        var columns = (int)Math.Clamp(width, 1, 4096);
+        var columns = (int)Math.Clamp(Math.Ceiling(width * (TopLevel.GetTopLevel(this)?.RenderScaling ?? 1)), 1, 8192);
         for (var column = 0; column < columns; column++)
         {
             var from = viewStart + (long)((double)column / columns * span);
             var to = viewStart + (long)((double)(column + 1) / columns * span);
             var magnitude = ticks > 0 ? PeakOver(from, to, ticks) : 0f;
-            var half = magnitude * (height / 2 - 2);
-            var x = column * width / columns; var w = Math.Max(1d, width / columns - 0.5);
-            context.FillRectangle(from < position ? played : idle, new Rect(x, height / 2 - half, w, Math.Max(1, half * 2)), radius);
+            var range = HasSampleDetail ? detail!.Range(from, to) : (-magnitude, magnitude);
+            var scale = Math.Max(0, height / 2 - 3);
+            var top = height / 2 - range.Item2 * scale;
+            var bottom = height / 2 - range.Item1 * scale;
+            var x = column * width / columns;
+            context.FillRectangle(from < position ? played : idle,
+                new Rect(x, top, width / columns, Math.Max(0.75, bottom - top)));
         }
         var headX = (double)(position - viewStart) / span * width;
         if (headX >= 0 && headX <= width) context.FillRectangle(head, new Rect(headX - 0.5, 0, 1.5, height));

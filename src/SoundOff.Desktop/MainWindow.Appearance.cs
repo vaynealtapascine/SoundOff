@@ -29,6 +29,7 @@ public sealed partial class MainWindow
         // Default on a Window inherits the application theme. Reset that too for a true OS-following choice.
         if (Application.Current is { } application) application.RequestedThemeVariant = theme;
         RequestedThemeVariant = theme;
+        waveform?.InvalidateVisual();
         Classes.Set("reducedMotion", reducedMotionChoice.IsChecked == true);
         if (!persist || applyingSettings) return;
         SaveAppearance();

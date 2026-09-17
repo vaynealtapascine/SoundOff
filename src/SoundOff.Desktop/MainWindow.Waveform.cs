@@ -12,6 +12,12 @@ public sealed partial class MainWindow
     private void InitializeWaveform()
     {
         waveform = this.FindControl<WaveformOverview>("Waveform")!;
+        waveform.DetailStatusChanged += (_, message) =>
+        {
+            var label = this.FindControl<TextBlock>("WaveformStatus")!;
+            label.Text = message;
+            label.IsVisible = message is not null;
+        };
         waveform.SeekRequested += (_, target) =>
         {
             if (Recording || playback.DurationMicroseconds <= 0) return;
@@ -26,7 +32,7 @@ public sealed partial class MainWindow
     {
         waveformGeneration++;
         waveformLoad?.Cancel(); waveformLoad?.Dispose(); waveformLoad = null;
-        waveform.SetPeaks(null); waveform.Duration = 0; waveform.WindowSeconds = 30;
+        waveform.SetSource(null); waveform.SetPeaks(null); waveform.Duration = 0; waveform.WindowSeconds = 30;
         this.FindControl<Control>("WaveformHost")!.IsVisible = false;
     }
 
@@ -43,7 +49,7 @@ public sealed partial class MainWindow
         {
             var values = await WaveformAnalysis.AnalyzeAsync(path, duration, cancellation.Token);
             if (generation != waveformGeneration || lifetime.IsCancellationRequested) return;
-            waveform.Duration = duration; waveform.SetPeaks(values); waveform.IsVisible = true;
+            waveform.SetSource(path); waveform.Duration = duration; waveform.SetPeaks(values); waveform.IsVisible = true;
             waveform.WindowSeconds = 30;
             waveform.Position = playback.PositionMicroseconds;
             label.IsVisible = false;
