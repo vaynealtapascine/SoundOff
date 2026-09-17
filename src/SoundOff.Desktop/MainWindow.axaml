@@ -79,7 +79,7 @@
           </Grid>
         </Border>
         <WrapPanel x:Name="VideoControls" Grid.Row="1" IsVisible="False" Orientation="Horizontal" Margin="0,0,0,8" MaxWidth="800">
-          <ToggleButton x:Name="VideoPreviewToggle" Content="Hide video" IsChecked="True" Margin="0,0,12,0"
+          <ToggleButton x:Name="VideoPreviewToggle" Content="Hide video" Classes="subtle" IsChecked="True" Margin="0,0,12,0"
                         AutomationProperties.Name="Show or hide video preview (audio continues)" />
           <Slider x:Name="VideoSizeSlider" Minimum="120" Maximum="320" Value="200" SmallChange="20" LargeChange="40"
                   Width="120" ToolTip.Tip="Preview size" AutomationProperties.Name="Video preview height" />
