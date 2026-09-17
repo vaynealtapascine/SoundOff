@@ -191,9 +191,11 @@
             <StackPanel x:Name="SpeakerHost" Spacing="8" />
           </StackPanel></Border>
 
-          <Expander x:Name="HistoryCard" Header="History" IsVisible="False" HorizontalAlignment="Stretch">
-            <StackPanel x:Name="HistoryHost" Spacing="6" />
-          </Expander>
+          <Border x:Name="HistoryCard" Classes="card" IsVisible="False">
+            <Expander Header="History" HorizontalAlignment="Stretch">
+              <StackPanel x:Name="HistoryHost" Spacing="6" />
+            </Expander>
+          </Border>
         </StackPanel>
       </ScrollViewer>
     </Grid>

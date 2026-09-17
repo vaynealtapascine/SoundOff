@@ -332,10 +332,14 @@
       <Setter Property="CornerRadius" Value="{StaticResource RadiusLg}" />
     </Style>
 
+    <!-- The header is a ToggleButton, so the generic button rules above centre its text and add their own
+         padding; a section heading has to start where the card's other headings do. -->
     <Style Selector="Expander ToggleButton">
       <Setter Property="Background" Value="Transparent" />
       <Setter Property="BorderThickness" Value="0" />
       <Setter Property="CornerRadius" Value="{StaticResource RadiusLg}" />
+      <Setter Property="HorizontalContentAlignment" Value="Left" />
+      <Setter Property="Padding" Value="0" />
     </Style>
     <Style Selector="Expander ToggleButton /template/ ContentPresenter#PART_ContentPresenter,
                      Expander ToggleButton:checked /template/ ContentPresenter#PART_ContentPresenter,
