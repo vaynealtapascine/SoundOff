@@ -48,6 +48,7 @@ public sealed partial class MainWindow
             : store is null ? ""
             : dirty ? "unsaved" : "saved";
         foreach (var name in new[] { "saved", "unsaved", "working", "failed" }) stateDot.Classes.Set(name, name == state);
+        status.Classes.Set("failed", state == "failed");
         ToolTip.SetTip(stateDot, state switch
         {
             "failed" => "The last action failed", "working" => "Working", "unsaved" => "Unsaved changes",

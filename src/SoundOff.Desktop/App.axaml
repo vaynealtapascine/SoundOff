@@ -503,6 +503,11 @@
       <Setter Property="FontSize" Value="12" />
       <Setter Property="Foreground" Value="{DynamicResource MutedBrush}" />
     </Style>
+    <!-- A failure otherwise reads exactly like "Saved · revision 7"; the 8px state dot was the only cue. -->
+    <Style Selector="Border.statusbar TextBlock.failed">
+      <Setter Property="Foreground" Value="{DynamicResource DangerBrush}" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
     <Style Selector="Button.quiet, Button.more">
       <Setter Property="Background" Value="Transparent" />
       <Setter Property="BorderThickness" Value="1" />
