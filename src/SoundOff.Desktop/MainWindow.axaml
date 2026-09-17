@@ -7,7 +7,7 @@
     <Border Classes="topbar">
       <Grid ColumnDefinitions="*,Auto">
         <StackPanel Orientation="Horizontal" Spacing="6">
-          <Button x:Name="ProjectMenuButton" Content="Project" Classes="quiet" AutomationProperties.Name="Project menu">
+          <Button x:Name="ProjectMenuButton" Content="Project ⌄" Classes="quiet" AutomationProperties.Name="Project menu">
             <Button.Flyout>
               <MenuFlyout Placement="BottomEdgeAlignedLeft">
                 <MenuItem x:Name="OpenProjectItem" Header="Open project…" />
@@ -20,7 +20,7 @@
               </MenuFlyout>
             </Button.Flyout>
           </Button>
-          <Button x:Name="ExportMenuButton" Content="Export" Classes="quiet" AutomationProperties.Name="Export menu">
+          <Button x:Name="ExportMenuButton" Content="Export ⌄" Classes="quiet" AutomationProperties.Name="Export menu">
             <Button.Flyout>
               <MenuFlyout Placement="BottomEdgeAlignedLeft">
                 <MenuItem x:Name="ExportDocumentItem" Header="Document (.txt, no timestamps)…" />
@@ -46,7 +46,7 @@
                         AutomationProperties.Name="Show or hide the side panel" />
           <Border Classes="divider" />
           <Button x:Name="HelpButton" Content="Help" Classes="quiet" ToolTip.Tip="Help (F1)" />
-          <Button x:Name="SettingsButton" Content="Settings" Classes="quiet">
+          <Button x:Name="SettingsButton" Content="Settings ⌄" Classes="quiet" AutomationProperties.Name="Settings menu">
             <Button.Flyout>
               <Flyout Placement="BottomEdgeAlignedRight">
                 <StackPanel Spacing="12" MinWidth="220">
