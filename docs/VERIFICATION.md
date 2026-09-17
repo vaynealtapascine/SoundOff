@@ -9,6 +9,7 @@ A consistency pass over `App.axaml` and the window's layout. See [the view guide
 
 - `dotnet build SoundOff.sln -c Release`: passed, **zero warnings/errors**.
 - `dotnet test SoundOff.sln -c Release --no-build`: **341 passed, 0 failed, 0 skipped**, unchanged from the run below. No test was added or modified in this pass.
+- `python scripts/verify.py --clean --desktop-smoke` was re-run after the last commit: **exit 0**, rebuilt from clean, **341 passed, 0 failed**, worker and desktop self-tests passed, native window smoke passed, and the inference, capture and playback adapters all recorded as exercised (`artifacts/verification/result.json`, a local ignored artifact).
 - **The window was run and measured, not only tested.** The Release build was launched against a synthetic demo project and against a project holding the `moving-tts.mp4` fixture, with `SOUNDOFF_SETTINGS_PATH` redirected away from the real user's settings. Only SoundOff's own window was captured, by `PrintWindow` on its HWND rather than a desktop screenshot.
 - Left edges in the dark document view, before → after: view bar 24 → 96, `+ Add paragraph` 82 → 98, against title 98, provenance 97 and body text 100. Side-panel headings after: Audio 952, Transcribe 952, Speakers 952, History 953 (History was 1031).
 - Surfaces sampled after: History expander `#222524`, matching the Audio and Transcribe cards; it had been `#1C1E1D`, the canvas colour.
