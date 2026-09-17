@@ -3,7 +3,22 @@
 - Repository: `C:/Users/pcuser/source/repos/SoundOff`, branch `main`.
 - Scope: Windows development build, existing local WhisperX runtime/model pack, synthetic English TTS and video input, Windows playback, output-endpoint loopback, and combined microphone+system capture. This is not a release or completion of the architecture's acceptance matrix.
 
-## Window pass: palette, panel, drop and confirmation (2026-09-16)
+## Current editor and speaker operations (2026-09-17)
+
+Current mode labels are **Document** and **Timings**; **Tools** toggles the side panel. Waveform and playback share the bottom transport. Split/merge speaker corrections are available under each speaker's **⋯** menu. See [the view guide](ui-redesign.md) and [in-app help](HELP.md).
+
+- `dotnet build SoundOff.sln -c Release`: passed, zero warnings/errors.
+- `dotnet test SoundOff.sln -c Release --no-build --logger 'trx;LogFileName=release-full.trx' --results-directory artifacts/speaker-tests`: **341 passed, 0 failed, 0 skipped**; TRX counters parsed and checked.
+- Final Debug build plus the filtered `SpeakerUiTests|SpeakerOperationTests`: **5 passed**.
+- Speaker tests cover manual assignments, retained timing/word evidence, invalid selections/IDs, capacity, cancel/draft handling, atomic save and persistent undo/redo. UI tests use real Avalonia controls headlessly, not native dialog screenshots.
+- The waveform's production `Render` method was exercised at 500 and 1000 px with a known 250 ms, 48 kHz fixture. Geometry assertions distinguish opposite impulses and silence within one old 60 Hz bucket. This is drawing-geometry evidence, not a raster or physical-DPI certification.
+- A native dark editor was captured with synthetic text and imported TTS audio, with the waveform visible in Document and Timings. This does not verify native waveform zoom, light-mode visuals, screen readers or six-hour performance.
+
+The whole clean verifier/native smoke was **not** rerun for these latest features. Earlier clean-run adapter evidence below remains historical and is not renewed merely by the latest test total. Generated TRX files and sample projects are local ignored artifacts.
+
+The latest neutral palette changed the earlier contrast measurements below; they must not be read as current whole-palette certification. During the docs audit, selected current text pairs were recalculated: light text/surface 15.85:1, muted/surface 6.36:1; dark text/surface 13.35:1, muted/surface 6.67:1; primary label/accent 5.01:1 light and 6.05:1 dark. These selected static pairs do not cover every control state, opacity, focus indicator or background combination and do not establish WCAG conformance.
+
+## Historical window pass: palette, panel, drop and confirmation (2026-09-16)
 
 Added since the reviews below, all interface work: hand-built Light and Dark token palettes replacing Fluent's system brushes, a real primary-button variant (the `accent` class had been applied in markup but never styled), a collapsible side panel remembered in settings (Ctrl+B), a status-bar state dot, drag-and-drop media import, a confirmation before Discard, and a reshaped start screen with hoverable list rows. `python scripts/verify.py --clean --desktop-smoke` was re-run clean afterwards: **exit 0**, **325 tests passed, 0 failed**, both self-tests passed, native smoke passed.
 

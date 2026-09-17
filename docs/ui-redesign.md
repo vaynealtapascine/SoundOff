@@ -1,8 +1,8 @@
 # Document-first transcript views
 
-SoundOff opens transcripts in **Document · just the words**. Edit paragraphs, then choose **Export → Document** for plain text without paragraph timestamps or speaker labels. Export retains the title, provenance notice and revision/draft status. This is text export, not Word (.docx) export.
+SoundOff opens transcripts in **Document**. Edit paragraphs, then choose **Export → Document** for plain text without paragraph timestamps or speaker labels. Export retains the title, provenance notice and revision/draft status. This is text export, not Word (.docx) export.
 
-Choose **Timings** to listen and check passages:
+Choose **Timings** in the view selector to listen and check passages:
 
 - The collapsed transcript text itself is clickable. One click reveals its text editor, speaker selector and both timestamp fields together; there is no separate Details step.
 - **Collapse all** shows short text previews; **Expand all** restores all editors. Each expanded paragraph has a collapse action.
@@ -17,7 +17,7 @@ In **Tools → Speakers**, open **⋯** beside a speaker:
 - **Split speaker…**: name the new speaker and select their paragraphs. Click a row to toggle it; leave at least one paragraph with the original speaker. Paragraph numbers follow document order. If both people share one paragraph, split that paragraph first in Timings mode (paragraph splitting clears its timing).
 - **Merge into…**: explicitly choose the speaker to keep. All paragraphs assigned to the source move to that speaker, and the source speaker is removed. Paragraphs are not joined.
 
-Both operations preserve text, timestamps, word evidence and manual-text flags. Confirmation commits the operation and any current draft as one undoable revision; Cancel changes neither. Invalid drafts must be corrected or discarded first. These are manual corrections, not voice re-clustering or an inference rerun.
+The speaker operations themselves preserve text, timestamps, word evidence and manual-text flags. Existing draft text edits still clear timing under the normal editing rules. Confirmation commits the operation and any current draft as one undoable revision; Cancel changes neither. Invalid drafts must be corrected or discarded first. These are manual corrections, not voice re-clustering or an inference rerun.
 
 Verification: Release build had zero warnings/errors and **341 tests passed** (`artifacts/speaker-tests/release-full.trx`). The final Debug build and five focused core/UI tests also passed. Tests exercise selection, cancellation, invalid drafts, split/merge, durable undo/redo, invalid IDs, speaker limits and timing preservation. UI evidence is headless real-control testing; no new native dialog screenshot is claimed.
 
@@ -29,24 +29,21 @@ Click or drag the waveform to seek without automatically starting playback. The 
 
 Waveform analysis supports 16/32-bit PCM and 32-bit floating-point WAV data, **up to six hours** (sample rates up to 192 kHz, up to 64 channels). The overview retains 60 peak buckets per second. At spans of eight seconds or less, a background reader loads a bounded twelve-second window of actual per-frame channel minima and maxima. Rendering recomputes extrema for each display column at the current width and display scale; it does not stretch a bitmap or interpolate invented samples. Channel extrema preserve opposite-polarity stereo rather than cancelling it. Detailed reads are cancelled on source changes, and failures leave the overview and playback available with a visible reason. The overview is analyzed before it appears. This is an amplitude waveform, not a spectrogram or a subtitle timing editor.
 
-## Current refinement and verification
+## Workspace refinement and verification history
 
 The workspace uses neutral paper/graphite surfaces, restrained teal actions, quieter secondary controls, 18 px transcript type with 29 px line spacing, and an 800 px reading measure. Waveform and playback now share the bottom transport. Document/Timings explanations are in the view selector tooltip rather than repeated above the document. Provenance remains visible in words without a filled warning badge.
 
 The cleanup shares WAV format validation and sample decoding, consolidates duplicate style selectors, removes historical comments and ineffective Grid column assignments on WrapPanel children, and retains explicit failure/cancellation paths. This is a focused presentation/waveform audit, not a repository-wide proof against all failures.
 
-Verified in Release:
+The earlier workspace refinement was verified in Release (forced locked restore, rebuild with zero warnings/errors). The later speaker-operation run above is the latest full test result:
 
-- Forced locked restore and Release rebuild: success, zero warnings/errors.
-- Final suite: **336 passed, 0 failed, 0 skipped**, parsed from `artifacts/humanist-tests/final.trx`.
+- Workspace suite: **336 passed**, recorded in `artifacts/humanist-tests/final.trx`.
 - Focused waveform/document tests: **11 passed** in `focused-final.trx`.
 - Isolated actual-control render test: **1 passed**, `render-isolated.trx`. It draws a 250 ms 48 kHz fixture through `WaveformOverview.Render` at 500 and 1000 px, inspecting the generated rectangles for positive/negative impulses separated by silence. This verifies drawing geometry, not a raster screenshot or physical display scaling.
-- Desktop and worker self-tests passed; these are non-GUI fixture/storage checks.
-- A native dark editor was launched and captured using a disposable synthetic project. Native waveform zoom, light appearance, screen readers and six-hour performance were not visually/end-to-end verified in this pass. The test window was stopped afterward.
 
 A style-consolidation regression initially made a transcript speaker ComboBox opaque. Restoring base-before-context style ordering fixed it; the existing draft/view/transparent-field regression test and final full suite pass.
 
-The two refinement commits are separable by concern: sample-detail rendering, then workspace styling/docs. Revert newest-first for a complete rollback. No models, accounts or inference dependencies were added.
+The workspace refinement commits `6cc97f9` and `af7d89e` are separated by concern: sample-detail rendering, then workspace styling/docs. Revert newest-first for a complete rollback. No models, accounts or inference dependencies were added. Later commits rename Timings (`892b500`) and add speaker operations (`f3111f4`, `85ccb0e`); revert dependent UI work before its core operations. See [current verification](VERIFICATION.md) for native-capture and testing limits.
 
 ## Earlier verification
 

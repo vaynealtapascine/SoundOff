@@ -7,7 +7,7 @@ New or unreadable/invalid settings use **Dark** and reduced motion **on**. Valid
 Set `SOUNDOFF_SETTINGS_PATH` to a **fully qualified absolute filename** in a dedicated tour directory before launching the process, for example in Git Bash on Windows:
 
 ```bash
-SOUNDOFF_SETTINGS_PATH='C:/Users/pcuser/source/repos/SoundOff-worktrees/dark-audit/artifacts/tour/settings.json' \
+SOUNDOFF_SETTINGS_PATH='C:/Users/pcuser/source/repos/SoundOff/artifacts/tour/settings.json' \
   dotnet src/SoundOff.Desktop/bin/Release/net8.0/SoundOff.Desktop.dll
 ```
 
@@ -15,4 +15,4 @@ Use the final integrated worktree path when touring the integrated build. Choose
 
 When the variable is absent, the normal path remains `%LOCALAPPDATA%/SoundOff/settings.json`. A configured empty/whitespace value, relative path, drive-relative path, root, or existing directory is rejected instead of silently falling back to personal data. An invalid override is a launch configuration error; unset or correct it before retrying.
 
-`SOUNDOFF_SETTINGS_PATH` is independent of `SOUNDOFF_HOME`: it does **not** relocate, download, modify, or grant access to inference runtimes or model packs. No authentication, permission, or OS appearance setting changes are needed. The headless regression suite checks pre-show application/window themes and repeat startup via fresh settings-store instances; native first-frame appearance and actual OS theme changes remain part of the parent’s serial GUI tour.
+`SOUNDOFF_SETTINGS_PATH` is independent of `SOUNDOFF_HOME`: it does **not** relocate, download, modify, or grant access to inference runtimes or model packs. No authentication, permission, or OS appearance setting changes are needed. The headless regression suite checks pre-show application/window themes and repeat startup via fresh settings-store instances; native first-frame appearance and actual OS theme changes require separate native verification.
