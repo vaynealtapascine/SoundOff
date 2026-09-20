@@ -2,6 +2,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Input;
+using Avalonia.Layout;
 using SoundOff.Core;
 
 namespace SoundOff.Desktop;
@@ -13,7 +14,9 @@ public sealed partial class MainWindow
 {
     // One column template for a cue row and for the headings above it, so the two cannot drift apart.
     // # · start · end · length · speaker · text · actions
-    internal const string CueColumns = "44,100,100,62,148,*,62";
+    // The time cells hold a full h:mm:ss.ffffff, which is what the document stores; nothing is rounded for
+    // display, so the column is wide enough to show all six fraction digits.
+    internal const string CueColumns = "44,118,118,58,148,*,62";
     // The same seven columns with every timing cell closed: the gutter carries a timestamp instead of a number,
     // and the text keeps the rest of the measure.
     internal const string DocumentColumns = "62,0,0,0,0,*,62";
@@ -82,6 +85,7 @@ public sealed partial class MainWindow
         documentHost.Classes.Set("document", document);
         documentHost.Spacing = document ? 8 : 0;
         documentPage.Classes.Set("table", !document);
+        titleInput?.Classes.Set("compact", !document);
         // A style cannot unset a measure, and the table wants the whole window.
         documentPage.MaxWidth = document ? 880 : double.PositiveInfinity;
         foreach (var grid in blockGrids.Values) grid.ColumnDefinitions = new ColumnDefinitions(document ? DocumentColumns : CueColumns);
@@ -91,7 +95,12 @@ public sealed partial class MainWindow
             control.Margin = new Thickness(inset + gap.Left, gap.Top, gap.Right, gap.Bottom);
         foreach (var card in blockCards.Values) { card.Classes.Set("document", document); card.Classes.Set("cue", !document); }
         foreach (var input in blockInputs.Values) { input.Classes.Set("document", document); input.Classes.Set("cue", !document); }
-        foreach (var (id, gutter) in blockGutters) gutter.Content = GutterLabel(id, document);
+        foreach (var (id, gutter) in blockGutters)
+        {
+            gutter.Content = GutterLabel(id, document);
+            // A margin timestamp hangs off the text's left edge; a row number belongs under its heading.
+            gutter.HorizontalAlignment = document ? HorizontalAlignment.Right : HorizontalAlignment.Center;
+        }
         RefreshSpeakerLabels();
         foreach (var section in sections.Values) ApplySection(section);
     }

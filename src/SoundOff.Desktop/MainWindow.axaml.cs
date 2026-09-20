@@ -368,20 +368,21 @@ public sealed partial class MainWindow : Window
                 input.PropertyChanged += (_, e) => { if (e.Property == TextBox.TextProperty) RefreshSpeakerLabels(); };
                 speakerInputs.Add(speaker.Id, input); row.Children.Add(input);
                 var id = speaker.Id;
-                var remove = Action("Remove", "Remove speaker " + speaker.Name, () => CommitStructuralAsync(new RemoveSpeaker(id)), enabled: !used.Contains(id));
-                ToolTip.SetShowOnDisabled(remove, true);
-                ToolTip.SetTip(remove, used.Contains(id) ? "Reassign this speaker's paragraphs first." : null);
+                // One menu rather than a row of words: renaming is the common act, and the rest are rare.
                 var menu = new MenuFlyout();
                 menu.Items.Add(MenuAction("Split speaker…", "Split speaker " + speaker.Name,
                     () => ChangeSpeakerAsync(id, true)));
                 menu.Items.Add(MenuAction("Merge into…", "Merge speaker " + speaker.Name,
                     () => ChangeSpeakerAsync(id, false), enabled: snapshot.Speakers.Length > 1));
-                var more = new Button { Content = "⋯", Flyout = menu, Classes = { "more", "structural" } };
+                menu.Items.Add(new Separator());
+                var remove = MenuAction("Remove", "Remove speaker " + speaker.Name, () => CommitStructuralAsync(new RemoveSpeaker(id)), enabled: !used.Contains(id));
+                ToolTip.SetShowOnDisabled(remove, true);
+                ToolTip.SetTip(remove, used.Contains(id) ? "Reassign this speaker's paragraphs first." : null);
+                menu.Items.Add(remove);
+                var more = new Button { Content = "⋯", Flyout = menu, Classes = { "more", "structural" }, VerticalAlignment = VerticalAlignment.Center };
                 AutomationProperties.SetName(more, "Actions for speaker " + speaker.Name);
-                ToolTip.SetTip(more, "Split or merge this speaker");
-                var actions = new StackPanel { Orientation = Orientation.Horizontal };
-                remove.Classes.Add("quiet"); actions.Children.Add(remove); actions.Children.Add(more);
-                Grid.SetColumn(actions, 1); row.Children.Add(actions); speakerHost.Children.Add(row);
+                ToolTip.SetTip(more, "Split, merge or remove this speaker");
+                Grid.SetColumn(more, 1); row.Children.Add(more); speakerHost.Children.Add(row);
             }
             var addSpeaker = Action("Add speaker", "Add speaker", () => CommitStructuralAsync(new AddSpeaker(Guid.NewGuid(), NewSpeakerName())),
                 enabled: snapshot.Speakers.Length < DocumentRules.MaxSpeakers);
@@ -391,7 +392,13 @@ public sealed partial class MainWindow : Window
             {
                 var block = snapshot.Blocks[index]; var id = block.Id; var ordinal = index + 1;
                 var name = snapshot.Speakers.Single(s => s.Id == block.SpeakerId).Name;
-                var grid = new Grid { ColumnDefinitions = new ColumnDefinitions(DocumentView ? DocumentColumns : CueColumns) };
+                // Row 0 carries the Document-view speaker cue over the text column; everything else shares row 1,
+                // so the gutter timestamp lines up with the first line of the paragraph rather than with the cue.
+                var grid = new Grid
+                {
+                    ColumnDefinitions = new ColumnDefinitions(DocumentView ? DocumentColumns : CueColumns),
+                    RowDefinitions = new RowDefinitions("Auto,*")
+                };
                 blockGrids.Add(id, grid);
 
                 // Column 0 is one control read two ways: where this paragraph starts, or which row it is. Either
@@ -401,7 +408,7 @@ public sealed partial class MainWindow : Window
                 ToolTip.SetShowOnDisabled(gutter, true);
                 ToolTip.SetTip(gutter, block.Timing is null ? "This paragraph has no timing." : "Move the playhead here");
                 gutter.Click += (_, _) => SeekToBlock(id);
-                blockGutters.Add(id, gutter); grid.Children.Add(gutter);
+                blockGutters.Add(id, gutter); Grid.SetRow(gutter, 1); grid.Children.Add(gutter);
 
                 var startBox = new TextBox { Text = TimingText(block.Timing, true), Watermark = "Start", IsUndoEnabled = false };
                 var endBox = new TextBox { Text = TimingText(block.Timing, false), Watermark = "End", IsUndoEnabled = false };
@@ -414,23 +421,27 @@ public sealed partial class MainWindow : Window
                 endBox.PropertyChanged += (_, e) => { if (e.Property == TextBox.TextProperty) RefreshDuration(id); };
                 blockTimingInputs.Add(id, (startBox, endBox));
                 Grid.SetColumn(startBox, 1); Grid.SetColumn(endBox, 2);
+                Grid.SetRow(startBox, 1); Grid.SetRow(endBox, 1);
                 grid.Children.Add(startBox); grid.Children.Add(endBox);
 
-                var duration = new TextBlock { Classes = { "muted", "clock" }, Margin = new Thickness(7, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center };
+                // Top-aligned with a matching inset so the length reads on the same line as the two times, whatever
+                // height the paragraph's text gives the row.
+                var duration = new TextBlock { Classes = { "muted", "clock" }, Margin = new Thickness(9, 7, 0, 0), VerticalAlignment = VerticalAlignment.Top };
                 AutomationProperties.SetName(duration, $"Length of paragraph {ordinal}");
-                blockDurations.Add(id, duration); Grid.SetColumn(duration, 3); grid.Children.Add(duration);
+                blockDurations.Add(id, duration); Grid.SetColumn(duration, 3); Grid.SetRow(duration, 1); grid.Children.Add(duration);
 
                 var choice = new ComboBox { ItemsSource = names, Classes = { "speaker" }, Margin = new Thickness(6, 0, 0, 0), VerticalAlignment = VerticalAlignment.Top,
                     SelectedIndex = snapshot.Speakers.IndexOf(snapshot.Speakers.Single(s => s.Id == block.SpeakerId)) };
                 AutomationProperties.SetName(choice, $"Speaker for paragraph {ordinal}");
                 choice.SelectionChanged += (_, _) => { RecomputeDraft(); RefreshSpeakerLabels(); };
-                blockSpeakerInputs.Add(id, choice); Grid.SetColumn(choice, 4); grid.Children.Add(choice);
+                blockSpeakerInputs.Add(id, choice); Grid.SetColumn(choice, 4); Grid.SetRow(choice, 1); grid.Children.Add(choice);
                 foreach (var cell in new Control[] { startBox, endBox, duration, choice }) timingCells.Add(cell);
 
                 // Column 5 is the paragraph itself: whose line it is, the words, and the word list under them.
+                var speakerLabel = new TextBlock { Classes = { "speaker" }, Text = name, IsVisible = false, Margin = new Thickness(7, 12, 0, 2) };
+                blockSpeakerLabels.Add(id, speakerLabel);
+                Grid.SetColumn(speakerLabel, 5); grid.Children.Add(speakerLabel);
                 var body = new StackPanel { Spacing = 0, Margin = new Thickness(7, 0, 0, 0) };
-                var speakerLabel = new TextBlock { Classes = { "speaker" }, Text = name, IsVisible = false };
-                blockSpeakerLabels.Add(id, speakerLabel); body.Children.Add(speakerLabel);
                 var preview = new TextBlock { MaxLines = 1, TextTrimming = TextTrimming.CharacterEllipsis, FontSize = 14 };
                 var toggle = new ToggleButton
                 {
@@ -452,7 +463,7 @@ public sealed partial class MainWindow : Window
                 // Filled only while this paragraph is the active one, so a long document never builds thousands of word buttons.
                 var ribbon = new WrapPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 4, 0, 0) }; ribbon.Classes.Add("ribbon");
                 blockRibbons.Add(id, ribbon); body.Children.Add(ribbon);
-                Grid.SetColumn(body, 5); grid.Children.Add(body);
+                Grid.SetColumn(body, 5); Grid.SetRow(body, 1); grid.Children.Add(body);
 
                 var foldIcon = new PathIcon { Classes = { "small" } };
                 var fold = new Button { Content = foldIcon, Classes = { "quiet", "icon", "faint" }, Width = 28, Height = 24 };
@@ -467,7 +478,7 @@ public sealed partial class MainWindow : Window
                 more.Flyout = menu;
                 var actions = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Top, HorizontalAlignment = HorizontalAlignment.Right };
                 actions.Children.Add(fold); actions.Children.Add(more);
-                Grid.SetColumn(actions, 6); grid.Children.Add(actions);
+                Grid.SetColumn(actions, 6); Grid.SetRow(actions, 1); grid.Children.Add(actions);
 
                 var card = new Border { Child = grid }; card.Classes.Add("card"); blockCards.Add(id, card);
                 ConfigureSection(id, new Section(ordinal, toggle, fold, foldIcon, input, ribbon, preview));

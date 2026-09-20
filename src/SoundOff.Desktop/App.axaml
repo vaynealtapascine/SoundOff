@@ -34,7 +34,7 @@
           <Color x:Key="HairlineColor">#E6E8E6</Color>
 
           <Color x:Key="WordHoverColor">#ECEEEC</Color>
-          <!-- Inline reading highlight. Ink #202322 on #B9E4E9 measures 11.6:1. -->
+          <!-- Inline reading highlight, measured with the WCAG formula: ink #202322 on #B9E4E9 is 11.6:1. -->
           <Color x:Key="WordActiveColor">#B9E4E9</Color>
           <Color x:Key="LineActiveColor">#F1F8F9</Color>
           <Color x:Key="RowSelectedColor">#E7F2F3</Color>
@@ -97,7 +97,7 @@
           <Color x:Key="HairlineColor">#2C312E</Color>
 
           <Color x:Key="WordHoverColor">#353D37</Color>
-          <!-- Inline reading highlight. Paper #ECEFEC on #1E5C63 measures 6.9:1. -->
+          <!-- Inline reading highlight, measured with the WCAG formula: paper #ECEFEC on #1E5C63 is 6.5:1. -->
           <Color x:Key="WordActiveColor">#1E5C63</Color>
           <Color x:Key="LineActiveColor">#1E2A2B</Color>
           <Color x:Key="RowSelectedColor">#1C2A2C</Color>
@@ -394,6 +394,10 @@
       <Setter Property="Background" Value="{DynamicResource TrackSurfaceBrush}" />
       <Setter Property="CornerRadius" Value="9" />
       <Setter Property="Padding" Value="2" />
+      <!-- The track alone is 1.15:1 against the Light top bar, so the outline is what makes the control a
+           control; the lit segment's own surface then does the rest. -->
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="BorderBrush" Value="{DynamicResource EdgeBrush}" />
     </Style>
     <Style Selector="ToggleButton.seg">
       <Setter Property="MinHeight" Value="24" /><Setter Property="Height" Value="24" />
@@ -626,6 +630,10 @@
       <Setter Property="Background" Value="Transparent" /><Setter Property="BorderBrush" Value="Transparent" />
       <Setter Property="Padding" Value="0,2" />
     </Style>
+    <!-- Over a cue table the document's name is a label, not a heading. -->
+    <Style Selector="TextBox.title.compact">
+      <Setter Property="FontSize" Value="19" />
+    </Style>
     <Style Selector="TextBox.transcript">
       <Setter Property="FontSize" Value="18" /><Setter Property="LineHeight" Value="30" />
       <Setter Property="Padding" Value="0,2" /><Setter Property="MinHeight" Value="0" />
@@ -706,6 +714,7 @@
       <Setter Property="Background" Value="Transparent" /><Setter Property="BorderBrush" Value="Transparent" />
       <Setter Property="BorderThickness" Value="0" />
       <Setter Property="Padding" Value="4,1" /><Setter Property="MinHeight" Value="0" />
+      <Setter Property="Margin" Value="0,6,0,0" />
       <Setter Property="FontSize" Value="11" />
       <Setter Property="FontFamily" Value="{StaticResource ClockFont}" />
       <Setter Property="Foreground" Value="{DynamicResource MutedBrush}" />

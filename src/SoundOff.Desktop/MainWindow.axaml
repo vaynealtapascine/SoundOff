@@ -160,9 +160,9 @@
             <TextBlock Text="#" HorizontalAlignment="Center" />
             <TextBlock Grid.Column="1" Text="Start" Margin="6,0,0,0" />
             <TextBlock Grid.Column="2" Text="End" Margin="6,0,0,0" />
-            <TextBlock Grid.Column="3" Text="Length" Margin="6,0,0,0" />
-            <TextBlock Grid.Column="4" Text="Speaker" Margin="7,0,0,0" />
-            <TextBlock Grid.Column="5" Text="Text" Margin="7,0,0,0" />
+            <TextBlock Grid.Column="3" Text="Length" Margin="9,0,0,0" />
+            <TextBlock Grid.Column="4" Text="Speaker" Margin="14,0,0,0" />
+            <TextBlock Grid.Column="5" Text="Text" Margin="14,0,0,0" />
             <StackPanel Grid.Column="6" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Bottom">
               <Button x:Name="CollapseSectionsButton" Classes="quiet icon" Width="29" Height="24"
                       ToolTip.Tip="One line per paragraph" AutomationProperties.Name="Collapse all paragraphs">
@@ -177,9 +177,13 @@
         </Border>
 
         <ScrollViewer x:Name="TranscriptScroll" Grid.Row="3" HorizontalScrollBarVisibility="Disabled" Padding="0">
-          <Border x:Name="DocumentPage" Classes="page">
-            <StackPanel x:Name="DocumentHost" Spacing="0" HorizontalAlignment="Stretch" />
-          </Border>
+          <!-- Matching the viewport height makes the page reach the bottom of the window the way paper fills a
+               desk, while a long transcript still grows past it and scrolls. -->
+          <Grid MinHeight="{Binding $parent[ScrollViewer].Bounds.Height}">
+            <Border x:Name="DocumentPage" Classes="page">
+              <StackPanel x:Name="DocumentHost" Spacing="0" HorizontalAlignment="Stretch" VerticalAlignment="Top" />
+            </Border>
+          </Grid>
         </ScrollViewer>
 
         <ScrollViewer x:Name="StartScreen" Grid.Row="3" HorizontalScrollBarVisibility="Disabled">
