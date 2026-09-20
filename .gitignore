@@ -7,3 +7,4 @@ TestResults/
 *.soundoff.sqlite*
 **/__pycache__/
 *.soundoff.zip
+*.local.md
