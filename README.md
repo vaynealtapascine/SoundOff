@@ -1,6 +1,8 @@
-# SoundOff — local transcription editor
+![AI Disclosure: Repo code is fully AI-generated. Makes use of openai/gpt-6-astra, unbiased/pareto-26.9, openai/gpt-5.6-luna, and anthropic/claude-opus-5](assets/ai-transparency-disclosure.png)
 
-Import a recording, transcribe it **on this computer** with WhisperX, listen while the words highlight in time, correct the text and speakers, and export. No account, no upload, no hosted inference.
+# SoundOff
+
+Local transcription editor for Windows: import or record audio and video, transcribe on-device with WhisperX, and review word-synced text and speakers. No account, no upload, no hosted inference.
 
 This is a working Windows development build, not a packaged release. See [verification evidence](docs/VERIFICATION.md) for the exact commands, results and limits, and [ARCHITECTURE.md](ARCHITECTURE.md) for the full intended product and its release gates.
 
@@ -147,3 +149,7 @@ python validate_documents.py
 ```
 
 Checks only planning-document structure and coverage.
+
+## License
+
+MIT. See [LICENSE](LICENSE).
