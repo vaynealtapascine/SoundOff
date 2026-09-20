@@ -1,6 +1,8 @@
 using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
+using Avalonia.Input;
 using Avalonia.Input.Platform;
 using Avalonia.Interactivity;
 using Avalonia.Layout;
@@ -22,11 +24,15 @@ public sealed partial class MainWindow : Window
     private readonly Dictionary<Guid, (TextBox Start, TextBox End)> blockTimingInputs = [];
     private readonly Dictionary<Guid, Border> blockCards = [];
     private readonly Dictionary<Guid, WrapPanel> blockRibbons = [];
+    private readonly Dictionary<Guid, Grid> blockGrids = [];
+    private readonly Dictionary<Guid, Button> blockGutters = [];
+    private readonly Dictionary<Guid, TextBlock> blockDurations = [], blockSpeakerLabels = [];
+    private readonly Dictionary<Guid, WordHighlight> blockHighlights = [];
     private readonly CancellationTokenSource lifetime = new();
     private bool dirty, busy, rendering, allowClose, confirmingClose;
     private readonly StackPanel documentHost, speakerHost;
     private readonly Control startScreen, speakersCard, historyCard;
-    private readonly TextBlock status, path;
+    private readonly TextBlock status, path, projectLabel;
     private TextBox? titleInput;
     private readonly Button save, undo, redo, discard, startImport, startOpen, startDemo;
     private readonly MenuItem demo, open, export, copy, exportBundle, importBundle, srt;
@@ -51,6 +57,7 @@ public sealed partial class MainWindow : Window
         startScreen = this.FindControl<Control>("StartScreen")!;
         speakersCard = this.FindControl<Control>("SpeakersCard")!; historyCard = this.FindControl<Control>("HistoryCard")!;
         status = this.FindControl<TextBlock>("StatusText")!; path = this.FindControl<TextBlock>("PathText")!;
+        projectLabel = this.FindControl<TextBlock>("ProjectMenuLabel")!;
         demo = this.FindControl<MenuItem>("DemoItem")!; open = this.FindControl<MenuItem>("OpenProjectItem")!;
         export = this.FindControl<MenuItem>("ExportTextItem")!; srt = this.FindControl<MenuItem>("ExportSrtItem")!;
         copy = this.FindControl<MenuItem>("CopyTextItem")!;
@@ -91,7 +98,10 @@ public sealed partial class MainWindow : Window
         themeChoice.SelectedIndex = Array.IndexOf(AppearanceSettings.Themes, appearance.Theme);
         reducedMotionChoice.IsChecked = appearance.ReducedMotion;
         sidebarToggle.IsChecked = !appearance.SidebarCollapsed;
+        sidebarWidth = appearance.ClampedSidebarWidth();
         ApplySidebar(persist: false);
+        SetWaveformHeight(appearance.ClampedWaveformHeight());
+        SelectView(!appearance.TimingsView);
         applyingSettings = false;
         themeChoice.SelectionChanged += (_, _) => ApplyAppearance(persist: true);
         reducedMotionChoice.IsCheckedChanged += (_, _) => ApplyAppearance(persist: true);
@@ -321,13 +331,16 @@ public sealed partial class MainWindow : Window
     private void Render()
     {
         rendering = true; dirty = false; sections.Clear(); titleInput = null; documentHost.Children.Clear(); speakerHost.Children.Clear();
-        speakerInputs.Clear(); blockInputs.Clear(); blockSpeakerInputs.Clear(); blockTimingInputs.Clear(); blockCards.Clear(); blockRibbons.Clear(); reviewHeaders.Clear();
+        speakerInputs.Clear(); blockInputs.Clear(); blockSpeakerInputs.Clear(); blockTimingInputs.Clear(); blockCards.Clear(); blockRibbons.Clear();
+        blockGrids.Clear(); blockGutters.Clear(); blockDurations.Clear(); blockSpeakerLabels.Clear(); blockHighlights.Clear();
+        timingCells.Clear(); documentLead.Clear();
         path.Text = store?.PathName ?? "";
         ToolTip.SetTip(path, store?.PathName);
         startScreen.IsVisible = store is null;
         historyCard.IsVisible = store is not null;
         speakersCard.IsVisible = snapshot is not null && snapshot.Provenance != Provenance.Empty;
         Title = store is null || snapshot is null ? "SoundOff" : $"{snapshot.Title} — SoundOff";
+        projectLabel.Text = store is null || snapshot is null ? "SoundOff" : snapshot.Title;
         if (store is not null && (snapshot is null || snapshot.Provenance == Provenance.Empty))
         {
             var message = new StackPanel { Spacing = 8, Margin = new Thickness(0, 48, 0, 0), HorizontalAlignment = HorizontalAlignment.Center };
@@ -340,8 +353,9 @@ public sealed partial class MainWindow : Window
         {
             titleInput = new TextBox { Text = snapshot.Title, MaxLength = 200, Watermark = "Project title", IsUndoEnabled = false };
             titleInput.Classes.Add("title"); AutomationProperties.SetName(titleInput, "Project title"); titleInput.PropertyChanged += OnDraftChanged;
-            documentHost.Children.Add(titleInput);
-            documentHost.Children.Add(ProvenanceBadge(snapshot.Provenance));
+            documentHost.Children.Add(titleInput); documentLead.Add((titleInput, new Thickness(0, 0, 0, 2)));
+            var badge = ProvenanceBadge(snapshot.Provenance);
+            documentHost.Children.Add(badge); documentLead.Add((badge, new Thickness(0, 0, 0, 14)));
             var names = snapshot.Speakers.Select(s => s.Name).ToList();
             var used = snapshot.Blocks.Select(b => b.SpeakerId).ToHashSet();
             foreach (var speaker in snapshot.Speakers)
@@ -349,6 +363,9 @@ public sealed partial class MainWindow : Window
                 var row = new Grid { ColumnDefinitions = new ColumnDefinitions("*,Auto"), ColumnSpacing = 6 };
                 var input = new TextBox { Text = speaker.Name, MaxLength = 100, Watermark = "Speaker name", IsUndoEnabled = false };
                 AutomationProperties.SetName(input, "Rename " + speaker.Name); input.PropertyChanged += OnDraftChanged;
+                // The Document-view cue shows the draft name as you type it; which speaker a paragraph points at
+                // is untouched, so this cannot reassign anything.
+                input.PropertyChanged += (_, e) => { if (e.Property == TextBox.TextProperty) RefreshSpeakerLabels(); };
                 speakerInputs.Add(speaker.Id, input); row.Children.Add(input);
                 var id = speaker.Id;
                 var remove = Action("Remove", "Remove speaker " + speaker.Name, () => CommitStructuralAsync(new RemoveSpeaker(id)), enabled: !used.Contains(id));
@@ -366,33 +383,81 @@ public sealed partial class MainWindow : Window
                 remove.Classes.Add("quiet"); actions.Children.Add(remove); actions.Children.Add(more);
                 Grid.SetColumn(actions, 1); row.Children.Add(actions); speakerHost.Children.Add(row);
             }
-            speakerHost.Children.Add(Action("Add speaker", "Add speaker", () => CommitStructuralAsync(new AddSpeaker(Guid.NewGuid(), NewSpeakerName())),
-                enabled: snapshot.Speakers.Length < DocumentRules.MaxSpeakers));
+            var addSpeaker = Action("Add speaker", "Add speaker", () => CommitStructuralAsync(new AddSpeaker(Guid.NewGuid(), NewSpeakerName())),
+                enabled: snapshot.Speakers.Length < DocumentRules.MaxSpeakers);
+            addSpeaker.Classes.Add("quiet"); addSpeaker.HorizontalAlignment = HorizontalAlignment.Left;
+            speakerHost.Children.Add(addSpeaker);
             for (var index = 0; index < snapshot.Blocks.Length; index++)
             {
                 var block = snapshot.Blocks[index]; var id = block.Id; var ordinal = index + 1;
                 var name = snapshot.Speakers.Single(s => s.Id == block.SpeakerId).Name;
-                var group = new StackPanel { Spacing = 8 };
-                var header = new WrapPanel { Orientation = Orientation.Horizontal };
-                var choice = new ComboBox { ItemsSource = names, SelectedIndex = snapshot.Speakers.IndexOf(snapshot.Speakers.Single(s => s.Id == block.SpeakerId)), MinWidth = 170 };
-                AutomationProperties.SetName(choice, $"Speaker for paragraph {ordinal}"); choice.SelectionChanged += (_, _) => RecomputeDraft();
-                blockSpeakerInputs.Add(id, choice); header.Children.Add(choice);
+                var grid = new Grid { ColumnDefinitions = new ColumnDefinitions(DocumentView ? DocumentColumns : CueColumns) };
+                blockGrids.Add(id, grid);
+
+                // Column 0 is one control read two ways: where this paragraph starts, or which row it is. Either
+                // way it moves the playhead here.
+                var gutter = new Button { Classes = { "gutter" }, IsEnabled = block.Timing is not null };
+                AutomationProperties.SetName(gutter, $"Move the playhead to paragraph {ordinal}");
+                ToolTip.SetShowOnDisabled(gutter, true);
+                ToolTip.SetTip(gutter, block.Timing is null ? "This paragraph has no timing." : "Move the playhead here");
+                gutter.Click += (_, _) => SeekToBlock(id);
+                blockGutters.Add(id, gutter); grid.Children.Add(gutter);
+
                 var startBox = new TextBox { Text = TimingText(block.Timing, true), Watermark = "Start", IsUndoEnabled = false };
                 var endBox = new TextBox { Text = TimingText(block.Timing, false), Watermark = "End", IsUndoEnabled = false };
-                startBox.Classes.Add("timing"); endBox.Classes.Add("timing");
+                foreach (var box in new[] { startBox, endBox }) { box.Classes.Add("clock"); box.Classes.Add("timing"); }
                 AutomationProperties.SetName(startBox, $"Start time of paragraph {ordinal}"); AutomationProperties.SetName(endBox, $"End time of paragraph {ordinal}");
-                ToolTip.SetTip(startBox, "h:mm:ss.ffffff · leave both blank for untimed"); ToolTip.SetTip(endBox, "h:mm:ss.ffffff · leave both blank for untimed");
+                ToolTip.SetTip(startBox, "h:mm:ss.ffffff · F8 marks it at the playhead · blank both for untimed");
+                ToolTip.SetTip(endBox, "h:mm:ss.ffffff · F9 marks it at the playhead · blank both for untimed");
                 startBox.PropertyChanged += OnDraftChanged; endBox.PropertyChanged += OnDraftChanged;
+                startBox.PropertyChanged += (_, e) => { if (e.Property == TextBox.TextProperty) RefreshDuration(id); };
+                endBox.PropertyChanged += (_, e) => { if (e.Property == TextBox.TextProperty) RefreshDuration(id); };
                 blockTimingInputs.Add(id, (startBox, endBox));
-                 header.Children.Add(startBox);
-                 header.Children.Add(endBox);
-                var go = Action("Go to", $"Go to paragraph {ordinal}", () => { SeekToBlock(id); return Task.CompletedTask; }, enabled: block.Timing is not null);
-                go.Classes.Add("quiet"); ToolTip.SetShowOnDisabled(go, true);
-                ToolTip.SetTip(go, block.Timing is null ? "This paragraph has no timing." : "Move the playhead here");
-                 header.Children.Add(go);
-                var more = new Button { Content = "⋯" }; more.Classes.Add("more");
-                AutomationProperties.SetName(more, $"More actions for paragraph {ordinal}"); ToolTip.SetTip(more, "Paragraph actions");
+                Grid.SetColumn(startBox, 1); Grid.SetColumn(endBox, 2);
+                grid.Children.Add(startBox); grid.Children.Add(endBox);
+
+                var duration = new TextBlock { Classes = { "muted", "clock" }, Margin = new Thickness(7, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center };
+                AutomationProperties.SetName(duration, $"Length of paragraph {ordinal}");
+                blockDurations.Add(id, duration); Grid.SetColumn(duration, 3); grid.Children.Add(duration);
+
+                var choice = new ComboBox { ItemsSource = names, Classes = { "speaker" }, Margin = new Thickness(6, 0, 0, 0), VerticalAlignment = VerticalAlignment.Top,
+                    SelectedIndex = snapshot.Speakers.IndexOf(snapshot.Speakers.Single(s => s.Id == block.SpeakerId)) };
+                AutomationProperties.SetName(choice, $"Speaker for paragraph {ordinal}");
+                choice.SelectionChanged += (_, _) => { RecomputeDraft(); RefreshSpeakerLabels(); };
+                blockSpeakerInputs.Add(id, choice); Grid.SetColumn(choice, 4); grid.Children.Add(choice);
+                foreach (var cell in new Control[] { startBox, endBox, duration, choice }) timingCells.Add(cell);
+
+                // Column 5 is the paragraph itself: whose line it is, the words, and the word list under them.
+                var body = new StackPanel { Spacing = 0, Margin = new Thickness(7, 0, 0, 0) };
+                var speakerLabel = new TextBlock { Classes = { "speaker" }, Text = name, IsVisible = false };
+                blockSpeakerLabels.Add(id, speakerLabel); body.Children.Add(speakerLabel);
+                var preview = new TextBlock { MaxLines = 1, TextTrimming = TextTrimming.CharacterEllipsis, FontSize = 14 };
+                var toggle = new ToggleButton
+                {
+                    Content = preview, Classes = { "section-toggle" },
+                    HorizontalAlignment = HorizontalAlignment.Stretch, HorizontalContentAlignment = HorizontalAlignment.Left
+                };
+                body.Children.Add(toggle);
                 var input = new TextBox { Text = block.Text, AcceptsReturn = true, TextWrapping = TextWrapping.Wrap, MaxLength = DocumentRules.MaxBlockLength, IsUndoEnabled = false };
+                input.Classes.Add("transcript"); AutomationProperties.SetName(input, "Transcript block by " + name);
+                input.PropertyChanged += OnDraftChanged; blockInputs.Add(id, input);
+                // Double-click already selects a word; taking the playhead there too is the one gesture that reads
+                // as "this word". A plain click stays a plain click, so typing never moves the audio.
+                input.AddHandler(Gestures.DoubleTappedEvent, (_, _) => SeekToTypedWord(id), RoutingStrategies.Bubble);
+                var highlight = new WordHighlight(input);
+                blockHighlights.Add(id, highlight);
+                var layer = new Panel();
+                layer.Children.Add(highlight); layer.Children.Add(input);
+                body.Children.Add(layer);
+                // Filled only while this paragraph is the active one, so a long document never builds thousands of word buttons.
+                var ribbon = new WrapPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 4, 0, 0) }; ribbon.Classes.Add("ribbon");
+                blockRibbons.Add(id, ribbon); body.Children.Add(ribbon);
+                Grid.SetColumn(body, 5); grid.Children.Add(body);
+
+                var foldIcon = new PathIcon { Classes = { "small" } };
+                var fold = new Button { Content = foldIcon, Classes = { "quiet", "icon", "faint" }, Width = 28, Height = 24 };
+                var more = new Button { Content = "⋯", Classes = { "more", "faint" } };
+                AutomationProperties.SetName(more, $"More actions for paragraph {ordinal}"); ToolTip.SetTip(more, "Paragraph actions");
                 var menu = new MenuFlyout { Placement = PlacementMode.BottomEdgeAlignedRight };
                 menu.Items.Add(MenuAction("Split at cursor", $"Split paragraph {ordinal} at cursor", () => CommitStructuralAsync(new SplitBlock(id, input.CaretIndex, Guid.NewGuid()))));
                 menu.Items.Add(MenuAction("Merge with next", $"Merge paragraph {ordinal} with next", () => CommitStructuralAsync(new MergeWithNext(id)), enabled: index + 1 < snapshot.Blocks.Length));
@@ -400,26 +465,49 @@ public sealed partial class MainWindow : Window
                 menu.Items.Add(new Separator());
                 menu.Items.Add(MenuAction("Delete paragraph", $"Delete paragraph {ordinal}", () => CommitStructuralAsync(new DeleteBlock(id))));
                 more.Flyout = menu;
-                 header.Children.Add(more);
-                reviewHeaders.Add(header); group.Children.Add(header);
-                input.Classes.Add("transcript"); AutomationProperties.SetName(input, "Transcript block by " + name);
-                input.PropertyChanged += OnDraftChanged; blockInputs.Add(id, input); group.Children.Add(input);
-                // Filled only while this paragraph is the active one, so a long document never builds thousands of word buttons.
-                var ribbon = new WrapPanel { Orientation = Orientation.Horizontal }; ribbon.Classes.Add("ribbon");
-                blockRibbons.Add(id, ribbon); group.Children.Add(ribbon);
-                var card = new Border { Child = group }; card.Classes.Add("card"); blockCards.Add(id, card);
-                ConfigureSection(id, ordinal, name, group, header, input, ribbon);
+                var actions = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Top, HorizontalAlignment = HorizontalAlignment.Right };
+                actions.Children.Add(fold); actions.Children.Add(more);
+                Grid.SetColumn(actions, 6); grid.Children.Add(actions);
+
+                var card = new Border { Child = grid }; card.Classes.Add("card"); blockCards.Add(id, card);
+                ConfigureSection(id, new Section(ordinal, toggle, fold, foldIcon, input, ribbon, preview));
+                RefreshDuration(id);
                 documentHost.Children.Add(card);
             }
-            if (snapshot.Blocks.Length == 0) documentHost.Children.Add(new TextBlock { Text = "Every paragraph was deleted. Undo restores them.", Classes = { "muted" } });
-            var add = Action("+ Add paragraph", "Add paragraph at end",
+            if (snapshot.Blocks.Length == 0)
+            {
+                var empty = new TextBlock { Text = "Every paragraph was deleted. Undo restores them.", Classes = { "muted" } };
+                documentHost.Children.Add(empty); documentLead.Add((empty, new Thickness(0, 8, 0, 0)));
+            }
+            var add = Action("Add paragraph", "Add paragraph at end",
                 () => CommitStructuralAsync(new InsertBlock(snapshot.Blocks.Length == 0 ? null : snapshot.Blocks[^1].Id, Guid.NewGuid(), snapshot.Speakers[0].Id, "")),
                 enabled: snapshot.Speakers.Length > 0 && snapshot.Blocks.Length < DocumentRules.MaxBlocks);
-            add.Classes.Add("quiet"); documentHost.Children.Add(add);
+            add.Classes.Add("quiet"); add.HorizontalAlignment = HorizontalAlignment.Left;
+            add.Content = new StackPanel
+            {
+                Orientation = Orientation.Horizontal, Spacing = 7,
+                Children = { new PathIcon { Classes = { "small", "plus" } }, new TextBlock { Text = "Add paragraph" } }
+            };
+            documentHost.Children.Add(add); documentLead.Add((add, new Thickness(-11, 14, 0, 0)));
         }
         ApplyDocumentView();
         rendering = false; RenderHistory(); RenderTranscribe(); RefreshPlaybackHighlight(force: true); UpdateControls();
     }
+
+    // How long the cue runs, in the units a subtitle editor uses: seconds under a minute, m:ss past it.
+    private void RefreshDuration(Guid id)
+    {
+        if (!blockDurations.TryGetValue(id, out var label) || !blockTimingInputs.TryGetValue(id, out var boxes)) return;
+        try
+        {
+            var range = TimeText.ParseRange(boxes.Start.Text, boxes.End.Text);
+            label.Text = range is null ? "—" : LengthText(range.EndMicroseconds - range.StartMicroseconds);
+        }
+        catch (InvalidDataException) { label.Text = "?"; }
+    }
+    internal static string LengthText(long microseconds) => microseconds < 0 ? "?"
+        : microseconds < 60_000_000 ? (microseconds / 1_000_000.0).ToString("0.0", System.Globalization.CultureInfo.InvariantCulture) + "s"
+        : Clock(microseconds);
 
     // The estimate status stays visible in the document; the full provenance notice is one hover away and in every export.
     private static Border ProvenanceBadge(Provenance provenance)
@@ -462,6 +550,8 @@ public sealed partial class MainWindow : Window
         demo.IsEnabled = open.IsEnabled = startDemo.IsEnabled = startOpen.IsEnabled = recentMenu.IsEnabled = !busy && !JobRunning && !Recording;
         startImport.IsEnabled = !busy && !JobRunning && !Recording;
         save.IsEnabled = discard.IsEnabled = !busy && dirty;
+        // Discard has nothing to discard when the document is saved, so it is not there.
+        discard.IsVisible = dirty;
         undo.IsEnabled = !busy && !dirty && store?.CanUndo == true;
         redo.IsEnabled = !busy && !dirty && store?.CanRedo == true;
         export.IsEnabled = copy.IsEnabled = !busy && snapshot is not null && snapshot.Provenance != Provenance.Empty;

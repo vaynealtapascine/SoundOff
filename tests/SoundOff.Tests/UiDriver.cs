@@ -22,6 +22,12 @@ internal static class UiDriver
             if (dialog.Title == "Discard unsaved changes?") dialog.Close(true);
         Avalonia.Threading.Dispatcher.UIThread.RunJobs();
     }
+    // The view switch is a segmented control, so a view is a checked segment rather than a selected index.
+    public static void SetView(Window window, bool document) =>
+        window.FindControl<Avalonia.Controls.Primitives.ToggleButton>(document ? "DocumentViewButton" : "TimingsViewButton")!.IsChecked = true;
+    public static bool DocumentView(Window window) =>
+        window.FindControl<Avalonia.Controls.Primitives.ToggleButton>("DocumentViewButton")!.IsChecked == true;
+
     public static Control Named(Window window, string name) => window.FindControl<Control>(name)!;
     public static MenuItem Item(Window window, string name) => window.FindControl<MenuItem>(name)!;
 

@@ -44,7 +44,8 @@ public sealed partial class MainWindow
         try
         {
             settings.Save(new AppearanceSettings(AppearanceSettings.CurrentVersion, AppearanceSettings.Themes[index],
-                reducedMotionChoice.IsChecked == true, sidebarToggle.IsChecked != true));
+                reducedMotionChoice.IsChecked == true, sidebarToggle.IsChecked != true,
+                sidebarWidth, waveformHeight, !DocumentView));
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException)
         { status.Text = $"Appearance applies to this window but could not be saved to {settings.PathName}: {e.Message}"; }

@@ -116,8 +116,8 @@ public sealed class WaveformTests
             UiDriver.Click(window, "ZoomInButton");
             var span = wave.VisibleSpanMicroseconds;
             Assert.True(span < wave.Duration);
-            window.FindControl<ComboBox>("ViewChoice")!.SelectedIndex = 1;
-            window.FindControl<ComboBox>("ViewChoice")!.SelectedIndex = 0;
+            UiDriver.SetView(window, document: false);
+            UiDriver.SetView(window, document: true);
             Assert.Equal(span, wave.VisibleSpanMicroseconds);
             UiDriver.Click(window, "ZoomOutButton");
             Assert.True(wave.VisibleSpanMicroseconds > span);

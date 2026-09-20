@@ -6,12 +6,14 @@ namespace SoundOff.Desktop;
 public sealed partial class MainWindow
 {
     private WaveformOverview waveform = null!;
+    private Border waveformHost = null!;
     private CancellationTokenSource? waveformLoad;
     private long waveformGeneration;
 
     private void InitializeWaveform()
     {
         waveform = this.FindControl<WaveformOverview>("Waveform")!;
+        waveformHost = this.FindControl<Border>("WaveformHost")!;
         waveform.DetailStatusChanged += (_, message) =>
         {
             var label = this.FindControl<TextBlock>("WaveformStatus")!;
@@ -33,7 +35,7 @@ public sealed partial class MainWindow
         waveformGeneration++;
         waveformLoad?.Cancel(); waveformLoad?.Dispose(); waveformLoad = null;
         waveform.SetSource(null); waveform.SetPeaks(null); waveform.Duration = 0; waveform.WindowSeconds = 30;
-        this.FindControl<Control>("WaveformHost")!.IsVisible = false;
+        waveformHost.IsVisible = false; transportHandle.IsVisible = false;
     }
 
     private async Task LoadWaveformAsync(string path, long duration)
@@ -42,7 +44,7 @@ public sealed partial class MainWindow
         var cancellation = CancellationTokenSource.CreateLinkedTokenSource(lifetime.Token);
         waveformLoad = cancellation;
         var label = this.FindControl<TextBlock>("WaveformStatus")!;
-        this.FindControl<Control>("WaveformHost")!.IsVisible = true;
+        waveformHost.IsVisible = true; transportHandle.IsVisible = true;
         label.Text = "Reading audio waveform…"; label.IsVisible = true;
         waveform.IsVisible = false;
         try

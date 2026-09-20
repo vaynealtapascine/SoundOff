@@ -15,7 +15,7 @@ public sealed partial class MainWindow
     private VideoPreviewSession videoPreview = null!;
     private ToggleButton videoToggle = null!;
     private Slider videoSize = null!;
-    private StackPanel videoPanel = null!;
+    private StackPanel videoPanel = null!, videoSettings = null!;
     private WrapPanel videoControls = null!;
     private Border videoSurface = null!;
     private Grid reviewArea = null!;
@@ -36,6 +36,7 @@ public sealed partial class MainWindow
         videoSize = this.FindControl<Slider>("VideoSizeSlider")!;
         videoPanel = this.FindControl<StackPanel>("VideoPreviewPanel")!;
         videoControls = this.FindControl<WrapPanel>("VideoControls")!;
+        videoSettings = this.FindControl<StackPanel>("VideoSettings")!;
         videoSurface = this.FindControl<Border>("VideoSurface")!;
         reviewArea = this.FindControl<Grid>("ReviewArea")!;
         videoImage = this.FindControl<Image>("VideoPreviewImage")!;
@@ -78,10 +79,11 @@ public sealed partial class MainWindow
         if (videoPreview is null || lifetime.IsCancellationRequested) return;
         videoPreview.Update(position, playing);
         var shown = hasVideo && videoToggle.IsChecked == true;
+        // The toggle rides with the other playback controls; its size lives in Settings, where a preference belongs.
         videoControls.IsVisible = hasVideo;
         videoPanel.IsVisible = shown;
-        videoSize.IsVisible = shown;
-        videoToggle.Content = shown ? "Hide video" : "Show video";
+        videoSettings.IsVisible = hasVideo;
+        ToolTip.SetTip(videoToggle, shown ? "Hide the video — the audio keeps playing" : "Show the video");
         var frame = shown ? videoPreview.Frame : null;
         // A frame speaks for itself; the status line only explains an empty picture (loading, ended, failure).
         videoStatus.Text = videoPreview.Message;

@@ -34,16 +34,26 @@ public sealed partial class MainWindow
         else findStatus.Text = "";
     }
 
-    // Ctrl+S save, Ctrl+Z undo, Ctrl+Y redo, Ctrl+F find, F3 find next, Esc close find, Ctrl+B side panel, F1 help. Paragraph controls have
-    // their own undo disabled, so Ctrl+Z never silently discards typed text: while a draft exists undo/redo do nothing.
+    // Everything a transcript pass needs without leaving the keys: Ctrl+S save, Ctrl+Z/Ctrl+Y undo and redo,
+    // Ctrl+F find, F3 find next, Esc close find, Ctrl+B side panel, Ctrl+1/Ctrl+2 the two views, F1 help,
+    // Ctrl+Space play/pause, Alt+Left/Alt+Right five seconds either way, F8/F9 mark this paragraph's start and
+    // end at the playhead, Ctrl+Enter split where the caret is. Paragraph controls have their own undo disabled,
+    // so Ctrl+Z never silently discards typed text: while a draft exists undo/redo do nothing.
     private void OnShortcut(object? sender, KeyEventArgs e)
     {
         var control = e.KeyModifiers == KeyModifiers.Control;
+        var alt = e.KeyModifiers == KeyModifiers.Alt;
         var none = e.KeyModifiers == KeyModifiers.None;
         if (control && e.Key == Key.F) { ShowFindBar(true); e.Handled = true; return; }
         if (none && e.Key == Key.Escape && findBar.IsVisible) { ShowFindBar(false); e.Handled = true; return; }
         if (none && e.Key == Key.F1) { ShowHelp(); e.Handled = true; return; }
         if (control && e.Key == Key.B) { ToggleSidebar(); e.Handled = true; return; }
+        if (control && e.Key is Key.D1 or Key.D2) { SelectView(e.Key == Key.D1); e.Handled = true; return; }
+        if (control && e.Key == Key.Space) { if (playPause.IsEnabled) TogglePlay(); e.Handled = true; return; }
+        if (alt && e.Key == Key.Left) { if (skipBack.IsEnabled) Skip(-SkipMicroseconds); e.Handled = true; return; }
+        if (alt && e.Key == Key.Right) { if (skipForward.IsEnabled) Skip(SkipMicroseconds); e.Handled = true; return; }
+        if (none && e.Key is Key.F8 or Key.F9) { MarkTiming(e.Key == Key.F8); e.Handled = true; return; }
+        if (control && e.Key == Key.Enter) { SplitAtCaret(); e.Handled = true; return; }
         Button? target = (e.Key, control) switch
         {
             (Key.S, true) => save, (Key.Z, true) => undo, (Key.Y, true) => redo,
@@ -52,6 +62,35 @@ public sealed partial class MainWindow
         if (target is null || !target.IsEnabled) return;
         e.Handled = true;
         target.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+    }
+
+    // Which paragraph a keyboard timing action means: the one being typed in, then the one whose timing box has
+    // focus, and failing both the one being spoken.
+    private Guid? CurrentBlockId()
+    {
+        foreach (var (id, box) in blockInputs) if (box.IsFocused) return id;
+        foreach (var (id, boxes) in blockTimingInputs) if (boxes.Start.IsFocused || boxes.End.IsFocused) return id;
+        return activeSpans.Count > 0 ? activeSpans[0].BlockId : null;
+    }
+
+    // F8/F9 write the playhead into a timing box, which is an ordinary draft edit: nothing is saved, the change
+    // shows up in the unsaved-changes state, and Discard takes it back.
+    private void MarkTiming(bool start)
+    {
+        if (busy || snapshot is null || playback.DurationMicroseconds <= 0) return;
+        if (CurrentBlockId() is not { } id || !blockTimingInputs.TryGetValue(id, out var boxes)) return;
+        var position = Math.Clamp(playback.PositionMicroseconds, 0, TimeText.MaxMicroseconds);
+        (start ? boxes.Start : boxes.End).Text = TimeText.Format(position);
+        RevealSection(id);
+        var ordinal = sections.TryGetValue(id, out var section) ? section.Ordinal : 0;
+        status.Text = $"Paragraph {ordinal} {(start ? "start" : "end")} marked at {Clock(position)} · not saved yet";
+    }
+
+    private void SplitAtCaret()
+    {
+        if (busy) return;
+        foreach (var (id, box) in blockInputs)
+            if (box.IsFocused) { _ = CommitStructuralAsync(new SplitBlock(id, box.CaretIndex, Guid.NewGuid())); return; }
     }
 
     // Find/replace work on the draft text in the paragraph controls, never directly on the saved snapshot.

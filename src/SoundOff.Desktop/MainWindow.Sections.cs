@@ -1,64 +1,58 @@
-using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
-using Avalonia.Media;
 
 namespace SoundOff.Desktop;
 
+// Folding a cue. A collapsed row keeps its number, times and speaker and shows its text as one line — the way a
+// subtitle grid reads — and hands the editor back the moment you click it. Document view is never folded.
 public sealed partial class MainWindow
 {
-    private sealed record Section(int Ordinal, ToggleButton Toggle, Control Details, TextBox Input, Control Ribbon, TextBlock Preview);
+    private sealed record Section(int Ordinal, ToggleButton Toggle, Button Fold, PathIcon FoldIcon,
+        TextBox Input, Control Ribbon, TextBlock Preview);
     private readonly Dictionary<Guid, Section> sections = [];
     private readonly HashSet<Guid> collapsedSections = [];
 
-    private void ConfigureSection(Guid id, int ordinal, string speaker, StackPanel group, WrapPanel details, TextBox input, Control ribbon)
+    private void ConfigureSection(Guid id, Section section)
     {
-        foreach (var child in details.Children) child.Margin = new Thickness(0, 0, 6, 6);
-        var preview = new TextBlock { Text = input.Text, MaxLines = 2, TextWrapping = TextWrapping.Wrap, TextTrimming = TextTrimming.CharacterEllipsis, FontSize = 17 };
-        var toggle = new ToggleButton
-        {
-            IsChecked = !collapsedSections.Contains(id),
-            HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Stretch,
-            HorizontalContentAlignment = Avalonia.Layout.HorizontalAlignment.Left,
-            Classes = { "section-toggle" }
-        };
-        group.Children.Insert(0, toggle);
-        var section = new Section(ordinal, toggle, details, input, ribbon, preview);
         sections.Add(id, section);
-        input.PropertyChanged += (_, e) =>
+        section.Toggle.IsChecked = !collapsedSections.Contains(id);
+        section.Input.PropertyChanged += (_, e) =>
         {
-            if (e.Property == TextBox.TextProperty)
-            {
-                preview.Text = string.IsNullOrWhiteSpace(input.Text) ? "Empty paragraph — click to edit" : input.Text;
-                UpdateSectionName(section);
-            }
+            if (e.Property != TextBox.TextProperty) return;
+            section.Preview.Text = PreviewText(section.Input);
+            UpdateSectionName(section);
         };
-        toggle.IsCheckedChanged += (_, _) =>
+        section.Toggle.IsCheckedChanged += (_, _) =>
         {
-            if (toggle.IsChecked == true) collapsedSections.Remove(id); else collapsedSections.Add(id);
+            if (section.Toggle.IsChecked == true) collapsedSections.Remove(id); else collapsedSections.Add(id);
             ApplySection(section);
         };
+        section.Fold.Click += (_, _) => section.Toggle.IsChecked = section.Toggle.IsChecked != true;
     }
+
+    private static string PreviewText(TextBox input) =>
+        string.IsNullOrWhiteSpace(input.Text) ? "Empty paragraph — click to edit" : input.Text;
 
     private static void UpdateSectionName(Section section)
     {
         var expanded = section.Toggle.IsChecked == true;
-        AutomationProperties.SetName(section.Toggle, expanded
-            ? $"Collapse paragraph {section.Ordinal}"
-            : $"Expand paragraph {section.Ordinal}: {section.Preview.Text}");
-        ToolTip.SetTip(section.Toggle, expanded ? "Collapse this paragraph" : "Edit paragraph, speaker and timestamps");
+        AutomationProperties.SetName(section.Toggle, $"Expand paragraph {section.Ordinal}: {section.Preview.Text}");
+        ToolTip.SetTip(section.Toggle, "Edit this paragraph");
+        AutomationProperties.SetName(section.Fold, (expanded ? "Collapse" : "Expand") + " paragraph " + section.Ordinal);
+        ToolTip.SetTip(section.Fold, expanded ? "Fold this paragraph to one line" : "Show the whole paragraph");
     }
 
     private void ApplySection(Section section)
     {
         var expanded = DocumentView || section.Toggle.IsChecked == true;
-        section.Toggle.IsVisible = !DocumentView;
+        section.Preview.Text = PreviewText(section.Input);
+        section.Toggle.IsVisible = !DocumentView && !expanded;
+        section.Fold.IsVisible = !DocumentView;
+        section.FoldIcon.Classes.Set("collapse", expanded);
+        section.FoldIcon.Classes.Set("expand", !expanded);
         section.Input.IsVisible = expanded;
         section.Ribbon.IsVisible = expanded && !DocumentView;
-        section.Details.IsVisible = expanded && !DocumentView;
-        section.Preview.Text = string.IsNullOrWhiteSpace(section.Input.Text) ? "Empty paragraph — click to edit" : section.Input.Text;
-        section.Toggle.Content = expanded ? $"⌃ Collapse paragraph {section.Ordinal}" : section.Preview;
         UpdateSectionName(section);
     }
 

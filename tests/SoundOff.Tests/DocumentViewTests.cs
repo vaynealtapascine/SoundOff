@@ -44,19 +44,20 @@ public sealed class DocumentViewTests
         {
             UiDriver.Click(window, "OpenProjectItem");
             await Task.Delay(50); Dispatcher.UIThread.RunJobs();
-            var choice = window.FindControl<ComboBox>("ViewChoice")!;
-            Assert.Equal(0, choice.SelectedIndex);
-            Assert.Equal("Timings", Assert.IsType<ComboBoxItem>(choice.Items[1]).Content);
+            Assert.True(UiDriver.DocumentView(window));
+            Assert.Equal("Timings", window.FindControl<Avalonia.Controls.Primitives.ToggleButton>("TimingsViewButton")!.Content);
             var input = window.GetVisualDescendants().OfType<TextBox>().First(t => t.Classes.Contains("transcript"));
             input.Text = "Edited words 👋"; input.SelectionStart = 2; input.SelectionEnd = 8;
-            choice.SelectedIndex = 1; choice.SelectedIndex = 0;
+            UiDriver.SetView(window, document: false); UiDriver.SetView(window, document: true);
             Assert.Equal("Edited words 👋", input.Text); Assert.Equal(2, input.SelectionStart); Assert.Equal(8, input.SelectionEnd);
-            choice.SelectedIndex = 1;
+            UiDriver.SetView(window, document: false);
             UiDriver.Click(window, "CollapseSectionsButton"); Assert.False(input.IsVisible);
             var section = window.GetVisualDescendants().OfType<Avalonia.Controls.Primitives.ToggleButton>().First(t => t.Classes.Contains("section-toggle"));
             Assert.Equal("Edited words 👋", Assert.IsType<TextBlock>(section.Content).Text);
+            // A folded cue still shows its number, times and speaker: that is what makes the table scannable.
             var timing = window.GetVisualDescendants().OfType<TextBox>().First(t => t.Classes.Contains("timing"));
-            Assert.False(timing.IsEffectivelyVisible);
+            window.UpdateLayout(); Dispatcher.UIThread.RunJobs();
+            Assert.True(timing.IsEffectivelyVisible);
             section.BringIntoView(); window.UpdateLayout(); Dispatcher.UIThread.RunJobs();
             var clickPoint = section.TranslatePoint(new Point(section.Bounds.Width / 2, section.Bounds.Height / 2), window)!.Value;
             window.MouseDown(clickPoint, MouseButton.Left);
@@ -77,14 +78,14 @@ public sealed class DocumentViewTests
             var presenter = section.GetVisualDescendants().OfType<Avalonia.Controls.Presenters.ContentPresenter>().First(p => p.Name == "PART_ContentPresenter");
             Assert.Equal(Avalonia.Media.Colors.Transparent, Assert.IsAssignableFrom<Avalonia.Media.ISolidColorBrush>(presenter.Background).Color);
             UiDriver.Click(window, "CollapseSectionsButton"); Assert.False(input.IsVisible);
-            choice.SelectedIndex = 0; Assert.True(input.IsVisible);
-            choice.SelectedIndex = 1; Assert.False(input.IsVisible);
+            UiDriver.SetView(window, document: true); Assert.True(input.IsVisible);
+            UiDriver.SetView(window, document: false); Assert.False(input.IsVisible);
             UiDriver.Click(window, "ExpandSectionsButton"); Assert.True(input.IsVisible);
             UiDriver.Click(window, "CollapseSectionsButton");
             window.FindControl<TextBox>("FindInput")!.Text = "Edited words";
             UiDriver.Click(window, "FindNextButton"); Assert.True(input.IsVisible);
             Assert.Equal("Edited words 👋", input.Text);
-            choice.SelectedIndex = 0;
+            UiDriver.SetView(window, document: true);
             Assert.True(window.FindControl<Button>("SaveButton")!.IsEnabled);
             UiDriver.Click(window, "ExportDocumentItem"); await Task.Delay(50);
             Assert.Contains("Edited words 👋", File.ReadAllText(output)); Assert.Contains("UNSAVED DRAFT", File.ReadAllText(output));

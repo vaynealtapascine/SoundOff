@@ -1,13 +1,15 @@
 <Application xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="using:SoundOff.Desktop"
              x:Class="SoundOff.Desktop.App" RequestedThemeVariant="Dark">
   <Application.Resources>
     <ResourceDictionary>
       <ResourceDictionary.ThemeDictionaries>
 
         <ResourceDictionary x:Key="Light">
-          <Color x:Key="CanvasColor">#F5F5F4</Color>
+          <Color x:Key="CanvasColor">#EFEFED</Color>
           <Color x:Key="SurfaceColor">#FFFFFF</Color>
+          <Color x:Key="PageColor">#FFFFFF</Color>
           <Color x:Key="TextColor">#202322</Color>
           <Color x:Key="MutedColor">#59615F</Color>
           <Color x:Key="AccentColor">#0F7B85</Color>
@@ -22,18 +24,24 @@
           <Color x:Key="ButtonSurfaceColor">#F7F8F7</Color>
           <Color x:Key="ButtonHoverColor">#ECEEEC</Color>
           <Color x:Key="ButtonPressedColor">#E1E4E1</Color>
-          <Color x:Key="GhostHoverColor">#ECEEEC</Color>
-          <Color x:Key="GhostPressedColor">#E1E4E1</Color>
+          <Color x:Key="GhostHoverColor">#E4E7E5</Color>
+          <Color x:Key="GhostPressedColor">#D8DCD9</Color>
           <Color x:Key="FieldSurfaceColor">#FFFFFF</Color>
           <Color x:Key="FieldHoverColor">#F7F8F7</Color>
           <Color x:Key="TrackSurfaceColor">#E3E7E4</Color>
           <Color x:Key="FocusRingColor">#0B5D66</Color>
-          <Color x:Key="ChromeColor">#F0F1EF</Color>
+          <Color x:Key="ChromeColor">#F6F6F4</Color>
+          <Color x:Key="HairlineColor">#E6E8E6</Color>
 
           <Color x:Key="WordHoverColor">#ECEEEC</Color>
+          <!-- Inline reading highlight. Ink #202322 on #B9E4E9 measures 11.6:1. -->
+          <Color x:Key="WordActiveColor">#B9E4E9</Color>
+          <Color x:Key="LineActiveColor">#F1F8F9</Color>
+          <Color x:Key="RowSelectedColor">#E7F2F3</Color>
 
           <SolidColorBrush x:Key="CanvasBrush" Color="{StaticResource CanvasColor}" />
           <SolidColorBrush x:Key="SurfaceBrush" Color="{StaticResource SurfaceColor}" />
+          <SolidColorBrush x:Key="PageBrush" Color="{StaticResource PageColor}" />
           <SolidColorBrush x:Key="TextBrush" Color="{StaticResource TextColor}" />
           <SolidColorBrush x:Key="MutedBrush" Color="{StaticResource MutedColor}" />
           <SolidColorBrush x:Key="PrimaryBrush" Color="{StaticResource AccentColor}" />
@@ -42,6 +50,7 @@
           <SolidColorBrush x:Key="AccentSoftBrush" Color="{StaticResource AccentSoftColor}" />
           <SolidColorBrush x:Key="PrimaryPressedBrush" Color="{StaticResource PrimaryPressedColor}" />
           <SolidColorBrush x:Key="EdgeBrush" Color="{StaticResource BorderColor}" />
+          <SolidColorBrush x:Key="HairlineBrush" Color="{StaticResource HairlineColor}" />
           <SolidColorBrush x:Key="SuccessBrush" Color="{StaticResource SuccessColor}" />
           <SolidColorBrush x:Key="DangerBrush" Color="{StaticResource DangerColor}" />
           <SolidColorBrush x:Key="ButtonSurfaceBrush" Color="{StaticResource ButtonSurfaceColor}" />
@@ -55,11 +64,15 @@
           <SolidColorBrush x:Key="FocusRingBrush" Color="{StaticResource FocusRingColor}" />
           <SolidColorBrush x:Key="ChromeBrush" Color="{StaticResource ChromeColor}" />
           <SolidColorBrush x:Key="WordHoverBrush" Color="{StaticResource WordHoverColor}" />
+          <SolidColorBrush x:Key="WordActiveBrush" Color="{StaticResource WordActiveColor}" />
+          <SolidColorBrush x:Key="LineActiveBrush" Color="{StaticResource LineActiveColor}" />
+          <SolidColorBrush x:Key="RowSelectedBrush" Color="{StaticResource RowSelectedColor}" />
         </ResourceDictionary>
 
         <ResourceDictionary x:Key="Dark">
-          <Color x:Key="CanvasColor">#1C1E1D</Color>
+          <Color x:Key="CanvasColor">#171918</Color>
           <Color x:Key="SurfaceColor">#222524</Color>
+          <Color x:Key="PageColor">#232726</Color>
           <Color x:Key="TextColor">#ECEFEC</Color>
           <Color x:Key="MutedColor">#A2ADA6</Color>
           <Color x:Key="AccentColor">#1AA0AA</Color>
@@ -80,12 +93,18 @@
           <Color x:Key="FieldHoverColor">#2C332E</Color>
           <Color x:Key="TrackSurfaceColor">#363D38</Color>
           <Color x:Key="FocusRingColor">#38C3CC</Color>
-          <Color x:Key="ChromeColor">#252A26</Color>
+          <Color x:Key="ChromeColor">#1E2120</Color>
+          <Color x:Key="HairlineColor">#2C312E</Color>
 
           <Color x:Key="WordHoverColor">#353D37</Color>
+          <!-- Inline reading highlight. Paper #ECEFEC on #1E5C63 measures 6.9:1. -->
+          <Color x:Key="WordActiveColor">#1E5C63</Color>
+          <Color x:Key="LineActiveColor">#1E2A2B</Color>
+          <Color x:Key="RowSelectedColor">#1C2A2C</Color>
 
           <SolidColorBrush x:Key="CanvasBrush" Color="{StaticResource CanvasColor}" />
           <SolidColorBrush x:Key="SurfaceBrush" Color="{StaticResource SurfaceColor}" />
+          <SolidColorBrush x:Key="PageBrush" Color="{StaticResource PageColor}" />
           <SolidColorBrush x:Key="TextBrush" Color="{StaticResource TextColor}" />
           <SolidColorBrush x:Key="MutedBrush" Color="{StaticResource MutedColor}" />
           <SolidColorBrush x:Key="PrimaryBrush" Color="{StaticResource AccentColor}" />
@@ -94,6 +113,7 @@
           <SolidColorBrush x:Key="AccentSoftBrush" Color="{StaticResource AccentSoftColor}" />
           <SolidColorBrush x:Key="PrimaryPressedBrush" Color="{StaticResource PrimaryPressedColor}" />
           <SolidColorBrush x:Key="EdgeBrush" Color="{StaticResource BorderColor}" />
+          <SolidColorBrush x:Key="HairlineBrush" Color="{StaticResource HairlineColor}" />
           <SolidColorBrush x:Key="SuccessBrush" Color="{StaticResource SuccessColor}" />
           <SolidColorBrush x:Key="DangerBrush" Color="{StaticResource DangerColor}" />
           <SolidColorBrush x:Key="ButtonSurfaceBrush" Color="{StaticResource ButtonSurfaceColor}" />
@@ -107,61 +127,113 @@
           <SolidColorBrush x:Key="FocusRingBrush" Color="{StaticResource FocusRingColor}" />
           <SolidColorBrush x:Key="ChromeBrush" Color="{StaticResource ChromeColor}" />
           <SolidColorBrush x:Key="WordHoverBrush" Color="{StaticResource WordHoverColor}" />
+          <SolidColorBrush x:Key="WordActiveBrush" Color="{StaticResource WordActiveColor}" />
+          <SolidColorBrush x:Key="LineActiveBrush" Color="{StaticResource LineActiveColor}" />
+          <SolidColorBrush x:Key="RowSelectedBrush" Color="{StaticResource RowSelectedColor}" />
         </ResourceDictionary>
       </ResourceDictionary.ThemeDictionaries>
 
       <CornerRadius x:Key="RadiusSm">6</CornerRadius>
       <CornerRadius x:Key="RadiusMd">8</CornerRadius>
       <CornerRadius x:Key="RadiusLg">12</CornerRadius>
+      <FontFamily x:Key="ClockFont">Cascadia Mono, Consolas, Courier New, monospace</FontFamily>
     </ResourceDictionary>
   </Application.Resources>
 
   <Application.Styles>
     <FluentTheme DensityStyle="Compact" />
 
+    <!-- ===================================================================
+         Window and type scale
+         =================================================================== -->
+    <Style Selector="Window">
+      <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+      <Setter Property="Background" Value="{DynamicResource CanvasBrush}" />
+      <Setter Property="FontFamily" Value="Segoe UI, sans-serif" />
+      <Setter Property="FontSize" Value="14" />
+    </Style>
+    <Style Selector="Window.reducedMotion :is(Control), Window.reducedMotion :is(TemplatedControl) /template/ :is(Control)">
+      <Setter Property="Transitions" Value="{x:Null}" />
+    </Style>
+
     <Style Selector="TextBlock.heading">
       <Setter Property="FontSize" Value="30" /><Setter Property="FontWeight" Value="SemiBold" />
       <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
     </Style>
+    <!-- Sidebar and workspace group headings: quiet, small, never shouting at the transcript. -->
     <Style Selector="TextBlock.section">
-      <Setter Property="FontSize" Value="15" /><Setter Property="FontWeight" Value="SemiBold" />
-      <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
+      <Setter Property="FontSize" Value="12" /><Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="LetterSpacing" Value="0.4" />
+      <Setter Property="Foreground" Value="{DynamicResource MutedBrush}" />
     </Style>
     <Style Selector="TextBlock.muted">
       <Setter Property="FontSize" Value="12" /><Setter Property="LineHeight" Value="17" />
       <Setter Property="Foreground" Value="{DynamicResource MutedBrush}" />
     </Style>
+    <!-- Separate rules: a multi-type selector resolves setters against the common base, which has no FontFamily. -->
+    <Style Selector="TextBlock.clock">
+      <Setter Property="FontFamily" Value="{StaticResource ClockFont}" />
+    </Style>
+    <Style Selector="TextBox.clock">
+      <Setter Property="FontFamily" Value="{StaticResource ClockFont}" />
+    </Style>
+    <!-- The speaker's name over a run of paragraphs in Document view: a script cue, not a form field. -->
+    <Style Selector="TextBlock.speaker">
+      <Setter Property="FontSize" Value="12" /><Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="LetterSpacing" Value="0.5" />
+      <Setter Property="Margin" Value="0,14,0,2" />
+      <Setter Property="Foreground" Value="{DynamicResource MutedBrush}" />
+    </Style>
 
+    <!-- ===================================================================
+         Chrome: top bar, status bar, transport, dividers
+         =================================================================== -->
     <Style Selector="Border.topbar">
-      <Setter Property="Padding" Value="16,10" /><Setter Property="BorderThickness" Value="0,0,0,1" />
-      <Setter Property="BorderBrush" Value="{DynamicResource EdgeBrush}" />
+      <Setter Property="Padding" Value="10,7" /><Setter Property="BorderThickness" Value="0,0,0,1" />
+      <Setter Property="BorderBrush" Value="{DynamicResource HairlineBrush}" />
       <Setter Property="Background" Value="{DynamicResource ChromeBrush}" />
     </Style>
     <Style Selector="Border.divider">
-      <Setter Property="Width" Value="1" /><Setter Property="Margin" Value="6,6" />
-      <Setter Property="Background" Value="{DynamicResource EdgeBrush}" />
+      <Setter Property="Width" Value="1" /><Setter Property="Margin" Value="7,7" />
+      <Setter Property="Background" Value="{DynamicResource HairlineBrush}" />
     </Style>
-
     <Style Selector="Border.transport">
-      <Setter Property="Padding" Value="20,10" /><Setter Property="BorderThickness" Value="0,1,0,0" />
-      <Setter Property="BorderBrush" Value="{DynamicResource EdgeBrush}" />
+      <Setter Property="Padding" Value="14,8,14,10" /><Setter Property="BorderThickness" Value="0,1,0,0" />
+      <Setter Property="BorderBrush" Value="{DynamicResource HairlineBrush}" />
       <Setter Property="Background" Value="{DynamicResource ChromeBrush}" />
     </Style>
-    <Style Selector="Border.findbar">
-      <Setter Property="Padding" Value="12" /><Setter Property="CornerRadius" Value="{StaticResource RadiusMd}" />
-      <Setter Property="BorderThickness" Value="1" /><Setter Property="BorderBrush" Value="{DynamicResource EdgeBrush}" />
-      <Setter Property="Background" Value="{DynamicResource SurfaceBrush}" />
+    <Style Selector="Border.statusbar">
+      <Setter Property="Padding" Value="14,5" />
+      <Setter Property="BorderThickness" Value="0,1,0,0" />
+      <Setter Property="BorderBrush" Value="{DynamicResource HairlineBrush}" />
+      <Setter Property="Background" Value="{DynamicResource ChromeBrush}" />
+    </Style>
+    <Style Selector="Border.statusbar TextBlock">
+      <Setter Property="FontSize" Value="12" />
+      <Setter Property="Foreground" Value="{DynamicResource MutedBrush}" />
+    </Style>
+    <!-- A failure otherwise reads exactly like "Saved · revision 7"; the 8px state dot was the only cue. -->
+    <Style Selector="Border.statusbar TextBlock.failed">
+      <Setter Property="Foreground" Value="{DynamicResource DangerBrush}" />
+      <Setter Property="FontWeight" Value="SemiBold" />
     </Style>
 
-    <Style Selector="Border.badge">
-      <Setter Property="CornerRadius" Value="{StaticResource RadiusMd}" /><Setter Property="Padding" Value="10,4" />
-      <Setter Property="HorizontalAlignment" Value="Left" /><Setter Property="BorderThickness" Value="1" />
-      <Setter Property="Background" Value="{DynamicResource AccentSoftBrush}" />
-      <Setter Property="BorderBrush" Value="{DynamicResource EdgeBrush}" />
+    <Style Selector="Ellipse.state">
+      <Setter Property="Width" Value="8" /><Setter Property="Height" Value="8" />
+      <Setter Property="Fill" Value="{DynamicResource MutedBrush}" />
     </Style>
+    <Style Selector="Ellipse.state.saved"><Setter Property="Fill" Value="{DynamicResource SuccessBrush}" /></Style>
+    <Style Selector="Ellipse.state.unsaved"><Setter Property="Fill" Value="{DynamicResource PrimaryBrush}" /></Style>
+    <Style Selector="Ellipse.state.working"><Setter Property="Fill" Value="{DynamicResource AccentHoverBrush}" /></Style>
+    <Style Selector="Ellipse.state.failed"><Setter Property="Fill" Value="{DynamicResource DangerBrush}" /></Style>
 
+    <!-- ===================================================================
+         Buttons. Fluent's template owns every state but the resting one, so each
+         state is written against ContentPresenter#PART_ContentPresenter.
+         Base rules come first: Avalonia has no specificity, last match wins.
+         =================================================================== -->
     <Style Selector="Button, ToggleButton">
-      <Setter Property="MinHeight" Value="34" /><Setter Property="Padding" Value="12,6" />
+      <Setter Property="MinHeight" Value="32" /><Setter Property="Padding" Value="11,5" />
       <Setter Property="Background" Value="{DynamicResource ButtonSurfaceBrush}" />
       <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
       <Setter Property="BorderBrush" Value="{DynamicResource EdgeBrush}" />
@@ -186,7 +258,7 @@
       <Setter Property="TextElement.Foreground" Value="{DynamicResource MutedBrush}" />
     </Style>
     <Style Selector="Button:disabled, ToggleButton:disabled">
-      <Setter Property="Opacity" Value="0.55" />
+      <Setter Property="Opacity" Value="0.5" />
     </Style>
     <Style Selector="Button:focus-visible /template/ ContentPresenter#PART_ContentPresenter, ToggleButton:focus-visible /template/ ContentPresenter#PART_ContentPresenter">
       <Setter Property="BorderBrush" Value="{DynamicResource FocusRingBrush}" />
@@ -205,18 +277,7 @@
       <Setter Property="TextElement.Foreground" Value="{DynamicResource TextBrush}" />
     </Style>
 
-    <Style Selector="ToggleButton.subtle:checked /template/ ContentPresenter#PART_ContentPresenter">
-      <Setter Property="Background" Value="{DynamicResource GhostHoverBrush}" />
-      <Setter Property="BorderBrush" Value="{DynamicResource EdgeBrush}" />
-      <Setter Property="TextElement.Foreground" Value="{DynamicResource MutedBrush}" />
-      <Setter Property="TextElement.FontWeight" Value="Normal" />
-    </Style>
-    <Style Selector="ToggleButton.subtle:checked:pointerover /template/ ContentPresenter#PART_ContentPresenter">
-      <Setter Property="Background" Value="{DynamicResource ButtonHoverBrush}" />
-      <Setter Property="BorderBrush" Value="{DynamicResource MutedBrush}" />
-      <Setter Property="TextElement.Foreground" Value="{DynamicResource TextBrush}" />
-    </Style>
-
+    <!-- Accent: the one call to action on screen at a time. -->
     <Style Selector="Button.accent">
       <Setter Property="Background" Value="{DynamicResource PrimaryBrush}" />
       <Setter Property="Foreground" Value="{DynamicResource PrimaryForegroundBrush}" />
@@ -228,7 +289,6 @@
       <Setter Property="BorderBrush" Value="{DynamicResource PrimaryBrush}" />
       <Setter Property="TextElement.Foreground" Value="{DynamicResource PrimaryForegroundBrush}" />
     </Style>
-
     <Style Selector="Button.accent:disabled /template/ ContentPresenter#PART_ContentPresenter">
       <Setter Property="Background" Value="{DynamicResource ButtonSurfaceBrush}" />
       <Setter Property="BorderBrush" Value="{DynamicResource EdgeBrush}" />
@@ -250,6 +310,13 @@
       <Setter Property="TextElement.Foreground" Value="{DynamicResource PrimaryForegroundBrush}" />
     </Style>
 
+    <!-- Quiet: chrome actions that must not compete with the text. -->
+    <Style Selector="Button.quiet, Button.more">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="Foreground" Value="{DynamicResource MutedBrush}" />
+      <Setter Property="BorderBrush" Value="Transparent" />
+    </Style>
     <Style Selector="Button.quiet /template/ ContentPresenter#PART_ContentPresenter, Button.more /template/ ContentPresenter#PART_ContentPresenter, Button.quiet:disabled /template/ ContentPresenter#PART_ContentPresenter">
       <Setter Property="Background" Value="Transparent" />
       <Setter Property="BorderBrush" Value="Transparent" />
@@ -270,20 +337,119 @@
       <Setter Property="BorderBrush" Value="{DynamicResource FocusRingBrush}" />
     </Style>
     <Style Selector="Button.more">
-      <Setter Property="FontSize" Value="18" /><Setter Property="Padding" Value="10,0,10,4" />
-    </Style>
-    <Style Selector="Button.round">
-      <Setter Property="CornerRadius" Value="18" /><Setter Property="Width" Value="44" /><Setter Property="Height" Value="36" />
-      <Setter Property="Padding" Value="0" /><Setter Property="HorizontalContentAlignment" Value="Center" />
+      <Setter Property="FontSize" Value="17" /><Setter Property="Padding" Value="8,0,8,5" />
+      <Setter Property="MinWidth" Value="28" />
     </Style>
 
+    <!-- A toggle whose ON state is the default (side panel, Follow) must not read as a lit-up exception. -->
+    <Style Selector="ToggleButton.subtle:checked /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource GhostHoverBrush}" />
+      <Setter Property="BorderBrush" Value="Transparent" />
+      <Setter Property="TextElement.Foreground" Value="{DynamicResource TextBrush}" />
+      <Setter Property="TextElement.FontWeight" Value="Normal" />
+    </Style>
+    <Style Selector="ToggleButton.subtle:checked:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource ButtonHoverBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource MutedBrush}" />
+      <Setter Property="TextElement.Foreground" Value="{DynamicResource TextBrush}" />
+    </Style>
+    <Style Selector="ToggleButton.subtle">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderBrush" Value="Transparent" />
+      <Setter Property="Foreground" Value="{DynamicResource MutedBrush}" />
+    </Style>
+    <Style Selector="ToggleButton.subtle /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderBrush" Value="Transparent" />
+      <Setter Property="TextElement.Foreground" Value="{DynamicResource MutedBrush}" />
+    </Style>
+    <Style Selector="ToggleButton.subtle:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource GhostHoverBrush}" />
+      <Setter Property="BorderBrush" Value="Transparent" />
+      <Setter Property="TextElement.Foreground" Value="{DynamicResource TextBrush}" />
+    </Style>
+
+    <!-- Square icon buttons. Padding is zero so the glyph is what is centred. -->
+    <Style Selector="Button.icon, ToggleButton.icon">
+      <Setter Property="Width" Value="32" /><Setter Property="Height" Value="30" />
+      <Setter Property="MinHeight" Value="0" /><Setter Property="MinWidth" Value="0" />
+      <Setter Property="Padding" Value="0" />
+      <Setter Property="CornerRadius" Value="{StaticResource RadiusSm}" />
+    </Style>
+    <Style Selector="Button.round">
+      <Setter Property="CornerRadius" Value="17" /><Setter Property="Width" Value="38" /><Setter Property="Height" Value="34" />
+      <Setter Property="Padding" Value="0" /><Setter Property="HorizontalContentAlignment" Value="Center" />
+    </Style>
+    <!-- The project identity sits where a document's name belongs: top left, quiet, wide enough to read. -->
+    <Style Selector="Button.identity">
+      <Setter Property="Padding" Value="8,5" />
+      <Setter Property="MaxWidth" Value="320" />
+    </Style>
+    <Style Selector="Button.identity /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="TextElement.Foreground" Value="{DynamicResource TextBrush}" />
+    </Style>
+
+    <!-- Segmented control: the one mode switch that always shows both choices. -->
+    <Style Selector="Border.segmented">
+      <Setter Property="Background" Value="{DynamicResource TrackSurfaceBrush}" />
+      <Setter Property="CornerRadius" Value="9" />
+      <Setter Property="Padding" Value="2" />
+    </Style>
+    <Style Selector="ToggleButton.seg">
+      <Setter Property="MinHeight" Value="24" /><Setter Property="Height" Value="24" />
+      <Setter Property="Padding" Value="14,0" />
+      <Setter Property="CornerRadius" Value="7" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="FontSize" Value="13" />
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="Foreground" Value="{DynamicResource MutedBrush}" />
+    </Style>
+    <Style Selector="ToggleButton.seg /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderBrush" Value="Transparent" />
+      <Setter Property="TextElement.Foreground" Value="{DynamicResource MutedBrush}" />
+    </Style>
+    <Style Selector="ToggleButton.seg:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderBrush" Value="Transparent" />
+      <Setter Property="TextElement.Foreground" Value="{DynamicResource TextBrush}" />
+    </Style>
+    <Style Selector="ToggleButton.seg:checked /template/ ContentPresenter#PART_ContentPresenter, ToggleButton.seg:checked:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource SurfaceBrush}" />
+      <Setter Property="BorderBrush" Value="Transparent" />
+      <Setter Property="TextElement.Foreground" Value="{DynamicResource TextBrush}" />
+      <Setter Property="TextElement.FontWeight" Value="SemiBold" />
+    </Style>
+
+    <!-- ===================================================================
+         Fields
+         =================================================================== -->
     <Style Selector="ComboBox">
-      <Setter Property="MinHeight" Value="34" />
+      <Setter Property="MinHeight" Value="32" />
       <Setter Property="Background" Value="{DynamicResource FieldSurfaceBrush}" />
       <Setter Property="BorderBrush" Value="{DynamicResource EdgeBrush}" />
       <Setter Property="CornerRadius" Value="{StaticResource RadiusSm}" />
       <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
     </Style>
+    <Style Selector="ComboBox:pointerover">
+      <Setter Property="Background" Value="{DynamicResource FieldHoverBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource MutedBrush}" />
+    </Style>
+    <Style Selector="ComboBox:focus-visible">
+      <Setter Property="BorderBrush" Value="{DynamicResource FocusRingBrush}" />
+    </Style>
+    <Style Selector="ComboBox /template/ Border#Background">
+      <Setter Property="Background" Value="{DynamicResource FieldSurfaceBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource EdgeBrush}" />
+    </Style>
+    <Style Selector="ComboBox:pointerover /template/ Border#Background">
+      <Setter Property="Background" Value="{DynamicResource FieldHoverBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource MutedBrush}" />
+    </Style>
+    <Style Selector="ComboBox:focus-visible /template/ Border#Background">
+      <Setter Property="BorderBrush" Value="{DynamicResource FocusRingBrush}" />
+    </Style>
+
     <Style Selector="TextBox">
       <Setter Property="Background" Value="{DynamicResource FieldSurfaceBrush}" />
       <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
@@ -298,70 +464,293 @@
       <Setter Property="BorderBrush" Value="{DynamicResource FocusRingBrush}" />
     </Style>
 
-    <Style Selector="ComboBox:pointerover">
-      <Setter Property="Background" Value="{DynamicResource FieldHoverBrush}" />
-      <Setter Property="BorderBrush" Value="{DynamicResource MutedBrush}" />
-    </Style>
-    <Style Selector="ComboBox:focus-visible">
-      <Setter Property="BorderBrush" Value="{DynamicResource FocusRingBrush}" />
-    </Style>
-    <Style Selector="TextBox.title"><Setter Property="FontSize" Value="24" /><Setter Property="FontWeight" Value="SemiBold" /></Style>
-    <Style Selector="TextBox.transcript">
-      <Setter Property="FontSize" Value="18" /><Setter Property="LineHeight" Value="29" />
-      <Setter Property="Padding" Value="12,10" /><Setter Property="MinHeight" Value="64" />
-    </Style>
-
-    <Style Selector="TextBox.transcript.document">
-      <Setter Property="Background" Value="Transparent" /><Setter Property="BorderBrush" Value="Transparent" />
-      <Setter Property="MinHeight" Value="0" /><Setter Property="Padding" Value="8,10" />
-    </Style>
-    <Style Selector="TextBox.transcript.document:focus-within">
-      <Setter Property="BorderBrush" Value="{DynamicResource FocusRingBrush}" />
-    </Style>
-    <Style Selector="TextBox.timing"><Setter Property="Width" Value="138" /><Setter Property="FontSize" Value="13" /></Style>
-
     <Style Selector="ProgressBar">
       <Setter Property="Foreground" Value="{DynamicResource PrimaryBrush}" />
       <Setter Property="Background" Value="{DynamicResource TrackSurfaceBrush}" />
       <Setter Property="BorderThickness" Value="0" />
     </Style>
-    <Style Selector="Expander">
-      <Setter Property="Padding" Value="12" />
-      <Setter Property="Background" Value="{DynamicResource SurfaceBrush}" />
-      <Setter Property="BorderBrush" Value="{DynamicResource EdgeBrush}" />
-      <Setter Property="CornerRadius" Value="{StaticResource RadiusLg}" />
-    </Style>
 
-    <!-- The header is a ToggleButton, so the generic button rules above centre its text and add their own
-         padding; a section heading has to start where the card's other headings do. -->
-    <Style Selector="Expander ToggleButton">
+    <!-- ===================================================================
+         Surfaces: cards, page, badges, list rows, splitters
+         =================================================================== -->
+    <Style Selector="Border.card">
+      <Setter Property="CornerRadius" Value="{StaticResource RadiusLg}" />
+      <Setter Property="Padding" Value="14" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="BorderBrush" Value="{DynamicResource EdgeBrush}" />
+      <Setter Property="Background" Value="{DynamicResource SurfaceBrush}" />
+    </Style>
+    <!-- Document view is a page of text on a desk; Timings view is a table on the desk itself. -->
+    <Style Selector="Border.page">
+      <Setter Property="Background" Value="{DynamicResource PageBrush}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="BorderBrush" Value="{DynamicResource HairlineBrush}" />
+      <Setter Property="CornerRadius" Value="{StaticResource RadiusLg}" />
+      <Setter Property="Padding" Value="8,40,8,64" />
+      <Setter Property="MaxWidth" Value="880" />
+      <Setter Property="Margin" Value="24,20,24,24" />
+      <Setter Property="HorizontalAlignment" Value="Center" />
+    </Style>
+    <!-- MaxWidth is cleared from code when the table takes over: a style cannot unset a measure. -->
+    <Style Selector="Border.page.table">
       <Setter Property="Background" Value="Transparent" />
       <Setter Property="BorderThickness" Value="0" />
-      <Setter Property="CornerRadius" Value="{StaticResource RadiusLg}" />
-      <Setter Property="HorizontalContentAlignment" Value="Left" />
+      <Setter Property="Padding" Value="0,0,0,40" />
+      <Setter Property="Margin" Value="12,4,4,0" />
+      <Setter Property="HorizontalAlignment" Value="Stretch" />
+    </Style>
+
+    <Style Selector="Border.badge">
+      <Setter Property="CornerRadius" Value="{StaticResource RadiusMd}" /><Setter Property="Padding" Value="10,4" />
+      <Setter Property="HorizontalAlignment" Value="Left" /><Setter Property="BorderThickness" Value="1" />
+      <Setter Property="Background" Value="{DynamicResource AccentSoftBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource EdgeBrush}" />
+    </Style>
+    <Style Selector="Border.badge.provenance">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="Margin" Value="0,0,0,10" />
       <Setter Property="Padding" Value="0" />
     </Style>
-    <Style Selector="Expander ToggleButton /template/ ContentPresenter#PART_ContentPresenter,
-                     Expander ToggleButton:checked /template/ ContentPresenter#PART_ContentPresenter,
-                     Expander ToggleButton:pressed /template/ ContentPresenter#PART_ContentPresenter">
-      <Setter Property="Background" Value="Transparent" />
-      <Setter Property="BorderBrush" Value="Transparent" />
-      <Setter Property="TextElement.Foreground" Value="{DynamicResource TextBrush}" />
-      <Setter Property="TextElement.FontWeight" Value="Normal" />
+    <Style Selector="Border.badge.provenance TextBlock">
+      <Setter Property="Foreground" Value="{DynamicResource MutedBrush}" />
+      <Setter Property="FontWeight" Value="Normal" />
     </Style>
-    <Style Selector="Expander ToggleButton:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+
+    <!-- A hover surface behind a list row ties its trailing button to that row, not the one below. -->
+    <Style Selector="Border.row">
+      <Setter Property="CornerRadius" Value="{StaticResource RadiusSm}" />
+      <Setter Property="Padding" Value="8,6" />
+      <Setter Property="Background" Value="Transparent" />
+    </Style>
+    <Style Selector="Border.row:pointerover">
       <Setter Property="Background" Value="{DynamicResource GhostHoverBrush}" />
-      <Setter Property="BorderBrush" Value="Transparent" />
-      <Setter Property="TextElement.Foreground" Value="{DynamicResource TextBrush}" />
+    </Style>
+
+    <Style Selector="Border.findbar">
+      <Setter Property="Padding" Value="10" /><Setter Property="CornerRadius" Value="{StaticResource RadiusMd}" />
+      <Setter Property="BorderThickness" Value="1" /><Setter Property="BorderBrush" Value="{DynamicResource EdgeBrush}" />
+      <Setter Property="Background" Value="{DynamicResource SurfaceBrush}" />
+    </Style>
+    <Style Selector="Border.waveform">
+      <Setter Property="CornerRadius" Value="{StaticResource RadiusMd}" />
+      <Setter Property="Padding" Value="0" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="ClipToBounds" Value="True" />
+    </Style>
+
+    <!-- Splitters: a grab line that only appears under the pointer. -->
+    <Style Selector="GridSplitter">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="MinWidth" Value="0" /><Setter Property="MinHeight" Value="0" />
+    </Style>
+    <Style Selector="GridSplitter:pointerover">
+      <Setter Property="Background" Value="{DynamicResource PrimaryBrush}" />
+    </Style>
+    <Style Selector="GridSplitter.vertical">
+      <Setter Property="Width" Value="5" /><Setter Property="Margin" Value="2,0" />
+    </Style>
+    <Style Selector="Border.handle">
+      <Setter Property="Height" Value="6" />
+      <Setter Property="Background" Value="Transparent" />
+    </Style>
+    <Style Selector="Border.handle:pointerover">
+      <Setter Property="Background" Value="{DynamicResource PrimaryBrush}" />
+    </Style>
+
+    <!-- ===================================================================
+         Icons. Filled paths on a 24x24 grid; Foreground is inherited from the
+         button's content presenter so hover and disabled states come for free.
+         =================================================================== -->
+    <Style Selector="PathIcon.glyph">
+      <Setter Property="Width" Value="16" /><Setter Property="Height" Value="16" />
+    </Style>
+    <Style Selector="PathIcon.small">
+      <Setter Property="Width" Value="11" /><Setter Property="Height" Value="11" />
     </Style>
     <Style Selector="PathIcon.volume">
       <Setter Property="Data" Value="M3,9 H7 L12,5 V19 L7,15 H3 Z M15,10 H16.5 V14 H15 Z M18,8 H19.5 V16 H18 Z" />
-      <Setter Property="Foreground" Value="{DynamicResource MutedBrush}" />
+    </Style>
+    <Style Selector="PathIcon.chevron">
+      <Setter Property="Data" Value="M6,10 L12,16 L18,10 Z" />
+    </Style>
+    <Style Selector="PathIcon.undo">
+      <Setter Property="Data" Value="M6,14 A6,6 0 0,1 18,14 L15.6,14 A3.6,3.6 0 0,0 8.4,14 Z M9.4,10 L9.4,18 L4.4,14 Z" />
+    </Style>
+    <Style Selector="PathIcon.redo">
+      <Setter Property="Data" Value="M18,14 A6,6 0 0,0 6,14 L8.4,14 A3.6,3.6 0 0,1 15.6,14 Z M14.6,10 L14.6,18 L19.6,14 Z" />
+    </Style>
+    <Style Selector="PathIcon.search">
+      <Setter Property="Data" Value="M10.5,3 A7,7 0 1,0 10.5,17 A7,7 0 1,0 10.5,3 Z M10.5,5.2 A4.8,4.8 0 1,1 10.5,14.8 A4.8,4.8 0 1,1 10.5,5.2 Z M15.2,16.7 L16.8,15.1 L21,19.3 L19.4,20.9 Z" />
+    </Style>
+    <Style Selector="PathIcon.export">
+      <Setter Property="Data" Value="M12,2.5 L17,8.5 H13.2 V14.5 H10.8 V8.5 H7 Z M4.5,13 H7 V18 H17 V13 H19.5 V20.5 H4.5 Z" />
+    </Style>
+    <Style Selector="PathIcon.panel">
+      <Setter Property="Data" Value="M3,5 H21 V19 H3 Z M5,7 H13.5 V17 H5 Z" />
+    </Style>
+    <Style Selector="PathIcon.settings">
+      <Setter Property="Data" Value="F1 M3.5,8.2 H20.5 V9.8 H3.5 Z M9,5.8 A3.2,3.2 0 1,0 9,12.2 A3.2,3.2 0 1,0 9,5.8 Z M3.5,14.2 H20.5 V15.8 H3.5 Z M15,11.8 A3.2,3.2 0 1,0 15,18.2 A3.2,3.2 0 1,0 15,11.8 Z" />
+    </Style>
+    <Style Selector="PathIcon.film">
+      <Setter Property="Data" Value="M3,5.5 H21 V18.5 H3 Z M5,7.5 H19 V16.5 H5 Z M10,9 L15.5,12 L10,15 Z" />
+    </Style>
+    <Style Selector="PathIcon.follow">
+      <Setter Property="Data" Value="M12,3 A9,9 0 1,0 12,21 A9,9 0 1,0 12,3 Z M12,5.2 A6.8,6.8 0 1,1 12,18.8 A6.8,6.8 0 1,1 12,5.2 Z M12,9 A3,3 0 1,0 12,15 A3,3 0 1,0 12,9 Z" />
+    </Style>
+    <Style Selector="PathIcon.plus">
+      <Setter Property="Data" Value="M10.9,4.5 H13.1 V10.9 H19.5 V13.1 H13.1 V19.5 H10.9 V13.1 H4.5 V10.9 H10.9 Z" />
+    </Style>
+    <Style Selector="PathIcon.collapse">
+      <Setter Property="Data" Value="M12,7 L19,15 H5 Z" />
+    </Style>
+    <Style Selector="PathIcon.expand">
+      <Setter Property="Data" Value="M12,17 L5,9 H19 Z" />
+    </Style>
+    <Style Selector="PathIcon.back5">
+      <Setter Property="Data" Value="M12,6 V18 L4,12 Z M20,6 V18 L12,12 Z" />
+    </Style>
+    <Style Selector="PathIcon.forward5">
+      <Setter Property="Data" Value="M12,6 V18 L20,12 Z M4,6 V18 L12,12 Z" />
+    </Style>
+    <Style Selector="PathIcon.mic">
+      <Setter Property="Data" Value="M12,3 A3,3 0 0,1 15,6 V11 A3,3 0 0,1 9,11 V6 A3,3 0 0,1 12,3 Z M7,11 H8.6 A3.4,3.4 0 0,0 15.4,11 H17 A5,5 0 0,1 12.8,15.9 V19 H15 V20.6 H9 V19 H11.2 V15.9 A5,5 0 0,1 7,11 Z" />
     </Style>
 
+    <!-- ===================================================================
+         Transcript: the page in Document view, the cue table in Timings view
+         =================================================================== -->
+    <Style Selector="TextBox.title">
+      <Setter Property="FontSize" Value="27" /><Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="Background" Value="Transparent" /><Setter Property="BorderBrush" Value="Transparent" />
+      <Setter Property="Padding" Value="0,2" />
+    </Style>
+    <Style Selector="TextBox.transcript">
+      <Setter Property="FontSize" Value="18" /><Setter Property="LineHeight" Value="30" />
+      <Setter Property="Padding" Value="0,2" /><Setter Property="MinHeight" Value="0" />
+      <Setter Property="Background" Value="Transparent" /><Setter Property="BorderBrush" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+    </Style>
+    <!-- Timings view is a grid of cues: smaller text so a row is a row, not a paragraph. -->
+    <Style Selector="TextBox.transcript.cue">
+      <Setter Property="FontSize" Value="14" /><Setter Property="LineHeight" Value="20" />
+      <Setter Property="Padding" Value="6,4" />
+    </Style>
+    <Style Selector="TextBox.clock.timing">
+      <Setter Property="FontSize" Value="12" /><Setter Property="Padding" Value="5,4" />
+      <Setter Property="MinHeight" Value="26" />
+      <Setter Property="Background" Value="Transparent" /><Setter Property="BorderBrush" Value="Transparent" />
+    </Style>
+    <Style Selector="TextBox.clock.timing:pointerover">
+      <Setter Property="Background" Value="{DynamicResource FieldHoverBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource MutedBrush}" />
+    </Style>
+    <Style Selector="TextBox.clock.timing:focus-within">
+      <Setter Property="Background" Value="{DynamicResource FieldSurfaceBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource FocusRingBrush}" />
+    </Style>
+
+    <!-- Every field inside the transcript is chromeless until it is pointed at or focused, so the
+         page reads as text rather than as a form. -->
+    <Style Selector="StackPanel#DocumentHost TextBox, StackPanel#DocumentHost ComboBox">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderBrush" Value="Transparent" />
+    </Style>
+    <Style Selector="StackPanel#DocumentHost TextBox:pointerover, StackPanel#DocumentHost ComboBox:pointerover">
+      <Setter Property="Background" Value="{DynamicResource GhostHoverBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource MutedBrush}" />
+    </Style>
+    <Style Selector="StackPanel#DocumentHost TextBox:focus-within, StackPanel#DocumentHost ComboBox:focus-within">
+      <Setter Property="BorderBrush" Value="{DynamicResource FocusRingBrush}" />
+    </Style>
+    <Style Selector="StackPanel#DocumentHost ComboBox /template/ Border#Background">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderBrush" Value="Transparent" />
+    </Style>
+    <Style Selector="StackPanel#DocumentHost ComboBox:pointerover /template/ Border#Background,
+                     StackPanel#DocumentHost ComboBox:focus-visible /template/ Border#Background">
+      <Setter Property="Background" Value="{DynamicResource GhostHoverBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource FocusRingBrush}" />
+    </Style>
+    <Style Selector="StackPanel#DocumentHost ComboBox.speaker">
+      <Setter Property="FontSize" Value="13" /><Setter Property="MinHeight" Value="26" />
+      <Setter Property="Padding" Value="6,2" />
+    </Style>
+
+    <!-- A paragraph. The accent rail marks the one being spoken; nothing else moves. -->
+    <Style Selector="StackPanel#DocumentHost Border.card">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="2,0,0,0" />
+      <Setter Property="BorderBrush" Value="Transparent" />
+      <Setter Property="CornerRadius" Value="0" />
+      <Setter Property="Padding" Value="0" />
+    </Style>
+    <Style Selector="StackPanel#DocumentHost Border.card.playing">
+      <Setter Property="BorderBrush" Value="{DynamicResource PrimaryBrush}" />
+    </Style>
+    <Style Selector="StackPanel#DocumentHost Border.card.cue">
+      <Setter Property="BorderThickness" Value="2,0,0,1" />
+      <Setter Property="BorderBrush" Value="{DynamicResource HairlineBrush}" />
+    </Style>
+    <Style Selector="StackPanel#DocumentHost Border.card.cue:pointerover">
+      <Setter Property="Background" Value="{DynamicResource GhostHoverBrush}" />
+    </Style>
+    <Style Selector="StackPanel#DocumentHost Border.card.cue.playing">
+      <Setter Property="Background" Value="{DynamicResource RowSelectedBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource PrimaryBrush}" />
+    </Style>
+
+    <!-- The gutter time chip: always legible, never loud, and it seeks when clicked. -->
+    <Style Selector="Button.gutter">
+      <Setter Property="Background" Value="Transparent" /><Setter Property="BorderBrush" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="Padding" Value="4,1" /><Setter Property="MinHeight" Value="0" />
+      <Setter Property="FontSize" Value="11" />
+      <Setter Property="FontFamily" Value="{StaticResource ClockFont}" />
+      <Setter Property="Foreground" Value="{DynamicResource MutedBrush}" />
+      <Setter Property="Opacity" Value="0.55" />
+      <Setter Property="CornerRadius" Value="{StaticResource RadiusSm}" />
+      <Setter Property="HorizontalAlignment" Value="Right" />
+      <Setter Property="VerticalAlignment" Value="Top" />
+    </Style>
+    <Style Selector="Button.gutter /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="Transparent" /><Setter Property="BorderBrush" Value="Transparent" />
+      <Setter Property="TextElement.Foreground" Value="{DynamicResource MutedBrush}" />
+    </Style>
+    <Style Selector="Button.gutter:pointerover">
+      <Setter Property="Opacity" Value="1" />
+    </Style>
+    <Style Selector="Button.gutter:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource GhostHoverBrush}" />
+      <Setter Property="TextElement.Foreground" Value="{DynamicResource TextBrush}" />
+    </Style>
+    <Style Selector="Border.card.playing Button.gutter">
+      <Setter Property="Opacity" Value="1" />
+      <Setter Property="Foreground" Value="{DynamicResource PrimaryBrush}" />
+    </Style>
+    <Style Selector="Border.card.playing Button.gutter /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="TextElement.Foreground" Value="{DynamicResource PrimaryBrush}" />
+    </Style>
+
+    <!-- Column headings over the cue table. -->
+    <Style Selector="Border.cuehead">
+      <Setter Property="BorderThickness" Value="0,0,0,1" />
+      <Setter Property="BorderBrush" Value="{DynamicResource EdgeBrush}" />
+      <Setter Property="Padding" Value="0,0,0,5" />
+      <Setter Property="Margin" Value="12,6,4,0" />
+    </Style>
+    <Style Selector="Border.cuehead TextBlock">
+      <Setter Property="FontSize" Value="11" /><Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="LetterSpacing" Value="0.4" />
+      <Setter Property="Foreground" Value="{DynamicResource MutedBrush}" />
+      <Setter Property="VerticalAlignment" Value="Bottom" />
+    </Style>
+
+    <!-- The word list for the paragraph being spoken (Timings view). -->
     <Style Selector="Button.word">
-      <Setter Property="Margin" Value="0,0,4,4" /><Setter Property="Padding" Value="6,2" />
-      <Setter Property="MinHeight" Value="0" /><Setter Property="FontSize" Value="13" />
+      <Setter Property="Margin" Value="0,0,3,3" /><Setter Property="Padding" Value="5,1" />
+      <Setter Property="MinHeight" Value="0" /><Setter Property="FontSize" Value="12" />
       <Setter Property="Background" Value="Transparent" /><Setter Property="BorderThickness" Value="0" />
       <Setter Property="CornerRadius" Value="{StaticResource RadiusSm}" />
       <Setter Property="Foreground" Value="{DynamicResource MutedBrush}" />
@@ -388,49 +777,29 @@
       <Setter Property="TextElement.FontWeight" Value="Bold" />
     </Style>
 
-    <Style Selector="Border.row">
-      <Setter Property="CornerRadius" Value="{StaticResource RadiusSm}" />
-      <Setter Property="Padding" Value="8,6" />
-      <Setter Property="Background" Value="Transparent" />
-    </Style>
-    <Style Selector="Border.row:pointerover">
-      <Setter Property="Background" Value="{DynamicResource GhostHoverBrush}" />
+    <!-- The reading highlight behind the words being spoken. -->
+    <Style Selector="controls|WordHighlight">
+      <Setter Property="Fill" Value="{DynamicResource WordActiveBrush}" />
     </Style>
 
-    <Style Selector="Ellipse.state">
-      <Setter Property="Width" Value="8" /><Setter Property="Height" Value="8" />
-      <Setter Property="Fill" Value="{DynamicResource MutedBrush}" />
+    <!-- Paragraph actions are within reach in both views but never in the way: they surface on hover. -->
+    <Style Selector="Button.faint, ToggleButton.faint">
+      <Setter Property="Opacity" Value="0.3" />
     </Style>
-    <Style Selector="Ellipse.state.saved"><Setter Property="Fill" Value="{DynamicResource SuccessBrush}" /></Style>
-    <Style Selector="Ellipse.state.unsaved"><Setter Property="Fill" Value="{DynamicResource PrimaryBrush}" /></Style>
-    <Style Selector="Ellipse.state.working"><Setter Property="Fill" Value="{DynamicResource AccentHoverBrush}" /></Style>
-    <Style Selector="Ellipse.state.failed"><Setter Property="Fill" Value="{DynamicResource DangerBrush}" /></Style>
+    <Style Selector="Border.card:pointerover Button.faint, Border.card:pointerover ToggleButton.faint">
+      <Setter Property="Opacity" Value="1" />
+    </Style>
+    <Style Selector="Button.faint:focus-visible, ToggleButton.faint:focus-visible">
+      <Setter Property="Opacity" Value="1" />
+    </Style>
 
-    <Style Selector="StackPanel#DocumentHost TextBox, StackPanel#DocumentHost ComboBox">
-      <Setter Property="Background" Value="Transparent" />
-      <Setter Property="BorderBrush" Value="Transparent" />
-    </Style>
-    <Style Selector="StackPanel#DocumentHost TextBox:pointerover, StackPanel#DocumentHost ComboBox:pointerover">
-      <Setter Property="Background" Value="{DynamicResource GhostHoverBrush}" />
-      <Setter Property="BorderBrush" Value="{DynamicResource MutedBrush}" />
-    </Style>
-    <Style Selector="StackPanel#DocumentHost TextBox:focus-within, StackPanel#DocumentHost ComboBox:focus-within">
-      <Setter Property="BorderBrush" Value="{DynamicResource FocusRingBrush}" />
-    </Style>
-    <!-- Direct children sit on the same 28px text column as the title, badge and paragraph text;
-         a quiet button's own 12px padding makes up the rest of its offset. -->
-    <Style Selector="StackPanel#DocumentHost > Button">
-      <Setter Property="Margin" Value="16,0,0,0" />
-      <Setter Property="HorizontalAlignment" Value="Left" />
-    </Style>
-    <Style Selector="StackPanel#DocumentHost > TextBlock">
-      <Setter Property="Margin" Value="28,0,0,0" />
-    </Style>
+    <!-- A collapsed cue shows its text as a single line; clicking it hands back the editor. -->
     <Style Selector="ToggleButton.section-toggle">
       <Setter Property="Background" Value="Transparent" />
       <Setter Property="BorderBrush" Value="Transparent" />
       <Setter Property="BorderThickness" Value="1" />
-      <Setter Property="Padding" Value="8,6" />
+      <Setter Property="Padding" Value="6,4" />
+      <Setter Property="MinHeight" Value="26" />
     </Style>
     <Style Selector="ToggleButton.section-toggle /template/ ContentPresenter#PART_ContentPresenter,
                      ToggleButton.section-toggle:checked /template/ ContentPresenter#PART_ContentPresenter">
@@ -449,95 +818,33 @@
       <Setter Property="BorderBrush" Value="{DynamicResource FocusRingBrush}" />
     </Style>
 
-    <Style Selector="Window.reducedMotion :is(Control), Window.reducedMotion :is(TemplatedControl) /template/ :is(Control)">
-      <Setter Property="Transitions" Value="{x:Null}" />
-    </Style>
-    <Style Selector="Window">
-      <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
-      <Setter Property="Background" Value="{DynamicResource CanvasBrush}" />
-      <Setter Property="FontFamily" Value="Segoe UI, sans-serif" />
-      <Setter Property="FontSize" Value="14" />
-    </Style>
-    <Style Selector="Border.card">
-      <Setter Property="CornerRadius" Value="{StaticResource RadiusLg}" />
-      <Setter Property="Padding" Value="16" />
-      <Setter Property="BorderThickness" Value="0" />
-      <Setter Property="BorderBrush" Value="{DynamicResource EdgeBrush}" />
+    <!-- Fluent's Expander header is a ToggleButton, so the generic button rules centre its text and
+         add their own padding; a section heading has to start where the card's other headings do. -->
+    <Style Selector="Expander">
+      <Setter Property="Padding" Value="10,8" />
       <Setter Property="Background" Value="{DynamicResource SurfaceBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource EdgeBrush}" />
+      <Setter Property="CornerRadius" Value="{StaticResource RadiusLg}" />
     </Style>
-    <Style Selector="StackPanel#DocumentHost Border.card">
-      <Setter Property="BorderThickness" Value="2,0,0,0" />
-      <Setter Property="BorderBrush" Value="Transparent" />
-      <Setter Property="CornerRadius" Value="0" />
-      <Setter Property="Padding" Value="20,8" />
-      <Setter Property="Background" Value="Transparent" />
-    </Style>
-    <Style Selector="StackPanel#DocumentHost Border.card.playing">
-      <Setter Property="BorderBrush" Value="{DynamicResource PrimaryBrush}" />
-    </Style>
-    <Style Selector="StackPanel#DocumentHost TextBox.title">
-      <Setter Property="FontSize" Value="28" />
-      <Setter Property="Padding" Value="28,10" />
-    </Style>
-    <Style Selector="Border.badge.provenance">
+    <Style Selector="Expander ToggleButton">
       <Setter Property="Background" Value="Transparent" />
       <Setter Property="BorderThickness" Value="0" />
-      <Setter Property="Margin" Value="28,0,0,18" />
+      <Setter Property="CornerRadius" Value="{StaticResource RadiusLg}" />
+      <Setter Property="HorizontalContentAlignment" Value="Left" />
       <Setter Property="Padding" Value="0" />
     </Style>
-    <Style Selector="Border.badge.provenance TextBlock">
-      <Setter Property="Foreground" Value="{DynamicResource MutedBrush}" />
-      <Setter Property="FontWeight" Value="Normal" />
-    </Style>
-    <Style Selector="Border.waveform">
-      <Setter Property="CornerRadius" Value="{StaticResource RadiusMd}" />
-      <Setter Property="Padding" Value="0" />
-      <Setter Property="BorderThickness" Value="0" />
-      <Setter Property="BorderBrush" Value="{DynamicResource EdgeBrush}" />
-      <Setter Property="Background" Value="Transparent" />
-      <Setter Property="ClipToBounds" Value="True" />
-    </Style>
-    <Style Selector="Border.statusbar">
-      <Setter Property="Padding" Value="24,7" />
-      <Setter Property="BorderThickness" Value="0,1,0,0" />
-      <Setter Property="BorderBrush" Value="{DynamicResource EdgeBrush}" />
-      <Setter Property="Background" Value="{DynamicResource ChromeBrush}" />
-    </Style>
-    <Style Selector="Border.statusbar TextBlock">
-      <Setter Property="FontSize" Value="12" />
-      <Setter Property="Foreground" Value="{DynamicResource MutedBrush}" />
-    </Style>
-    <!-- A failure otherwise reads exactly like "Saved · revision 7"; the 8px state dot was the only cue. -->
-    <Style Selector="Border.statusbar TextBlock.failed">
-      <Setter Property="Foreground" Value="{DynamicResource DangerBrush}" />
-      <Setter Property="FontWeight" Value="SemiBold" />
-    </Style>
-    <Style Selector="Button.quiet, Button.more">
-      <Setter Property="Background" Value="Transparent" />
-      <Setter Property="BorderThickness" Value="1" />
-      <Setter Property="Foreground" Value="{DynamicResource MutedBrush}" />
-      <Setter Property="BorderBrush" Value="Transparent" />
-    </Style>
-
-    <Style Selector="ComboBox /template/ Border#Background">
-      <Setter Property="Background" Value="{DynamicResource FieldSurfaceBrush}" />
-      <Setter Property="BorderBrush" Value="{DynamicResource EdgeBrush}" />
-    </Style>
-    <Style Selector="ComboBox:pointerover /template/ Border#Background">
-      <Setter Property="Background" Value="{DynamicResource FieldHoverBrush}" />
-      <Setter Property="BorderBrush" Value="{DynamicResource MutedBrush}" />
-    </Style>
-    <Style Selector="ComboBox:focus-visible /template/ Border#Background">
-      <Setter Property="BorderBrush" Value="{DynamicResource FocusRingBrush}" />
-    </Style>
-    <Style Selector="StackPanel#DocumentHost ComboBox /template/ Border#Background">
+    <Style Selector="Expander ToggleButton /template/ ContentPresenter#PART_ContentPresenter,
+                     Expander ToggleButton:checked /template/ ContentPresenter#PART_ContentPresenter,
+                     Expander ToggleButton:pressed /template/ ContentPresenter#PART_ContentPresenter">
       <Setter Property="Background" Value="Transparent" />
       <Setter Property="BorderBrush" Value="Transparent" />
+      <Setter Property="TextElement.Foreground" Value="{DynamicResource MutedBrush}" />
+      <Setter Property="TextElement.FontWeight" Value="Normal" />
     </Style>
-    <Style Selector="StackPanel#DocumentHost ComboBox:pointerover /template/ Border#Background,
-                     StackPanel#DocumentHost ComboBox:focus-visible /template/ Border#Background">
+    <Style Selector="Expander ToggleButton:pointerover /template/ ContentPresenter#PART_ContentPresenter">
       <Setter Property="Background" Value="{DynamicResource GhostHoverBrush}" />
-      <Setter Property="BorderBrush" Value="{DynamicResource FocusRingBrush}" />
+      <Setter Property="BorderBrush" Value="Transparent" />
+      <Setter Property="TextElement.Foreground" Value="{DynamicResource TextBrush}" />
     </Style>
   </Application.Styles>
 </Application>

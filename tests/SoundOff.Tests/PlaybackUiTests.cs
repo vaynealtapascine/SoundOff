@@ -165,11 +165,18 @@ public sealed class PlaybackUiTests
         var (window, engine) = await OpenAsync(folder);
         try
         {
-            var buttons = window.GetVisualDescendants().OfType<Button>().Where(b => (AutomationProperties.GetName(b) ?? "").StartsWith("Go to paragraph")).ToArray();
+            var buttons = window.GetVisualDescendants().OfType<Button>()
+                .Where(b => (AutomationProperties.GetName(b) ?? "").StartsWith("Move the playhead to paragraph")).ToArray();
             Assert.Equal(3, buttons.Length);
             Assert.True(buttons[0].IsEnabled); Assert.True(buttons[1].IsEnabled);
             Assert.False(buttons[2].IsEnabled);   // untimed paragraph
             Assert.Contains("no timing", (string)ToolTip.GetTip(buttons[2])!);
+            // One control, two readings: where the paragraph starts on the page, which row it is in the table.
+            Assert.Equal("0:04", buttons[1].Content);
+            Assert.Equal("", buttons[2].Content);
+            UiDriver.SetView(window, document: false);
+            Assert.Equal(["1", "2", "3"], buttons.Select(b => (string)b.Content!).ToArray());
+            UiDriver.SetView(window, document: true);
             Press(buttons[1]);
             Assert.Equal(4_500_000, engine.PositionMicroseconds);
             Assert.NotEqual(PlaybackStatus.Playing, engine.Status);
@@ -186,17 +193,17 @@ public sealed class PlaybackUiTests
             var follow = window.FindControl<ToggleButton>("FollowButton")!;
             Assert.True(follow.IsChecked);
             Click(window, "PlayPauseButton"); engine.Seek(1_200_000);
-            Assert.DoesNotContain("Follow paused", Playback(window));
+            Assert.DoesNotContain("Follow is paused", Playback(window));
             Blocks(window)[0].Text = "edited while playing";
             Dispatcher.UIThread.RunJobs();
-            Assert.Contains("Follow paused", Playback(window));
+            Assert.Contains("Follow is paused", Playback(window));
             Assert.True(Button(window, "SaveButton").IsEnabled);        // the edit is a normal draft
             Assert.Equal(PlaybackStatus.Playing, engine.Status);        // and playback keeps going
             follow.IsChecked = false; follow.IsChecked = true;          // resuming clears the suspension
             Dispatcher.UIThread.RunJobs();
             Blocks(window)[0].Text = "edited again";
             Dispatcher.UIThread.RunJobs();
-            Assert.Contains("Follow paused", Playback(window));
+            Assert.Contains("Follow is paused", Playback(window));
             Discard(window);
         }
         finally { Discard(window); window.Close(); }

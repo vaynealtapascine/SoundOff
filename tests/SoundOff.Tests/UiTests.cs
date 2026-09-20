@@ -507,13 +507,16 @@ public sealed class UiTests
         var work = window.FindControl<Grid>("WorkArea")!;
         try
         {
+            // Column 1 is the drag handle between the two; the panel itself is column 2.
             Assert.True(window.FindControl<Control>("Sidebar")!.IsVisible);
-            Assert.Equal(320, work.ColumnDefinitions[1].Width.Value);
+            Assert.True(window.FindControl<Control>("SidebarSplitter")!.IsVisible);
+            Assert.Equal(320, work.ColumnDefinitions[2].Width.Value);
 
             Key(window, Avalonia.Input.Key.B, Avalonia.Input.KeyModifiers.Control);
             Assert.False(window.FindControl<Control>("Sidebar")!.IsVisible);
-            Assert.Equal(0, work.ColumnDefinitions[1].Width.Value);
-            Assert.Equal(0, work.ColumnSpacing);
+            Assert.False(window.FindControl<Control>("SidebarSplitter")!.IsVisible);
+            Assert.Equal(0, work.ColumnDefinitions[2].Width.Value);
+            Assert.Equal(0, work.ColumnDefinitions[2].MinWidth);
         }
         finally { window.Close(); }
 
@@ -524,7 +527,7 @@ public sealed class UiTests
             var toggle = window.FindControl<Avalonia.Controls.Primitives.ToggleButton>("SidebarToggle")!;
             toggle.IsChecked = true;
             Assert.True(window.FindControl<Control>("Sidebar")!.IsVisible);
-            Assert.Equal(320, window.FindControl<Grid>("WorkArea")!.ColumnDefinitions[1].Width.Value);
+            Assert.Equal(320, window.FindControl<Grid>("WorkArea")!.ColumnDefinitions[2].Width.Value);
         }
         finally { window.Close(); }
 

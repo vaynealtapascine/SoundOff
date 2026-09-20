@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
@@ -26,6 +27,7 @@ public sealed partial class MainWindow
     private string? loadedMediaPath;
     private IReadOnlyList<ActiveSpan> activeSpans = [];
     private Guid ribbonBlock;                // which paragraph currently owns a word ribbon
+    private Guid highlightBlock;             // which paragraph currently owns the inline reading highlight
     private static readonly Geometry PlayGlyph = Geometry.Parse("M8,5 L19,12 L8,19 Z");
     private static readonly Geometry PauseGlyph = Geometry.Parse("M6,5 H10 V19 H6 Z M14,5 H18 V19 H14 Z");
     private readonly PathIcon playIcon = new() { Data = PlayGlyph, Width = 14, Height = 14 };
@@ -98,6 +100,51 @@ public sealed partial class MainWindow
         playback.Seek(Math.Clamp(playback.PositionMicroseconds + delta, 0, playback.DurationMicroseconds));
         RefreshPlaybackHighlight(force: true);
     }
+    // Double-clicking a word already selects it; taking the playhead there too is the gesture that reads as
+    // "this word". A plain click stays a caret move, so typing never drags the audio around.
+    private void SeekToTypedWord(Guid blockId)
+    {
+        if (snapshot?.Blocks.FirstOrDefault(b => b.Id == blockId) is not { } block) return;
+        if (!blockInputs.TryGetValue(blockId, out var box)) return;
+        var index = WordAtOffset(box.Text ?? "", block.WordsOrEmpty, Math.Min(box.SelectionStart, box.SelectionEnd));
+        if (index < 0) SeekToBlock(blockId); else SeekToWord(blockId, index);
+    }
+
+    // Recognized words carry no character offsets, so they are matched against the box's CURRENT text in order.
+    // A paragraph edited away from its words simply stops matching, which is why the highlight goes quiet on an
+    // edited paragraph instead of lighting the wrong span.
+    private static (int Start, int Length) WordSpan(string text, ImmutableArray<Word> words, int index)
+    {
+        if (index < 0 || index >= words.Length) return (0, 0);
+        var cursor = 0;
+        for (var i = 0; i <= index; i++)
+        {
+            var word = words[i].Text;
+            if (word.Length == 0) continue;
+            if (cursor > text.Length) return (0, 0);
+            var at = text.IndexOf(word, cursor, StringComparison.Ordinal);
+            if (at < 0) return (0, 0);
+            if (i == index) return (at, word.Length);
+            cursor = at + word.Length;
+        }
+        return (0, 0);
+    }
+    private static int WordAtOffset(string text, ImmutableArray<Word> words, int offset)
+    {
+        var cursor = 0;
+        for (var i = 0; i < words.Length; i++)
+        {
+            var word = words[i].Text;
+            if (word.Length == 0) continue;
+            if (cursor > text.Length) break;
+            var at = text.IndexOf(word, cursor, StringComparison.Ordinal);
+            if (at < 0) break;
+            if (offset < at + word.Length) return i;
+            cursor = at + word.Length;
+        }
+        return -1;
+    }
+
     // Seeking from the document never starts playback: the user asked to move, not to play.
     private void SeekToBlock(Guid blockId)
     {
@@ -120,7 +167,7 @@ public sealed partial class MainWindow
     {
         if (playback.Status != PlaybackStatus.Playing || followSuspended) return;
         followSuspended = true;
-        SetPlaybackText("Follow paused while you edit. Turn Follow on to resume.");
+        SetPlaybackText("Follow is paused while you read and edit. Switch it back on to resume.");
     }
 
     private void RefreshPlaybackHighlight(bool force)
@@ -154,6 +201,7 @@ public sealed partial class MainWindow
         activeSpans = spans;
         foreach (var (id, card) in blockCards) card.Classes.Set("playing", spans.Any(s => s.BlockId == id));
         RenderWordRibbon(spans);
+        RenderInlineHighlight(spans);
         if (playing && !followSuspended && followButton.IsChecked == true && spans.Count > 0 && blockCards.TryGetValue(spans[0].BlockId, out var active))
             active.BringIntoView();   // position only, never animated, and it does not touch focus or selection
     }
@@ -193,6 +241,20 @@ public sealed partial class MainWindow
             }
         }
         for (var i = 0; i < ribbon.Children.Count; i++) ribbon.Children[i].Classes.Set("current", i == activeWord);
+    }
+
+    // The word being spoken, lit where the eye already is. Only the active paragraph is touched, so the cost is
+    // the same whether the transcript is one paragraph or a thousand.
+    private void RenderInlineHighlight(IReadOnlyList<ActiveSpan> spans)
+    {
+        var target = spans.Count > 0 ? spans[0].BlockId : Guid.Empty;
+        if (target != highlightBlock && blockHighlights.TryGetValue(highlightBlock, out var previous)) previous.Show(0, 0);
+        highlightBlock = target;
+        if (target == Guid.Empty || !blockHighlights.TryGetValue(target, out var highlight)) return;
+        if (snapshot?.Blocks.FirstOrDefault(b => b.Id == target) is not { } block || !blockInputs.TryGetValue(target, out var box))
+        { highlight.Show(0, 0); return; }
+        var (start, length) = WordSpan(box.Text ?? "", block.WordsOrEmpty, spans[0].WordIndex);
+        highlight.Show(start, length);
     }
 
     private void DisposePlayback()
