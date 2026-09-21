@@ -493,7 +493,10 @@
       <Setter Property="Padding" Value="8,40,8,64" />
       <Setter Property="MaxWidth" Value="880" />
       <Setter Property="Margin" Value="24,20,24,24" />
-      <Setter Property="HorizontalAlignment" Value="Center" />
+      <!-- Stretch, not Center: centring makes the border size itself to whatever the longest line happens to
+           be, so the page grew and shrank with the text instead of being a page. Stretch fills the slot, the
+           measure caps it, and Avalonia centres what is left over. -->
+      <Setter Property="HorizontalAlignment" Value="Stretch" />
     </Style>
     <!-- MaxWidth is cleared from code when the table takes over: a style cannot unset a measure. -->
     <Style Selector="Border.page.table">
