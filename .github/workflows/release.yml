@@ -1,0 +1,126 @@
+name: Release
+
+# Tagging vX.Y.Z builds every platform and publishes the release. Running it by hand builds the same
+# artifacts and uploads them to the run without publishing anything, so the pipeline can be proved first.
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  DOTNET_CLI_TELEMETRY_OPTOUT: 1
+  DOTNET_NOLOGO: 1
+  AVALONIA_TELEMETRY_OPTOUT: 1
+
+jobs:
+  test:
+    name: Build and test (Windows)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      # Media identification, decoding, the waveform and the video preview all shell out to ffmpeg.
+      - name: Install ffmpeg
+        run: choco install ffmpeg -y --no-progress
+      - name: Verifier and script tests
+        run: python -m unittest discover -s scripts -p "test_*.py" -v
+      - run: dotnet restore SoundOff.sln --locked-mode
+      - run: dotnet build SoundOff.sln -c Release --no-restore
+      # A hosted runner has no audio device and no WhisperX runtime, so the three suites that need real
+      # hardware or the 2 GB model pack cannot run here and are filtered out. They are covered by
+      # scripts/verify.py on a real machine; docs/VERIFICATION.md records that run and its limits.
+      - name: Test, minus what a hosted runner cannot have
+        run: dotnet test SoundOff.sln -c Release --no-build --filter "FullyQualifiedName!~CaptureEngineTests&FullyQualifiedName!~PlaybackEngineTests&FullyQualifiedName!~InferenceTests"
+
+  publish:
+    name: Publish ${{ matrix.rid }}
+    needs: test
+    # One platform failing must not quietly ship the other three: the release job below needs them all.
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: windows-latest, rid: win-x64 }
+          - { os: macos-latest,   rid: osx-arm64 }
+          - { os: macos-13,       rid: osx-x64 }
+          - { os: ubuntu-latest,  rid: linux-x64 }
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Work out the version
+        shell: bash
+        run: |
+          if [ "$GITHUB_REF_TYPE" = "tag" ]; then
+            version="${GITHUB_REF_NAME#v}"
+          else
+            version="$(sed -n 's:.*<Version>\(.*\)</Version>.*:\1:p' Directory.Build.props | head -1)-dev"
+          fi
+          echo "bundle=SoundOff-$version-${{ matrix.rid }}" >> "$GITHUB_ENV"
+
+      # The lock file carries every platform's native packages, because the projects declare the four
+      # RuntimeIdentifiers a release targets. Locked mode still cannot be used on the publish itself: NuGet
+      # compares the whole RID set and -r narrows it to one. The locked restore runs in the test job above,
+      # on this same commit, over all four.
+      - name: Publish
+        shell: bash
+        run: |
+          dotnet publish src/SoundOff.Desktop/SoundOff.Desktop.csproj \
+            -c Release -r "${{ matrix.rid }}" --self-contained true \
+            -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=false \
+            -o "out/$bundle"
+          cp README.md LICENSE "out/$bundle/"
+          mkdir -p "out/$bundle/docs" && cp docs/HELP.md "out/$bundle/docs/"
+
+      # Git Bash on a Windows runner has no zip, and tar on Windows would lose nothing but gains nothing either.
+      - name: Archive (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force dist | Out-Null
+          Compress-Archive -Path "out/$env:bundle" -DestinationPath "dist/$env:bundle.zip"
+      # -y keeps symlinks as symlinks, and zip preserves the executable bit the apphost needs.
+      - name: Archive (macOS)
+        if: runner.os == 'macOS'
+        shell: bash
+        run: mkdir -p dist && cd out && zip -qry "../dist/$bundle.zip" "$bundle"
+      - name: Archive (Linux)
+        if: runner.os == 'Linux'
+        shell: bash
+        run: mkdir -p dist && cd out && tar czf "../dist/$bundle.tar.gz" "$bundle"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.bundle }}
+          path: dist/*
+          if-no-files-found: error
+
+  release:
+    name: Publish the release
+    needs: publish
+    if: github.ref_type == 'tag'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      # A prerelease on purpose: only the Windows build is verified on real hardware, and the notes say so.
+      - name: Create the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" dist/* \
+            --title "SoundOff $GITHUB_REF_NAME" \
+            --notes-file .github/RELEASE-NOTES.md \
+            --prerelease \
+            --verify-tag

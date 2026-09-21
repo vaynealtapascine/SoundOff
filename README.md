@@ -4,7 +4,15 @@
 
 Local transcription editor for Windows: import or record audio and video, transcribe on-device with WhisperX, and review word-synced text and speakers. No account, no upload, no hosted inference.
 
-This is a working Windows development build, not a packaged release. See [verification evidence](docs/VERIFICATION.md) for the exact commands, results and limits, and [ARCHITECTURE.md](ARCHITECTURE.md) for the full intended product and its release gates.
+Tagged builds are on the [releases page](https://github.com/vaynealtapascine/SoundOff/releases). **Windows is
+the only platform that has been run.** The macOS and Linux downloads are built from the same source and can
+import, edit and export, but they have **no playback and no recording** — those adapters are Windows-only and
+the app says so where their controls are — and nobody has launched them. See [verification
+evidence](docs/VERIFICATION.md) for the exact commands, results and limits, and
+[ARCHITECTURE.md](ARCHITECTURE.md) for the full intended product and its release gates.
+
+Every build needs **ffmpeg and ffprobe on `PATH`**; **New demo project…** also needs the .NET 8 runtime, because
+its fixture worker is a separate process. Transcription needs the private Python runtime below.
 
 ## What runs locally
 

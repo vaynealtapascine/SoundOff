@@ -4,6 +4,8 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <!-- Kept in step with the desktop app: a release publishes this project for the same platforms. -->
+    <RuntimeIdentifiers>win-x64;osx-x64;osx-arm64;linux-x64</RuntimeIdentifiers>
     <RootNamespace>SoundOff.Core</RootNamespace>
   </PropertyGroup>
   <ItemGroup>

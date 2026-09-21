@@ -124,5 +124,5 @@ Remembered on this computer: the theme, reduced motion, whether the document fil
 ## Limits and not yet available
 
 - Up to 64 speakers, 20,000 paragraphs, and 16,384 UTF-16 characters per paragraph.
-- Not available yet: recording a single app, speaker diarization (speaker labels are corrected by hand, not re-clustered), playback speed, subtitle cue editing, comparing transcription runs, jobs that continue after the app closes, media inside bundles, installers, macOS, Linux and mobile.
+- Not available yet: recording a single app, speaker diarization (speaker labels are corrected by hand, not re-clustered), playback speed, subtitle cue editing, comparing transcription runs, jobs that continue after the app closes, media inside bundles, installers, code signing, and mobile. macOS and Linux builds exist but have no playback or recording adapter, and have never been run.
 - Accessibility, input-method editors and very long recordings have not been tested.
