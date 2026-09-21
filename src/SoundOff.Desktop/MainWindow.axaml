@@ -134,20 +134,9 @@
          Work area: transcript, a drag handle, the tool panel.
          ================================================================ -->
     <Grid x:Name="WorkArea" Grid.Row="1" ColumnDefinitions="*,Auto,320">
-      <Grid x:Name="ReviewArea" RowDefinitions="Auto,Auto,Auto,*">
-        <Border x:Name="FindBar" Classes="findbar" IsVisible="False" Margin="24,12,24,0" MaxWidth="720" HorizontalAlignment="Right">
-          <Grid ColumnDefinitions="*,*,Auto,Auto,Auto,Auto" ColumnSpacing="6" RowDefinitions="Auto,Auto">
-            <TextBox x:Name="FindInput" Watermark="Find" AutomationProperties.Name="Find text" IsUndoEnabled="False" MinWidth="150" />
-            <TextBox x:Name="ReplaceInput" Grid.Column="1" Watermark="Replace with" AutomationProperties.Name="Replace with" IsUndoEnabled="False" MinWidth="150" />
-            <Button x:Name="FindNextButton" Grid.Column="2" Content="Next" ToolTip.Tip="Find next (F3)" />
-            <Button x:Name="ReplaceButton" Grid.Column="3" Content="Replace" Classes="quiet" AutomationProperties.Name="Replace selected" />
-            <Button x:Name="ReplaceAllButton" Grid.Column="4" Content="All" Classes="quiet" AutomationProperties.Name="Replace all" ToolTip.Tip="Replace every match in the draft" />
-            <Button x:Name="CloseFindButton" Grid.Column="5" Content="✕" Classes="quiet icon" ToolTip.Tip="Close (Esc)" AutomationProperties.Name="Close find" />
-            <TextBlock x:Name="FindStatus" Grid.Row="1" Grid.ColumnSpan="6" Classes="muted" Margin="2,6,0,0" />
-          </Grid>
-        </Border>
+      <Grid x:Name="ReviewArea" RowDefinitions="Auto,Auto,*">
 
-        <StackPanel x:Name="VideoPreviewPanel" Grid.Row="1" IsVisible="False" Spacing="4" Margin="24,14,24,0" HorizontalAlignment="Center">
+        <StackPanel x:Name="VideoPreviewPanel" IsVisible="False" Spacing="4" Margin="24,14,24,0" HorizontalAlignment="Center">
           <Border x:Name="VideoSurface" Height="220" Background="Black" CornerRadius="8" ClipToBounds="True">
             <Image x:Name="VideoPreviewImage" Stretch="Uniform" AutomationProperties.Name="Imported video frame at the audio playhead" />
           </Border>
@@ -155,7 +144,7 @@
         </StackPanel>
 
         <!-- The columns come from CueColumns in code, so the headings cannot drift from the cells. -->
-        <Border x:Name="CueHeader" Grid.Row="2" Classes="cuehead" IsVisible="False">
+        <Border x:Name="CueHeader" Grid.Row="1" Classes="cuehead" IsVisible="False">
           <Grid x:Name="CueHeaderGrid">
             <TextBlock Text="#" HorizontalAlignment="Center" />
             <TextBlock Grid.Column="1" Text="Start" Margin="6,0,0,0" />
@@ -176,7 +165,7 @@
           </Grid>
         </Border>
 
-        <ScrollViewer x:Name="TranscriptScroll" Grid.Row="3" HorizontalScrollBarVisibility="Disabled" Padding="0">
+        <ScrollViewer x:Name="TranscriptScroll" Grid.Row="2" HorizontalScrollBarVisibility="Disabled" Padding="0">
           <!-- Matching the viewport height makes the page reach the bottom of the window the way paper fills a
                desk, while a long transcript still grows past it and scrolls. -->
           <Grid MinHeight="{Binding $parent[ScrollViewer].Bounds.Height}">
@@ -186,7 +175,7 @@
           </Grid>
         </ScrollViewer>
 
-        <ScrollViewer x:Name="StartScreen" Grid.Row="3" HorizontalScrollBarVisibility="Disabled">
+        <ScrollViewer x:Name="StartScreen" Grid.Row="2" HorizontalScrollBarVisibility="Disabled">
           <!-- Matching the viewport height lets the panel sit centred in an empty window while a long
                recent list still grows past it and scrolls. -->
           <Grid MinHeight="{Binding $parent[ScrollViewer].Bounds.Height}">
@@ -215,6 +204,20 @@
             </StackPanel>
           </Grid>
         </ScrollViewer>
+        <!-- Floated over the transcript rather than pushing it down: opening Find must not move the
+             paragraph being read. -->
+        <Border x:Name="FindBar" Grid.Row="2" Classes="findbar" IsVisible="False" Margin="24,12,24,0" MaxWidth="720"
+                HorizontalAlignment="Right" VerticalAlignment="Top">
+          <Grid ColumnDefinitions="*,*,Auto,Auto,Auto,Auto" ColumnSpacing="6" RowDefinitions="Auto,Auto">
+            <TextBox x:Name="FindInput" Watermark="Find" AutomationProperties.Name="Find text" IsUndoEnabled="False" MinWidth="150" />
+            <TextBox x:Name="ReplaceInput" Grid.Column="1" Watermark="Replace with" AutomationProperties.Name="Replace with" IsUndoEnabled="False" MinWidth="150" />
+            <Button x:Name="FindNextButton" Grid.Column="2" Content="Next" ToolTip.Tip="Find next (F3)" />
+            <Button x:Name="ReplaceButton" Grid.Column="3" Content="Replace" Classes="quiet" AutomationProperties.Name="Replace selected" />
+            <Button x:Name="ReplaceAllButton" Grid.Column="4" Content="All" Classes="quiet" AutomationProperties.Name="Replace all" ToolTip.Tip="Replace every match in the draft" />
+            <Button x:Name="CloseFindButton" Grid.Column="5" Content="✕" Classes="quiet icon" ToolTip.Tip="Close (Esc)" AutomationProperties.Name="Close find" />
+            <TextBlock x:Name="FindStatus" Grid.Row="1" Grid.ColumnSpan="6" Classes="muted" Margin="2,6,0,0" />
+          </Grid>
+        </Border>
       </Grid>
 
       <GridSplitter x:Name="SidebarSplitter" Grid.Column="1" Classes="vertical" ResizeDirection="Columns"
