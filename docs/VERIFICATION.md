@@ -9,10 +9,10 @@ The editor was rebuilt around two views: a page of words with the spoken word li
 table in the shape subtitle editors use. See [the view guide](ui-redesign.md) for what each one does.
 
 - `dotnet build SoundOff.sln -c Release`: passed, **zero warnings/errors**.
-- `dotnet test SoundOff.sln -c Release --no-build`: **344 passed, 0 failed, 0 skipped** (341 before; three tests
+- `dotnet test SoundOff.sln -c Release --no-build`: **350 passed, 0 failed, 0 skipped** (341 before; nine tests
   were added with this work).
 - `python scripts/verify.py --clean --desktop-smoke`: **exit 0**, rebuilt from clean with `--locked-mode`
-  restore, **344 passed, 0 failed**, worker and desktop self-tests passed, native window smoke passed, and the
+  restore, **350 passed, 0 failed**, worker and desktop self-tests passed, native window smoke passed, and the
   inference, capture and playback adapters all recorded as exercised — real WhisperX recognition and alignment
   on the repository's synthetic English TTS audio, real Windows output-endpoint loopback with pause/resume, and
   the real Windows playback device at zero volume (`artifacts/verification/result.json`, a local ignored
@@ -27,7 +27,10 @@ SoundOff's own window was captured, by `PrintWindow` on its HWND rather than a d
   and recognized words agree, lights nothing in the paragraphs that are not being spoken, and drops to nothing
   the moment the text is edited away from its words. F8 and F9 write the playhead into the focused paragraph and
   survive a save and reopen as `0:00:02.250000`/`0:00:06.500000`. The cue headings and a cue row are asserted to
-  carry identical column definitions, both equal to `MainWindow.CueColumns`.
+  carry identical column definitions, both equal to `MainWindow.CueColumns`. A drag on the side-panel splitter is
+  recorded as `sidebarWidth` 430 and comes back at 430 in the next window; collapsing releases the column's
+  minimum; an impossible size in the file is clamped (4 → 248, 9000 → 620, NaN → the default) rather than
+  refused; a segment of the view switch cannot be switched off and the choice outlives the window.
 - **Left edges in the dark document view, measured by scanning for the first column that differs from the page
   colour.** With the page edge at x=798 and the playing paragraph's rail at 807, the title, the provenance
   notice, the speaker cue and Add paragraph all begin at **876**, the same pixel as the paragraph text; the
@@ -47,11 +50,17 @@ SoundOff's own window was captured, by `PrintWindow` on its HWND rather than a d
   which is a paper-on-desk relationship carried by a hairline border, and the segmented track is 1.15:1 against
   the Light top bar, which is why that control is outlined.
 
+One bug was found only by looking: giving the document a page surface left an empty sheet of it standing behind
+the start screen as a pale vertical bar down the middle of the window. Hiding the scroller fixed the picture and
+broke four tests, because an unmeasured `ScrollViewer` never builds its content; the page's paper is taken away
+instead. Sampled after the fix, the band the bar occupied is uniformly `#171918`, the canvas.
+
 **Not covered.** No screen-reader, keyboard-only or high-contrast pass on the rebuilt controls; the icon buttons
 carry tooltips and `AutomationProperties.Name` but were not driven with assistive technology. The double-tap
 gesture that seeks to a word is not exercised by a test — the character-offset mapping under it is, through the
-same helper the highlight uses. The two drag handles (side panel, waveform) and the Settings flyout were not
-captured: an Avalonia flyout is its own top-level window, which `PrintWindow` on the main HWND does not include.
+same helper the highlight uses. The Settings flyout was not captured: an Avalonia flyout is its own top-level window, which `PrintWindow` on the
+main HWND does not include. The splitter and handle are covered by tests at the state they leave behind, not by
+a real pointer drag; the waveform handle's pointer handling in particular has no automated coverage.
 The reading highlight's rectangles come from the live `TextPresenter` layout, so they are drawing geometry from
 the real control, but no raster comparison of the highlight against the glyphs was made. Nothing here is a
 performance claim: the longest transcript exercised in the window had four paragraphs.
