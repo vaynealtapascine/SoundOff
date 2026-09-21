@@ -16,7 +16,7 @@ public sealed partial class MainWindow
 {
     private readonly SettingsStore settings;
     private readonly ComboBox themeChoice;
-    private readonly CheckBox reducedMotionChoice;
+    private readonly CheckBox reducedMotionChoice, fillWindowChoice;
     private bool applyingSettings;
 
     // The window always reflects the choice; persistence failure is reported, never fatal.
@@ -45,7 +45,7 @@ public sealed partial class MainWindow
         {
             settings.Save(new AppearanceSettings(AppearanceSettings.CurrentVersion, AppearanceSettings.Themes[index],
                 reducedMotionChoice.IsChecked == true, sidebarToggle.IsChecked != true,
-                sidebarWidth, waveformHeight, !DocumentView));
+                sidebarWidth, waveformHeight, !DocumentView, fillWindowChoice.IsChecked == true));
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException)
         { status.Text = $"Appearance applies to this window but could not be saved to {settings.PathName}: {e.Message}"; }

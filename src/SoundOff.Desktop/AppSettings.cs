@@ -12,7 +12,7 @@ namespace SoundOff.Desktop;
 // as unreadable. Out-of-range panel sizes are clamped on read, never refused.
 public sealed record AppearanceSettings([property: JsonRequired] int Version, [property: JsonRequired] string Theme,
     [property: JsonRequired] bool ReducedMotion, bool SidebarCollapsed = false,
-    double SidebarWidth = 320, double WaveformHeight = 104, bool TimingsView = false)
+    double SidebarWidth = 320, double WaveformHeight = 104, bool TimingsView = false, bool FillWindow = false)
 {
     public const int CurrentVersion = 1;
     // A record's own constants cannot be its parameter defaults, so the two literals above repeat these.

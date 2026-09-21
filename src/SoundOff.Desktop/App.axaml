@@ -630,14 +630,21 @@
     <!-- ===================================================================
          Transcript: the page in Document view, the cue table in Timings view
          =================================================================== -->
+    <!-- The document's name lives in the top bar, so it is a name badge rather than a heading: quiet until it
+         is pointed at, and editable in place. -->
     <Style Selector="TextBox.title">
-      <Setter Property="FontSize" Value="27" /><Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="FontSize" Value="14" /><Setter Property="FontWeight" Value="SemiBold" />
       <Setter Property="Background" Value="Transparent" /><Setter Property="BorderBrush" Value="Transparent" />
-      <Setter Property="Padding" Value="0,2" />
+      <Setter Property="Padding" Value="7,4" /><Setter Property="MinHeight" Value="0" />
+      <Setter Property="CornerRadius" Value="{StaticResource RadiusSm}" />
     </Style>
-    <!-- Over a cue table the document's name is a label, not a heading. -->
-    <Style Selector="TextBox.title.compact">
-      <Setter Property="FontSize" Value="19" />
+    <Style Selector="TextBox.title:pointerover">
+      <Setter Property="Background" Value="{DynamicResource GhostHoverBrush}" />
+      <Setter Property="BorderBrush" Value="Transparent" />
+    </Style>
+    <Style Selector="TextBox.title:focus-within">
+      <Setter Property="Background" Value="{DynamicResource FieldSurfaceBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource FocusRingBrush}" />
     </Style>
     <Style Selector="TextBox.transcript">
       <Setter Property="FontSize" Value="18" /><Setter Property="LineHeight" Value="30" />

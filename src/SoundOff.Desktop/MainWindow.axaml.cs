@@ -2,6 +2,9 @@ using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
+// Shapes.Path collides with System.IO.Path, which this file uses far more often.
+using Ellipse = Avalonia.Controls.Shapes.Ellipse;
+using Shape = Avalonia.Controls.Shapes.Shape;
 using Avalonia.Input;
 using Avalonia.Input.Platform;
 using Avalonia.Interactivity;
@@ -28,12 +31,14 @@ public sealed partial class MainWindow : Window
     private readonly Dictionary<Guid, Button> blockGutters = [];
     private readonly Dictionary<Guid, TextBlock> blockDurations = [], blockSpeakerLabels = [];
     private readonly Dictionary<Guid, WordHighlight> blockHighlights = [];
+    private readonly Dictionary<Guid, Control> blockSpeakerCues = [];
+    private readonly Dictionary<Guid, List<Shape>> blockSpeakerDots = [];
     private readonly CancellationTokenSource lifetime = new();
     private bool dirty, busy, rendering, allowClose, confirmingClose;
     private readonly StackPanel documentHost, speakerHost;
     private readonly Control startScreen, speakersCard, historyCard;
-    private readonly TextBlock status, path, projectLabel;
-    private TextBox? titleInput;
+    private readonly TextBlock status, path;
+    private readonly TextBox titleInput;
     private readonly Button save, undo, redo, discard, startImport, startOpen, startDemo;
     private readonly MenuItem demo, open, export, copy, exportBundle, importBundle, srt;
 
@@ -57,7 +62,8 @@ public sealed partial class MainWindow : Window
         startScreen = this.FindControl<Control>("StartScreen")!;
         speakersCard = this.FindControl<Control>("SpeakersCard")!; historyCard = this.FindControl<Control>("HistoryCard")!;
         status = this.FindControl<TextBlock>("StatusText")!; path = this.FindControl<TextBlock>("PathText")!;
-        projectLabel = this.FindControl<TextBlock>("ProjectMenuLabel")!;
+        titleInput = this.FindControl<TextBox>("TitleInput")!;
+        titleInput.PropertyChanged += OnDraftChanged;
         demo = this.FindControl<MenuItem>("DemoItem")!; open = this.FindControl<MenuItem>("OpenProjectItem")!;
         export = this.FindControl<MenuItem>("ExportTextItem")!; srt = this.FindControl<MenuItem>("ExportSrtItem")!;
         copy = this.FindControl<MenuItem>("CopyTextItem")!;
@@ -93,10 +99,12 @@ public sealed partial class MainWindow : Window
         InitializeSearch();
         InitializeDocumentView();
         themeChoice = this.FindControl<ComboBox>("ThemeChoice")!; reducedMotionChoice = this.FindControl<CheckBox>("ReducedMotionChoice")!;
+        fillWindowChoice = this.FindControl<CheckBox>("FillWindowChoice")!;
         var (appearance, settingsProblem) = settings.Load();
         applyingSettings = true;
         themeChoice.SelectedIndex = Array.IndexOf(AppearanceSettings.Themes, appearance.Theme);
         reducedMotionChoice.IsChecked = appearance.ReducedMotion;
+        fillWindowChoice.IsChecked = appearance.FillWindow;
         sidebarToggle.IsChecked = !appearance.SidebarCollapsed;
         sidebarWidth = appearance.ClampedSidebarWidth();
         ApplySidebar(persist: false);
@@ -105,6 +113,7 @@ public sealed partial class MainWindow : Window
         applyingSettings = false;
         themeChoice.SelectionChanged += (_, _) => ApplyAppearance(persist: true);
         reducedMotionChoice.IsCheckedChanged += (_, _) => ApplyAppearance(persist: true);
+        fillWindowChoice.IsCheckedChanged += (_, _) => { ApplyDocumentView(); if (!applyingSettings) SaveAppearance(); };
         ApplyAppearance(persist: false);
         Closing += async (_, e) =>
         {
@@ -210,7 +219,7 @@ public sealed partial class MainWindow : Window
     // edited paragraph still loses its timing unless the user types timing in the same draft. Text rescue ignores timing.
     private EditBatch DraftEdits(bool includeTiming = true) => new(speakerInputs.ToDictionary(p => p.Key, p => p.Value.Text ?? ""),
         blockInputs.ToDictionary(p => p.Key, p => p.Value.Text ?? ""), blockSpeakerInputs.ToDictionary(p => p.Key, p => SpeakerChoice(p.Key)),
-        titleInput?.Text ?? snapshot?.Title, includeTiming ? ChangedTimings() : null);
+        titleInput.Text ?? snapshot?.Title, includeTiming ? ChangedTimings() : null);
     private static string TimingText(TimeRange? timing, bool start) => timing is null ? "" : TimeText.Format(start ? timing.StartMicroseconds : timing.EndMicroseconds);
     private bool TimingTouched(Guid blockId)
     {
@@ -330,9 +339,10 @@ public sealed partial class MainWindow : Window
 
     private void Render()
     {
-        rendering = true; dirty = false; sections.Clear(); titleInput = null; documentHost.Children.Clear(); speakerHost.Children.Clear();
+        rendering = true; dirty = false; sections.Clear(); documentHost.Children.Clear(); speakerHost.Children.Clear();
         speakerInputs.Clear(); blockInputs.Clear(); blockSpeakerInputs.Clear(); blockTimingInputs.Clear(); blockCards.Clear(); blockRibbons.Clear();
         blockGrids.Clear(); blockGutters.Clear(); blockDurations.Clear(); blockSpeakerLabels.Clear(); blockHighlights.Clear();
+        blockSpeakerCues.Clear(); blockSpeakerDots.Clear();
         timingCells.Clear(); documentLead.Clear();
         path.Text = store?.PathName ?? "";
         ToolTip.SetTip(path, store?.PathName);
@@ -344,7 +354,10 @@ public sealed partial class MainWindow : Window
         historyCard.IsVisible = store is not null;
         speakersCard.IsVisible = snapshot is not null && snapshot.Provenance != Provenance.Empty;
         Title = store is null || snapshot is null ? "SoundOff" : $"{snapshot.Title} — SoundOff";
-        projectLabel.Text = store is null || snapshot is null ? "SoundOff" : snapshot.Title;
+        // One name, in the one place a document's name belongs. The control outlives a render, so its text is
+        // reset here rather than rebuilt, and `rendering` keeps that from reading as an edit.
+        titleInput.Text = snapshot?.Title ?? "";
+        titleInput.IsVisible = snapshot is not null && snapshot.Provenance != Provenance.Empty;
         if (store is not null && (snapshot is null || snapshot.Provenance == Provenance.Empty))
         {
             var message = new StackPanel { Spacing = 8, Margin = new Thickness(0, 48, 0, 0), HorizontalAlignment = HorizontalAlignment.Center };
@@ -355,22 +368,20 @@ public sealed partial class MainWindow : Window
         }
         else if (snapshot is not null && snapshot.Provenance != Provenance.Empty)
         {
-            titleInput = new TextBox { Text = snapshot.Title, MaxLength = 200, Watermark = "Project title", IsUndoEnabled = false };
-            titleInput.Classes.Add("title"); AutomationProperties.SetName(titleInput, "Project title"); titleInput.PropertyChanged += OnDraftChanged;
-            documentHost.Children.Add(titleInput); documentLead.Add((titleInput, new Thickness(0, 0, 0, 2)));
             var badge = ProvenanceBadge(snapshot.Provenance);
             documentHost.Children.Add(badge); documentLead.Add((badge, new Thickness(0, 0, 0, 14)));
             var names = snapshot.Speakers.Select(s => s.Name).ToList();
             var used = snapshot.Blocks.Select(b => b.SpeakerId).ToHashSet();
             foreach (var speaker in snapshot.Speakers)
             {
-                var row = new Grid { ColumnDefinitions = new ColumnDefinitions("*,Auto"), ColumnSpacing = 6 };
+                var row = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,*,Auto"), ColumnSpacing = 6 };
+                row.Children.Add(SpeakerDot(snapshot.Speakers.IndexOf(speaker)));
                 var input = new TextBox { Text = speaker.Name, MaxLength = 100, Watermark = "Speaker name", IsUndoEnabled = false };
                 AutomationProperties.SetName(input, "Rename " + speaker.Name); input.PropertyChanged += OnDraftChanged;
                 // The Document-view cue shows the draft name as you type it; which speaker a paragraph points at
                 // is untouched, so this cannot reassign anything.
                 input.PropertyChanged += (_, e) => { if (e.Property == TextBox.TextProperty) RefreshSpeakerLabels(); };
-                speakerInputs.Add(speaker.Id, input); row.Children.Add(input);
+                speakerInputs.Add(speaker.Id, input); Grid.SetColumn(input, 1); row.Children.Add(input);
                 var id = speaker.Id;
                 // One menu rather than a row of words: renaming is the common act, and the rest are rare.
                 var menu = new MenuFlyout();
@@ -386,7 +397,7 @@ public sealed partial class MainWindow : Window
                 var more = new Button { Content = "⋯", Flyout = menu, Classes = { "more", "structural" }, VerticalAlignment = VerticalAlignment.Center };
                 AutomationProperties.SetName(more, "Actions for speaker " + speaker.Name);
                 ToolTip.SetTip(more, "Split, merge or remove this speaker");
-                Grid.SetColumn(more, 1); row.Children.Add(more); speakerHost.Children.Add(row);
+                Grid.SetColumn(more, 2); row.Children.Add(more); speakerHost.Children.Add(row);
             }
             var addSpeaker = Action("Add speaker", "Add speaker", () => CommitStructuralAsync(new AddSpeaker(Guid.NewGuid(), NewSpeakerName())),
                 enabled: snapshot.Speakers.Length < DocumentRules.MaxSpeakers);
@@ -434,17 +445,28 @@ public sealed partial class MainWindow : Window
                 AutomationProperties.SetName(duration, $"Length of paragraph {ordinal}");
                 blockDurations.Add(id, duration); Grid.SetColumn(duration, 3); Grid.SetRow(duration, 1); grid.Children.Add(duration);
 
-                var choice = new ComboBox { ItemsSource = names, Classes = { "speaker" }, Margin = new Thickness(6, 0, 0, 0), VerticalAlignment = VerticalAlignment.Top,
+                var choice = new ComboBox { ItemsSource = names, Classes = { "speaker" }, VerticalAlignment = VerticalAlignment.Center,
                     SelectedIndex = snapshot.Speakers.IndexOf(snapshot.Speakers.Single(s => s.Id == block.SpeakerId)) };
                 AutomationProperties.SetName(choice, $"Speaker for paragraph {ordinal}");
                 choice.SelectionChanged += (_, _) => { RecomputeDraft(); RefreshSpeakerLabels(); };
-                blockSpeakerInputs.Add(id, choice); Grid.SetColumn(choice, 4); Grid.SetRow(choice, 1); grid.Children.Add(choice);
-                foreach (var cell in new Control[] { startBox, endBox, duration, choice }) timingCells.Add(cell);
+                blockSpeakerInputs.Add(id, choice);
+                // The colour is what makes a long table scannable; the name stays beside it rather than hiding
+                // behind a hover, because the people reading this table read it for minutes at a time.
+                var rowDot = SpeakerDot(0);
+                var speakerCell = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,*"), Margin = new Thickness(6, 0, 0, 0), VerticalAlignment = VerticalAlignment.Top };
+                speakerCell.Children.Add(rowDot);
+                Grid.SetColumn(choice, 1); speakerCell.Children.Add(choice);
+                Grid.SetColumn(speakerCell, 4); Grid.SetRow(speakerCell, 1); grid.Children.Add(speakerCell);
+                foreach (var cell in new Control[] { startBox, endBox, duration, speakerCell }) timingCells.Add(cell);
 
                 // Column 5 is the paragraph itself: whose line it is, the words, and the word list under them.
-                var speakerLabel = new TextBlock { Classes = { "speaker" }, Text = name, IsVisible = false, Margin = new Thickness(7, 12, 0, 2) };
+                var speakerLabel = new TextBlock { Classes = { "speaker" }, Text = name, VerticalAlignment = VerticalAlignment.Center };
                 blockSpeakerLabels.Add(id, speakerLabel);
-                Grid.SetColumn(speakerLabel, 5); grid.Children.Add(speakerLabel);
+                var cueDot = SpeakerDot(0);
+                var cue = new StackPanel { Orientation = Orientation.Horizontal, IsVisible = false, Margin = new Thickness(7, 12, 0, 2) };
+                cue.Children.Add(cueDot); cue.Children.Add(speakerLabel);
+                blockSpeakerCues.Add(id, cue); blockSpeakerDots.Add(id, [cueDot, rowDot]);
+                Grid.SetColumn(cue, 5); grid.Children.Add(cue);
                 var body = new StackPanel { Spacing = 0, Margin = new Thickness(7, 0, 0, 0) };
                 var preview = new TextBlock { MaxLines = 1, TextTrimming = TextTrimming.CharacterEllipsis, FontSize = 14 };
                 var toggle = new ToggleButton
@@ -508,6 +530,24 @@ public sealed partial class MainWindow : Window
         rendering = false; RenderHistory(); RenderTranscribe(); RefreshPlaybackHighlight(force: true); UpdateControls();
     }
 
+    // Speaker colours. Eight hues that hold up on both the paper and the graphite surfaces, none of them the
+    // teal the app already uses for the playhead and the playing paragraph. A chip is never the only thing
+    // saying who is speaking: the name is always beside it.
+    private static readonly IBrush[] SpeakerColours =
+    [
+        new SolidColorBrush(Color.Parse("#D4634B")), new SolidColorBrush(Color.Parse("#C9922F")),
+        new SolidColorBrush(Color.Parse("#4F9D5B")), new SolidColorBrush(Color.Parse("#3E8FB0")),
+        new SolidColorBrush(Color.Parse("#8B6BB1")), new SolidColorBrush(Color.Parse("#C0587E")),
+        new SolidColorBrush(Color.Parse("#9A6B4F")), new SolidColorBrush(Color.Parse("#6E8F3C"))
+    ];
+    internal static IBrush SpeakerColour(int index) =>
+        SpeakerColours[((index % SpeakerColours.Length) + SpeakerColours.Length) % SpeakerColours.Length];
+    private static Ellipse SpeakerDot(int index) => new()
+    {
+        Width = 9, Height = 9, Margin = new Thickness(0, 0, 7, 0),
+        VerticalAlignment = VerticalAlignment.Center, Fill = SpeakerColour(index)
+    };
+
     // How long the cue runs, in the units a subtitle editor uses: seconds under a minute, m:ss past it.
     private void RefreshDuration(Guid id)
     {
@@ -549,7 +589,7 @@ public sealed partial class MainWindow : Window
     {
         if (rendering || snapshot is null || lifetime.IsCancellationRequested) return;
         SuspendFollow();
-        dirty = (titleInput is not null && titleInput.Text != snapshot.Title) ||
+        dirty = (titleInput.Text ?? "") != snapshot.Title ||
                 speakerInputs.Any(p => p.Value.Text != snapshot.Speakers.Single(s => s.Id == p.Key).Name) ||
                 blockInputs.Any(p => p.Value.Text != snapshot.Blocks.Single(b => b.Id == p.Key).Text) ||
                 blockSpeakerInputs.Any(p => SpeakerChoice(p.Key) != snapshot.Blocks.Single(b => b.Id == p.Key).SpeakerId) ||

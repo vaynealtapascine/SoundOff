@@ -2,6 +2,7 @@ using System.Runtime.InteropServices;
 using System.Text.Json;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Layout;
 using Avalonia.Controls.Primitives;
 using Avalonia.Media.Imaging;
 using Avalonia.Platform;
@@ -24,7 +25,9 @@ public sealed partial class MainWindow
     private WriteableBitmap? videoBitmap;
     private VideoPreviewFrame? displayedFrame;
     private int videoRefreshQueued;
-    private bool hasVideo;
+    private bool hasVideo, videoDocked;
+    // Below this, a preview beside the transcript would leave neither of them a usable width.
+    private const double DockedVideoWidth = 1100;
     internal VideoPreviewSession VideoPreview => videoPreview;
     internal int LiveVideoBitmaps => videoBitmap is null ? 0 : 1;
     internal int DisposedVideoBitmaps { get; private set; }
@@ -83,6 +86,7 @@ public sealed partial class MainWindow
         videoControls.IsVisible = hasVideo;
         videoPanel.IsVisible = shown;
         videoSettings.IsVisible = hasVideo;
+        DockVideoPreview(shown && reviewArea.Bounds.Width >= DockedVideoWidth);
         ToolTip.SetTip(videoToggle, shown ? "Hide the video — the audio keeps playing" : "Show the video");
         var frame = shown ? videoPreview.Frame : null;
         // A frame speaks for itself; the status line only explains an empty picture (loading, ended, failure).
@@ -110,9 +114,30 @@ public sealed partial class MainWindow
             videoStatus.IsVisible = true;
         }
     }
+    // Wide enough, and the picture sits beside the words instead of on top of them, the way a subtitle editor
+    // lays them out. Narrow, and it goes back above the transcript. Neither move restarts the decoder.
+    private void DockVideoPreview(bool docked)
+    {
+        if (docked == videoDocked && videoPanel.Margin.Left != 0) return;
+        videoDocked = docked;
+        Grid.SetColumn(videoPanel, docked ? 1 : 0);
+        Grid.SetRow(videoPanel, docked ? 2 : 0);
+        videoPanel.HorizontalAlignment = docked ? HorizontalAlignment.Right : HorizontalAlignment.Center;
+        videoPanel.Margin = docked ? new Thickness(8, 20, 4, 0) : new Thickness(24, 14, 24, 0);
+        ResizeVideoPreview();
+    }
+
     private void ResizeVideoPreview()
     {
         // Preserve document space when the window shrinks; resizing never changes decoder resolution or restarts it.
+        if (videoDocked)
+        {
+            var width = Math.Min(videoSize.Value * 16.0 / 9.0, Math.Max(200, reviewArea.Bounds.Width * 0.40));
+            videoSurface.Width = width;
+            videoSurface.Height = width * 9.0 / 16.0;
+            return;
+        }
+        videoSurface.Width = double.NaN;
         videoSurface.Height = Math.Min(videoSize.Value, Math.Max(60, reviewArea.Bounds.Height * .55 - 40));
     }
     private void ClearVideoBitmap()

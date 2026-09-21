@@ -14,8 +14,8 @@ SoundOff turns recordings into editable transcripts on this computer. Nothing is
 
 The switch at the top of the window chooses between them, and so do Ctrl+1 and Ctrl+2. Both views edit the very same text: switching never saves, reparses or discards anything.
 
-- **Document** is a page of words. A speaker's name is printed once over the run of paragraphs they own, the paragraph being spoken carries a line down its left edge, and the word being spoken is highlighted where you are already reading. Each timed paragraph shows where it starts in the page's left margin; clicking that timestamp moves the playhead there.
-- **Timings** is a table of cues, one row per paragraph: number, start, end, length, speaker and text. Times are exact to the microsecond and the length is worked out from them as you type. The row number moves the playhead to that paragraph.
+- **Document** is a page of words. A speaker's name, with their colour beside it, is printed once over the run of paragraphs they own; the paragraph being spoken carries a line down its left edge; and the word being spoken is highlighted where you are already reading. Each timed paragraph shows where it starts in the page's left margin; clicking that timestamp moves the playhead there. **Fill the window** in Settings trades the reading measure for the whole width.
+- **Timings** is a table of cues, one row per paragraph: number, start, end, length, speaker (with the same colour beside the name) and text. Times are exact to the microsecond and the length is worked out from them as you type. The row number moves the playhead to that paragraph.
 - In Timings, the chevrons above the table fold every paragraph to a single line or open them all again; the chevron on a row folds just that one. A folded row keeps its number, times and speaker, and clicking its text hands the editor back.
 - Paragraph actions (**⋯**) are in both views, at the right of the paragraph.
 
@@ -65,6 +65,7 @@ The switch at the top of the window chooses between them, and so do Ctrl+1 and C
 - Following resumes when you ask to be taken somewhere, because that is the opposite of wandering off.
 - Drag the handle above the waveform to give it more or less height. The side panel has a drag handle of its own. Both sizes are remembered.
 - There is no playback speed control.
+- On a wide window the video sits beside the transcript; on a narrow one it goes above it. Moving it never restarts decoding.
 - Video plays as a 10 frames-per-second preview kept in step with the audio. The film button beside the position bar hides it, which stops decoding; audio keeps playing. Its height is in **Settings**.
 
 ## Find and replace
@@ -107,11 +108,13 @@ The switch at the top of the window chooses between them, and so do Ctrl+1 and C
 
 ## Settings
 
-**Settings** holds what you set once and rarely change: the theme (dark by default, light, or follow the system), reduced motion, the spoken language and processing device for transcription, and the video preview's height. What to record and on which device stay in the Audio panel, where they are chosen before a take.
+**Settings** holds what you set once and rarely change: the theme (dark by default, light, or follow the system), reduced motion, whether the document fills the window, the spoken language and processing device for transcription, and the video preview's height. What to record and on which device stay in the Audio panel, where they are chosen before a take.
 
 The panel button (Ctrl+B) hides the side panel so the transcript gets the whole window. Recording, transcription, speakers and history live in that panel, so hide it while reading and correcting and show it again when you need them.
 
-Remembered on this computer: the theme, reduced motion, whether the side panel is showing and how wide it is, how tall the waveform is, and which view you were last in.
+The project's name sits at the top left and is renamed there.
+
+Remembered on this computer: the theme, reduced motion, whether the document fills the window, whether the side panel is showing and how wide it is, how tall the waveform is, and which view you were last in.
 
 ## Privacy
 

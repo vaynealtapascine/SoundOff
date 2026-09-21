@@ -9,12 +9,17 @@ a draft, and it leaves the waveform zoom alone.
 A page of words on a desk, the way a word processor shows one.
 
 - A speaker's name is printed once, over the run of paragraphs they own, the way a transcript or a script prints
-  it — not as a field repeated on every paragraph. It follows the draft, so reassigning a paragraph moves it.
+  it — not as a field repeated on every paragraph. It follows the draft, so reassigning a paragraph moves it. A
+  colour chip sits beside it, and beside the picker in the cue table and the name in the Speakers card, so a
+  long pass can be scanned by colour; the name is always there too, so the colour is never the only thing
+  saying who is speaking. Eight hues, none of them the teal the playhead already owns.
 - The paragraph being spoken carries a rule down its left edge. The **word** being spoken is highlighted inside
   the text itself, where the eye already is.
 - Every timed paragraph shows where it starts in the page's left margin. Clicking that timestamp moves the
-  playhead there. The title, the provenance notice and the body all share the text column's left edge, so the
-  timestamps hang in the margin rather than pushing the text around.
+  playhead there. The provenance notice and the body share the text column's left edge, so the timestamps hang
+  in the margin rather than pushing the text around.
+- The measure is 880 px. **Fill the window** in Settings clears it, for people who would rather have their
+  monitor back than a column.
 - **Clicking a word puts the caret there and takes the playhead there**, the way every transcript editor a
   practised user already knows behaves. It never starts playback: a click while paused moves the cursor and the
   playhead together, and a click while playing rewinds to the word you are about to correct, which is the thing
@@ -58,16 +63,19 @@ The cue table a subtitle editor shows: one row per paragraph, in fixed columns.
 
 ## Chrome
 
-- The project's name carries its own menu at the top left, where a document's name belongs. Undo, Redo, Find,
+- The project's name is at the top left, where a document's name belongs, and is renamed in place; the mark
+  beside it opens the project menu. It is not repeated on the page. Undo, Redo, Find,
   Export, the side panel and Settings are icons with tooltips and accessible names. **Discard** is a word, not an
   icon — it is the destructive one — and it appears only while there is a draft to discard.
-- **Settings** holds what is set once and rarely changed: appearance, reduced motion, the spoken language and
-  processing device for transcription, and the video preview's height. What to record and on which device are
+- **Settings** holds what is set once and rarely changed: appearance, reduced motion, whether the document fills
+  the window, the spoken language and processing device for transcription, and the video preview's height. What to record and on which device are
   not in that set — they are chosen before a take — so they stay on the Audio card with Record, Pause and Stop.
 - The side panel is dragged to size (248–620 px) and the waveform has a drag handle of its own above the
   transport, clamped so the transcript always keeps most of the height. Both sizes, the panel's visibility and
   the chosen view are remembered.
 - Find floats over the document instead of pushing it down: opening it must not move the paragraph being read.
+- A video preview docks beside the transcript once the work area is at least 1100 px wide, and goes back above
+  it when the room is gone. Docked it is sized by width, stacked by height; neither move restarts the decoder.
 
 ## Colour
 

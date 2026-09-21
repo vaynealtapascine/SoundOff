@@ -47,6 +47,35 @@ public sealed class VideoPreviewUiTests
         using var store = ProjectStore.Create(folder.Project, SyntheticFixture.Create(Guid.NewGuid(), 0));
         await MediaImport.ImportAsync(store, await VideoFixtures.GetAsync(), CancellationToken.None);
     }
+    // Wide enough and the picture belongs beside the words, not on top of them. Neither move restarts the
+    // decoder, and the preview goes back above the transcript when the room is gone.
+    [AvaloniaFact] public async Task A_wide_window_puts_the_preview_beside_the_transcript()
+    {
+        using var folder = new TestDirectory(); await PrepareAsync(folder);
+        var engine = new NAudioPlaybackEngine(Path.Combine(folder.Root, "cache"), () => new Output());
+        var decoder = new FfmpegVideoPreviewDecoder();
+        var window = new MainWindow(new Picker(), folder.Settings, folder.Project, playbackEngine: engine, videoDecoder: decoder) { Width = 1750, Height = 1000 };
+        window.Show();
+        try
+        {
+            await PumpUntil(() => engine.Status == PlaybackStatus.Ready && window.LiveVideoBitmaps == 1);
+            var panel = window.FindControl<StackPanel>("VideoPreviewPanel")!;
+            var surface = window.FindControl<Border>("VideoSurface")!;
+            var starts = decoder.StartedProcesses;
+            Assert.Equal(1, Grid.GetColumn(panel));                    // beside the transcript
+            Assert.Equal(2, Grid.GetRow(panel));
+            Assert.True(surface.Width > surface.Height);               // sized by width when it is docked
+            Assert.True(window.FindControl<Grid>("ReviewArea")!.Bounds.Width - surface.Width > 600);
+
+            window.Width = 900; await Task.Delay(120); Dispatcher.UIThread.RunJobs();
+            Assert.Equal(0, Grid.GetColumn(panel));                    // and back above it when the room is gone
+            Assert.Equal(0, Grid.GetRow(panel));
+            Assert.True(double.IsNaN(surface.Width));
+            Assert.Equal(starts, decoder.StartedProcesses);            // moving is not restarting
+        }
+        finally { Discard(window); window.Close(); }
+    }
+
     [AvaloniaFact] public async Task Rendered_audio_clock_controls_frames_and_hide_resize_switch_do_not_change_audio_or_text()
     {
         using var folder = new TestDirectory(); await PrepareAsync(folder);

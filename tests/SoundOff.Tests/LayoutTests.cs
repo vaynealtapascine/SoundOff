@@ -53,6 +53,35 @@ public sealed class LayoutTests
         finally { window.Close(); }
     }
 
+    // A reading measure is right for reading and wrong when someone wants their whole monitor.
+    [AvaloniaFact] public void Filling_the_window_gives_the_page_the_whole_width_and_is_remembered()
+    {
+        using var folder = new TestDirectory();
+        var window = new MainWindow(null, folder.Settings); window.Show();
+        try
+        {
+            var page = window.FindControl<Border>("DocumentPage")!;
+            Assert.Equal(880, page.MaxWidth);
+            window.FindControl<CheckBox>("FillWindowChoice")!.IsChecked = true;
+            Assert.Equal(double.PositiveInfinity, page.MaxWidth);
+            // The cue table always had the whole width; the choice does not change it either way.
+            UiDriver.SetView(window, document: false);
+            Assert.Equal(double.PositiveInfinity, page.MaxWidth);
+            UiDriver.SetView(window, document: true);
+            Assert.Equal(double.PositiveInfinity, page.MaxWidth);
+        }
+        finally { window.Close(); }
+
+        Assert.Contains("\"fillWindow\":true", File.ReadAllText(folder.SettingsPath));
+        window = new MainWindow(null, folder.Settings); window.Show();
+        try
+        {
+            Assert.True(window.FindControl<CheckBox>("FillWindowChoice")!.IsChecked);
+            Assert.Equal(double.PositiveInfinity, window.FindControl<Border>("DocumentPage")!.MaxWidth);
+        }
+        finally { window.Close(); }
+    }
+
     [Theory]
     [InlineData(4, AppearanceSettings.MinSidebarWidth, 12, AppearanceSettings.MinWaveformHeight)]
     [InlineData(9000, AppearanceSettings.MaxSidebarWidth, 9000, AppearanceSettings.MaxWaveformHeight)]

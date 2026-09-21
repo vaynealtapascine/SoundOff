@@ -87,9 +87,9 @@ public sealed partial class MainWindow
         documentHost.Classes.Set("document", document);
         documentHost.Spacing = document ? 8 : 0;
         documentPage.Classes.Set("table", !document);
-        titleInput?.Classes.Set("compact", !document);
-        // A style cannot unset a measure, and the table wants the whole window.
-        documentPage.MaxWidth = document ? 880 : double.PositiveInfinity;
+        // A style cannot unset a measure. The table always wants the whole window; the page wants a reading
+        // measure unless the reader has asked for the width back.
+        documentPage.MaxWidth = document && fillWindowChoice.IsChecked != true ? 880 : double.PositiveInfinity;
         foreach (var grid in blockGrids.Values) grid.ColumnDefinitions = new ColumnDefinitions(document ? DocumentColumns : CueColumns);
         foreach (var cell in timingCells) cell.IsVisible = !document;
         var inset = document ? DocumentInset : TableInset;
@@ -118,8 +118,11 @@ public sealed partial class MainWindow
         {
             if (!blockSpeakerLabels.TryGetValue(block.Id, out var label)) continue;
             var speaker = blockSpeakerInputs.TryGetValue(block.Id, out _) ? SpeakerChoice(block.Id) : block.SpeakerId;
+            var index = snapshot.Speakers.IndexOf(snapshot.Speakers.FirstOrDefault(s => s.Id == speaker)!);
             label.Text = snapshot.Speakers.FirstOrDefault(s => s.Id == speaker)?.Name ?? "";
-            label.IsVisible = document && speaker != previous;
+            if (blockSpeakerCues.TryGetValue(block.Id, out var cue)) cue.IsVisible = document && speaker != previous;
+            if (blockSpeakerDots.TryGetValue(block.Id, out var dots))
+                foreach (var dot in dots) dot.Fill = SpeakerColour(index);
             previous = speaker;
         }
     }

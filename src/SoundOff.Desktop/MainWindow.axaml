@@ -14,10 +14,8 @@
         <StackPanel Orientation="Horizontal" Spacing="2" VerticalAlignment="Center">
           <Button x:Name="ProjectMenuButton" Classes="quiet identity" AutomationProperties.Name="Project menu"
                   ToolTip.Tip="Open, create and bundle projects">
-            <StackPanel Orientation="Horizontal" Spacing="7">
+            <StackPanel Orientation="Horizontal" Spacing="5">
               <PathIcon Classes="glyph volume" Width="14" Height="14" />
-              <TextBlock x:Name="ProjectMenuLabel" Text="SoundOff" VerticalAlignment="Center"
-                         TextTrimming="CharacterEllipsis" MaxWidth="240" />
               <PathIcon Classes="small chevron" VerticalAlignment="Center" />
             </StackPanel>
             <Button.Flyout>
@@ -32,6 +30,9 @@
               </MenuFlyout>
             </Button.Flyout>
           </Button>
+          <TextBox x:Name="TitleInput" Classes="title" MaxLength="200" Watermark="Project title" IsUndoEnabled="False"
+                   IsVisible="False" MinWidth="130" MaxWidth="340" VerticalAlignment="Center"
+                   AutomationProperties.Name="Project title" ToolTip.Tip="Rename this project" />
           <Border Classes="divider" />
           <Button x:Name="UndoButton" Classes="quiet icon" ToolTip.Tip="Undo (Ctrl+Z)" AutomationProperties.Name="Undo">
             <PathIcon Classes="glyph undo" />
@@ -92,6 +93,8 @@
                         <ComboBoxItem>Follow system</ComboBoxItem><ComboBoxItem>Light</ComboBoxItem><ComboBoxItem>Dark</ComboBoxItem>
                       </ComboBox>
                       <CheckBox x:Name="ReducedMotionChoice" Content="Reduced motion" IsChecked="True" AutomationProperties.Name="Reduced motion" />
+                      <CheckBox x:Name="FillWindowChoice" Content="Fill the window" AutomationProperties.Name="Fill the window"
+                                ToolTip.Tip="Let the document use the whole width instead of a reading measure" />
                     </StackPanel>
 
                     <StackPanel Spacing="8">
@@ -123,9 +126,11 @@
          Work area: transcript, a drag handle, the tool panel.
          ================================================================ -->
     <Grid x:Name="WorkArea" Grid.Row="1" ColumnDefinitions="*,Auto,320">
-      <Grid x:Name="ReviewArea" RowDefinitions="Auto,Auto,*">
+      <!-- Column 1 is closed until a video docks into it beside the transcript. -->
+      <Grid x:Name="ReviewArea" RowDefinitions="Auto,Auto,*" ColumnDefinitions="*,Auto">
 
-        <StackPanel x:Name="VideoPreviewPanel" IsVisible="False" Spacing="4" Margin="24,14,24,0" HorizontalAlignment="Center">
+        <StackPanel x:Name="VideoPreviewPanel" IsVisible="False" Spacing="4" Margin="24,14,24,0" HorizontalAlignment="Center"
+                    VerticalAlignment="Top">
           <Border x:Name="VideoSurface" Height="220" Background="Black" CornerRadius="8" ClipToBounds="True">
             <Image x:Name="VideoPreviewImage" Stretch="Uniform" AutomationProperties.Name="Imported video frame at the audio playhead" />
           </Border>
