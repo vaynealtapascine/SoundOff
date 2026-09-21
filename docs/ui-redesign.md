@@ -62,8 +62,8 @@ The cue table a subtitle editor shows: one row per paragraph, in fixed columns.
   Export, the side panel and Settings are icons with tooltips and accessible names. **Discard** is a word, not an
   icon — it is the destructive one — and it appears only while there is a draft to discard.
 - **Settings** holds what is set once and rarely changed: appearance, reduced motion, the spoken language and
-  processing device for transcription, what to record and on which device, and the video preview's height. The
-  side panel keeps only what is used while working: import, record, transcribe, speakers, history.
+  processing device for transcription, and the video preview's height. What to record and on which device are
+  not in that set — they are chosen before a take — so they stay on the Audio card with Record, Pause and Stop.
 - The side panel is dragged to size (248–620 px) and the waveform has a drag handle of its own above the
   transport, clamped so the transcript always keeps most of the height. Both sizes, the panel's visibility and
   the chosen view are remembered.

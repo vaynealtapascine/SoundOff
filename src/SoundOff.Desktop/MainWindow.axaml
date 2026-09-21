@@ -104,17 +104,6 @@
                       </ComboBox>
                     </StackPanel>
 
-                    <StackPanel Spacing="8">
-                      <TextBlock Text="Recording" Classes="section" />
-                      <ComboBox x:Name="CaptureModeChoice" SelectedIndex="0" HorizontalAlignment="Stretch" AutomationProperties.Name="What to record">
-                        <ComboBoxItem>Microphone</ComboBoxItem><ComboBoxItem>Whole computer</ComboBoxItem><ComboBoxItem>Microphone + whole computer</ComboBoxItem>
-                      </ComboBox>
-                      <ComboBox x:Name="CaptureDeviceChoice" HorizontalAlignment="Stretch" AutomationProperties.Name="Recording device" />
-                      <StackPanel x:Name="CaptureRenderPanel" IsVisible="False" Spacing="6">
-                        <TextBlock Text="Computer audio" Classes="muted" />
-                        <ComboBox x:Name="CaptureRenderChoice" HorizontalAlignment="Stretch" AutomationProperties.Name="Computer audio render endpoint" />
-                      </StackPanel>
-                    </StackPanel>
 
                     <StackPanel x:Name="VideoSettings" Spacing="8" IsVisible="False">
                       <TextBlock Text="Video preview" Classes="section" />
@@ -231,6 +220,15 @@
               <Button x:Name="ImportMediaButton" Grid.Column="1" Content="Import…" Classes="quiet" ToolTip.Tip="Import audio or video" />
             </Grid>
             <TextBlock x:Name="MediaText" TextWrapping="Wrap" IsVisible="False" FontSize="13" />
+            <!-- What to record and on which device stay in reach: they are chosen before a take, not once. -->
+            <ComboBox x:Name="CaptureModeChoice" SelectedIndex="0" HorizontalAlignment="Stretch" AutomationProperties.Name="What to record">
+              <ComboBoxItem>Microphone</ComboBoxItem><ComboBoxItem>Whole computer</ComboBoxItem><ComboBoxItem>Microphone + whole computer</ComboBoxItem>
+            </ComboBox>
+            <ComboBox x:Name="CaptureDeviceChoice" HorizontalAlignment="Stretch" AutomationProperties.Name="Recording device" />
+            <StackPanel x:Name="CaptureRenderPanel" IsVisible="False" Spacing="6">
+              <TextBlock Text="Computer audio" Classes="muted" />
+              <ComboBox x:Name="CaptureRenderChoice" HorizontalAlignment="Stretch" AutomationProperties.Name="Computer audio render endpoint" />
+            </StackPanel>
             <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="6">
               <Button x:Name="RecordButton" Content="Record" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" />
               <Button x:Name="PauseRecordButton" Grid.Column="1" Content="Pause" Classes="quiet" />

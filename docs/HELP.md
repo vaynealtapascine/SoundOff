@@ -49,7 +49,6 @@ The switch at the top of the window chooses between them, and so do Ctrl+1 and C
 
 ## Recording
 
-- What to record and which device to use are in **Settings ▸ Recording**; the panel keeps **Record**, **Pause** and **Stop**.
 - **Microphone** records the selected input.
 - **Whole computer** records every app playing on the selected output device, and nothing playing on other devices. Recording a single app is not supported.
 - **Microphone + whole computer** records both and lines them up using each device's own hardware clock. Use headphones: there is no echo cancellation. If a device's clock misbehaves (common with virtual audio devices), both sources stop and the audio captured so far is kept.
@@ -108,7 +107,7 @@ The switch at the top of the window chooses between them, and so do Ctrl+1 and C
 
 ## Settings
 
-**Settings** holds what you set once and rarely change: the theme (dark by default, light, or follow the system), reduced motion, the spoken language and processing device for transcription, what to record and on which device, and the video preview's height.
+**Settings** holds what you set once and rarely change: the theme (dark by default, light, or follow the system), reduced motion, the spoken language and processing device for transcription, and the video preview's height. What to record and on which device stay in the Audio panel, where they are chosen before a take.
 
 The panel button (Ctrl+B) hides the side panel so the transcript gets the whole window. Recording, transcription, speakers and history live in that panel, so hide it while reading and correcting and show it again when you need them.
 
