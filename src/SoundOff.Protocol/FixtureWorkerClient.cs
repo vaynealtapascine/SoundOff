@@ -15,10 +15,17 @@ public sealed class FixtureWorkerClient
     public FixtureWorkerClient(Func<ProcessStartInfo> startInfo, TimeSpan? timeout = null)
     { this.startInfo = startInfo; this.timeout = timeout ?? TimeSpan.FromSeconds(10); }
 
+    // A published worker ships its own launcher beside its assembly. Preferring that launcher is what lets a
+    // self-contained app create the demo project on a machine with no .NET installed; without it, the one
+    // feature that spawns a child process would be the only reason to require a runtime install.
     public static ProcessStartInfo ForAssembly(string assembly)
     {
         if (!File.Exists(assembly)) throw new FileNotFoundException("The fixture worker is missing. Rebuild the desktop app with its worker folder.", assembly);
-        var info = new ProcessStartInfo("dotnet"); info.ArgumentList.Add(Path.GetFullPath(assembly)); return info;
+        var full = Path.GetFullPath(assembly);
+        if (!full.EndsWith(".dll", StringComparison.OrdinalIgnoreCase)) return new ProcessStartInfo(full);
+        var host = Path.ChangeExtension(full, OperatingSystem.IsWindows() ? ".exe" : null);
+        if (File.Exists(host)) return new ProcessStartInfo(host);
+        var info = new ProcessStartInfo("dotnet"); info.ArgumentList.Add(full); return info;
     }
 
     public async Task<Transcript> LoadAsync(Guid projectId, long baseRevision, CancellationToken cancellationToken = default)

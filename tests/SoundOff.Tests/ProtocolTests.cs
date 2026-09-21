@@ -14,6 +14,25 @@ public sealed class ProtocolTests
         info.ArgumentList.Add(mode); if (path is not null) info.ArgumentList.Add(path);
         return info;
     }
+    // A self-contained app must not need a .NET install just to make the demo project.
+    [Fact] public void The_worker_is_started_through_its_own_launcher_when_one_is_published()
+    {
+        var assembly = typeof(ProtocolTests).Assembly.Location;
+        var host = Path.ChangeExtension(Path.GetFullPath(assembly), OperatingSystem.IsWindows() ? ".exe" : null);
+        var info = FixtureWorkerClient.ForAssembly(assembly);
+        if (File.Exists(host))
+        {
+            Assert.Equal(host, info.FileName);
+            Assert.Empty(info.ArgumentList);          // no assembly argument: the launcher knows its own
+        }
+        else
+        {
+            Assert.Equal("dotnet", info.FileName);
+            Assert.Equal(Path.GetFullPath(assembly), Assert.Single(info.ArgumentList));
+        }
+        Assert.Throws<FileNotFoundException>(() => FixtureWorkerClient.ForAssembly(assembly + ".missing"));
+    }
+
     [Fact] public async Task Real_child_worker_delivers_only_deterministic_fixture()
     {
         var id = Guid.NewGuid(); var result = await new FixtureWorkerClient().LoadAsync(id, 4);
