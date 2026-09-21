@@ -243,7 +243,8 @@ public sealed class PlaybackUiTests
         finally { window.Close(); }
     }
 
-    // F8 and F9 are the timing pass: they put the playhead into the focused paragraph's boxes as a draft edit.
+    // Alt+Left and Alt+Right are the timing pass: they put the playhead into the focused paragraph's boxes
+    // as a draft edit, which is where a subtitle editor's user reaches for it.
     [AvaloniaFact] public async Task Marking_a_paragraphs_start_and_end_writes_the_playhead_into_its_draft()
     {
         using var folder = new TestDirectory();
@@ -254,9 +255,9 @@ public sealed class PlaybackUiTests
             Assert.Equal("0:00:01.000000", timing[0].Text);
             Blocks(window)[0].Focus(); Dispatcher.UIThread.RunJobs();
             engine.Seek(2_250_000);
-            window.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.F8, Source = window });
+            window.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Left, KeyModifiers = KeyModifiers.Alt, Source = window });
             engine.Seek(6_500_000);
-            window.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.F9, Source = window });
+            window.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Right, KeyModifiers = KeyModifiers.Alt, Source = window });
             Dispatcher.UIThread.RunJobs();
             Assert.Equal("0:00:02.250000", timing[0].Text);
             Assert.Equal("0:00:06.500000", timing[1].Text);

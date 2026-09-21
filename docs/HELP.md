@@ -33,7 +33,7 @@ The switch at the top of the window chooses between them, and so do Ctrl+1 and C
 ## Timing
 
 - Times use `h:mm:ss.ffffff`, exact to the microsecond. Leave both boxes blank for an untimed paragraph. Unknown timing is left blank, never shown as zero.
-- **F8** and **F9** put the playhead's position into the paragraph's start and end. That is an ordinary unsaved change: Save keeps it, Discard takes it back.
+- **Alt+Left** and **Alt+Right** put the playhead's position into the paragraph's start and end. That is an ordinary unsaved change: Save keeps it, Discard takes it back.
 - Editing a paragraph's text clears its timing and word timing, unless you type new timing in the same edit.
 - Timing you type is your own estimate, not a measurement. Timing from transcription comes from forced alignment and also needs review.
 - Split and inserted paragraphs start untimed.
@@ -59,7 +59,7 @@ The switch at the top of the window chooses between them, and so do Ctrl+1 and C
 
 ## Playback and video
 
-- **Play** (Ctrl+Space), skip 5 seconds back or forward (Alt+Left and Alt+Right), or drag the position bar.
+- **Play** (Ctrl+Space), skip 5 seconds back or forward (F8 and F9), or drag the position bar.
 - Click or drag the waveform to seek without playing. **+**, **−**, **Fit** and the mouse wheel change its zoom. Close zoom draws actual sample minima/maxima from bounded background reads. Analysis supports up to six hours; failures leave playback independently available.
 - **Follow** — the target button beside the volume — keeps the playing paragraph in view. Typing or moving around the document pauses following until you turn Follow on again.
 - Moving the playhead never starts playback. Click a word in the text, click a word in the Timings word row, or click a paragraph's timestamp or row number. Selecting a range of text is a selection, not a move, and a paragraph with no timing stays where it is. A word that alignment never placed jumps to the start of its paragraph instead.
@@ -101,8 +101,8 @@ The switch at the top of the window chooses between them, and so do Ctrl+1 and C
 | Ctrl+B | Show or hide the side panel |
 | Ctrl+1 / Ctrl+2 | Document view / Timings view |
 | Ctrl+Space | Play or pause |
-| Alt+Left / Alt+Right | Back or forward 5 seconds |
-| F8 / F9 | Mark this paragraph's start / end at the playhead |
+| Alt+Left / Alt+Right | Mark this paragraph's start / end at the playhead |
+| F8 / F9 | Back or forward 5 seconds |
 | Ctrl+Enter | Split the paragraph at the cursor |
 | F1 | Help |
 

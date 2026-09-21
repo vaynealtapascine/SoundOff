@@ -297,11 +297,11 @@
           </Panel>
         </Border>
         <Grid Grid.Row="1" ColumnDefinitions="Auto,Auto,Auto,Auto,*,Auto,Auto,Auto" ColumnSpacing="6">
-          <Button x:Name="SkipBackButton" Classes="quiet icon" ToolTip.Tip="Back 5 seconds (Alt+Left)" AutomationProperties.Name="Skip back five seconds">
+          <Button x:Name="SkipBackButton" Classes="quiet icon" ToolTip.Tip="Back 5 seconds (F8)" AutomationProperties.Name="Skip back five seconds">
             <PathIcon Classes="glyph back5" />
           </Button>
           <Button x:Name="PlayPauseButton" Grid.Column="1" Classes="accent round" AutomationProperties.Name="Play" ToolTip.Tip="Play (Ctrl+Space)" />
-          <Button x:Name="SkipForwardButton" Grid.Column="2" Classes="quiet icon" ToolTip.Tip="Forward 5 seconds (Alt+Right)" AutomationProperties.Name="Skip forward five seconds">
+          <Button x:Name="SkipForwardButton" Grid.Column="2" Classes="quiet icon" ToolTip.Tip="Forward 5 seconds (F9)" AutomationProperties.Name="Skip forward five seconds">
             <PathIcon Classes="glyph forward5" />
           </Button>
           <TextBlock x:Name="PositionText" Grid.Column="3" Classes="clock" FontSize="13" VerticalAlignment="Center" MinWidth="104" Margin="6,0,2,0" />

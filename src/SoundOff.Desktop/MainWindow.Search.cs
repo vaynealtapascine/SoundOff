@@ -36,8 +36,8 @@ public sealed partial class MainWindow
 
     // Everything a transcript pass needs without leaving the keys: Ctrl+S save, Ctrl+Z/Ctrl+Y undo and redo,
     // Ctrl+F find, F3 find next, Esc close find, Ctrl+B side panel, Ctrl+1/Ctrl+2 the two views, F1 help,
-    // Ctrl+Space play/pause, Alt+Left/Alt+Right five seconds either way, F8/F9 mark this paragraph's start and
-    // end at the playhead, Ctrl+Enter split where the caret is. Paragraph controls have their own undo disabled,
+    // Ctrl+Space play/pause, Alt+Left/Alt+Right mark this paragraph's start and end at the playhead the way a
+    // subtitle editor does, F8/F9 five seconds either way, Ctrl+Enter split where the caret is. Paragraph controls have their own undo disabled,
     // so Ctrl+Z never silently discards typed text: while a draft exists undo/redo do nothing.
     private void OnShortcut(object? sender, KeyEventArgs e)
     {
@@ -50,9 +50,9 @@ public sealed partial class MainWindow
         if (control && e.Key == Key.B) { ToggleSidebar(); e.Handled = true; return; }
         if (control && e.Key is Key.D1 or Key.D2) { SelectView(e.Key == Key.D1); e.Handled = true; return; }
         if (control && e.Key == Key.Space) { if (playPause.IsEnabled) TogglePlay(); e.Handled = true; return; }
-        if (alt && e.Key == Key.Left) { if (skipBack.IsEnabled) Skip(-SkipMicroseconds); e.Handled = true; return; }
-        if (alt && e.Key == Key.Right) { if (skipForward.IsEnabled) Skip(SkipMicroseconds); e.Handled = true; return; }
-        if (none && e.Key is Key.F8 or Key.F9) { MarkTiming(e.Key == Key.F8); e.Handled = true; return; }
+        if (alt && e.Key is Key.Left or Key.Right) { MarkTiming(e.Key == Key.Left); e.Handled = true; return; }
+        if (none && e.Key == Key.F8) { if (skipBack.IsEnabled) Skip(-SkipMicroseconds); e.Handled = true; return; }
+        if (none && e.Key == Key.F9) { if (skipForward.IsEnabled) Skip(SkipMicroseconds); e.Handled = true; return; }
         if (control && e.Key == Key.Enter) { SplitAtCaret(); e.Handled = true; return; }
         Button? target = (e.Key, control) switch
         {
@@ -73,8 +73,8 @@ public sealed partial class MainWindow
         return activeSpans.Count > 0 ? activeSpans[0].BlockId : null;
     }
 
-    // F8/F9 write the playhead into a timing box, which is an ordinary draft edit: nothing is saved, the change
-    // shows up in the unsaved-changes state, and Discard takes it back.
+    // Alt+Left and Alt+Right write the playhead into a timing box, which is an ordinary draft edit: nothing is
+    // saved, the change shows up in the unsaved-changes state, and Discard takes it back.
     private void MarkTiming(bool start)
     {
         if (busy || snapshot is null || playback.DurationMicroseconds <= 0) return;

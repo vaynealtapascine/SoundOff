@@ -418,8 +418,8 @@ public sealed partial class MainWindow : Window
                 var endBox = new TextBox { Text = TimingText(block.Timing, false), Watermark = "End", IsUndoEnabled = false };
                 foreach (var box in new[] { startBox, endBox }) { box.Classes.Add("clock"); box.Classes.Add("timing"); }
                 AutomationProperties.SetName(startBox, $"Start time of paragraph {ordinal}"); AutomationProperties.SetName(endBox, $"End time of paragraph {ordinal}");
-                ToolTip.SetTip(startBox, "h:mm:ss.ffffff · F8 marks it at the playhead · blank both for untimed");
-                ToolTip.SetTip(endBox, "h:mm:ss.ffffff · F9 marks it at the playhead · blank both for untimed");
+                ToolTip.SetTip(startBox, "h:mm:ss.ffffff · Alt+Left marks it at the playhead · blank both for untimed");
+                ToolTip.SetTip(endBox, "h:mm:ss.ffffff · Alt+Right marks it at the playhead · blank both for untimed");
                 startBox.PropertyChanged += OnDraftChanged; endBox.PropertyChanged += OnDraftChanged;
                 startBox.PropertyChanged += (_, e) => { if (e.Property == TextBox.TextProperty) RefreshDuration(id); };
                 endBox.PropertyChanged += (_, e) => { if (e.Property == TextBox.TextProperty) RefreshDuration(id); };

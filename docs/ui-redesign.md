@@ -46,7 +46,8 @@ The cue table a subtitle editor shows: one row per paragraph, in fixed columns.
 - Length is computed from the two boxes as you type: seconds with one decimal under a minute, `m:ss` past it. An
   unparseable pair reads `?` rather than guessing.
 - The row number moves the playhead to that paragraph.
-- **F8** and **F9** write the playhead into the focused paragraph's start and end. That is an ordinary draft
+- **Alt+Left** and **Alt+Right** write the playhead into the focused paragraph's start and end, where a
+  subtitle editor puts them; F8 and F9 nudge the playhead five seconds either way. That is an ordinary draft
   edit: it shows up as unsaved changes, Save keeps it and Discard takes it back. Nothing is written behind the
   user's back.
 - The chevrons above the table fold every paragraph to one line or open them all; the chevron on a row folds just
