@@ -32,6 +32,8 @@ public sealed class WordHighlight : Control
     }
 
     public IBrush? Fill { get => GetValue(FillProperty); set => SetValue(FillProperty, value); }
+    // What is lit, in characters of the box's text. Zero length means nothing is.
+    internal (int Start, int Length) Span => (start, length);
 
     // A zero length clears it. Offsets are character offsets into the box's current text.
     public void Show(int start, int length)

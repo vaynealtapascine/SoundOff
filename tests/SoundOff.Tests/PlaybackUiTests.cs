@@ -3,6 +3,7 @@ using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Headless.XUnit;
+using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
@@ -58,6 +59,7 @@ public sealed class PlaybackUiTests
     private static Button[] Ribbon(MainWindow w) => w.GetVisualDescendants().OfType<Button>().Where(b => b.Classes.Contains("word")).ToArray();
     private static TextBox[] Blocks(MainWindow w) => w.GetVisualDescendants().OfType<TextBox>().Where(t => t.Classes.Contains("transcript")).ToArray();
     private static string Playback(MainWindow w) => w.FindControl<TextBlock>("PlaybackText")!.Text ?? "";
+    private static WordHighlight[] Highlights(MainWindow w) => w.GetVisualDescendants().OfType<WordHighlight>().ToArray();
 
     // Two speakers whose paragraphs overlap in time, with word evidence including one unaligned word.
     private static Transcript Timed(Guid projectId)
@@ -73,9 +75,9 @@ public sealed class PlaybackUiTests
         };
     }
 
-    private static async Task<(MainWindow Window, FakePlaybackEngine Engine)> OpenAsync(TestDirectory folder)
+    private static async Task<(MainWindow Window, FakePlaybackEngine Engine)> OpenAsync(TestDirectory folder, Transcript? transcript = null)
     {
-        using (var store = ProjectStore.Create(folder.Project, Timed(Guid.NewGuid()))) { }
+        using (var store = ProjectStore.Create(folder.Project, transcript ?? Timed(Guid.NewGuid()))) { }
         var engine = new FakePlaybackEngine();
         var window = new MainWindow(new Picker(folder.Project, Clip), folder.Settings, null, null, engine); window.Show();
         Click(window, "OpenProjectItem");
@@ -155,6 +157,87 @@ public sealed class PlaybackUiTests
             engine.Seek(5_500_000);
             Assert.Empty(Ribbon(window));
             Assert.Contains(window.GetVisualDescendants().OfType<TextBlock>(), t => (t.Text ?? "").Contains("No word timing for this paragraph"));
+        }
+        finally { window.Close(); }
+    }
+
+    // The reading highlight is the Document view's answer to the word ribbon: it lights the word being spoken
+    // inside the paragraph's own text box, and it refuses to guess once the text no longer matches the words.
+    [AvaloniaFact] public async Task The_spoken_word_is_lit_inside_the_text_and_goes_quiet_once_it_stops_matching()
+    {
+        using var folder = new TestDirectory();
+        var source = Timed(Guid.NewGuid());
+        // Text and recognized words agree here, which is the case a fresh transcript is in.
+        source = source with { Blocks = source.Blocks.SetItem(0, source.Blocks[0] with { Text = "Hello drifting later" }) };
+        var (window, engine) = await OpenAsync(folder, source);
+        try
+        {
+            Assert.Equal(3, Highlights(window).Length);
+            Assert.All(Highlights(window), h => Assert.Equal(0, h.Span.Length));
+
+            engine.Seek(1_200_000);
+            Assert.Equal((0, 5), Highlights(window)[0].Span);          // "Hello"
+            Assert.Equal(0, Highlights(window)[1].Span.Length);        // only the paragraph being spoken
+
+            engine.Seek(4_200_000);
+            Assert.Equal((15, 5), Highlights(window)[0].Span);         // "later", after "Hello drifting "
+
+            // Editing the paragraph away from its recognized words must go quiet, never light the wrong span.
+            Blocks(window)[0].Text = "Completely different words now";
+            Dispatcher.UIThread.RunJobs();
+            Assert.Equal(0, Highlights(window)[0].Span.Length);
+            Assert.True(Button(window, "SaveButton").IsEnabled);       // and it is an ordinary draft edit
+            Discard(window);
+        }
+        finally { window.Close(); }
+    }
+
+    // F8 and F9 are the timing pass: they put the playhead into the focused paragraph's boxes as a draft edit.
+    [AvaloniaFact] public async Task Marking_a_paragraphs_start_and_end_writes_the_playhead_into_its_draft()
+    {
+        using var folder = new TestDirectory();
+        var (window, engine) = await OpenAsync(folder);
+        try
+        {
+            var timing = window.GetVisualDescendants().OfType<TextBox>().Where(t => t.Classes.Contains("timing")).ToArray();
+            Assert.Equal("0:00:01.000000", timing[0].Text);
+            Blocks(window)[0].Focus(); Dispatcher.UIThread.RunJobs();
+            engine.Seek(2_250_000);
+            window.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.F8, Source = window });
+            engine.Seek(6_500_000);
+            window.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.F9, Source = window });
+            Dispatcher.UIThread.RunJobs();
+            Assert.Equal("0:00:02.250000", timing[0].Text);
+            Assert.Equal("0:00:06.500000", timing[1].Text);
+            Assert.Contains("marked at", window.FindControl<TextBlock>("StatusText")!.Text);
+            Assert.True(Button(window, "SaveButton").IsEnabled);       // nothing was saved behind the user
+            Click(window, "SaveButton"); await Task.Delay(50); Dispatcher.UIThread.RunJobs();
+        }
+        finally { window.Close(); }
+        using var store = ProjectStore.Open(folder.Project);
+        Assert.Equal(new TimeRange(2_250_000, 6_500_000), store.Read().Blocks[0].Timing);
+    }
+
+    // The cue table's headings are laid out from the same column template as its rows; if that ever stops being
+    // true the columns silently stop meaning what they say.
+    [AvaloniaFact] public async Task Cue_headings_use_the_same_columns_as_the_rows()
+    {
+        using var folder = new TestDirectory();
+        var (window, _) = await OpenAsync(folder);
+        try
+        {
+            UiDriver.SetView(window, document: false);
+            window.UpdateLayout(); Dispatcher.UIThread.RunJobs();
+            var header = window.FindControl<Grid>("CueHeaderGrid")!;
+            var row = window.GetVisualDescendants().OfType<Border>().First(b => b.Classes.Contains("cue")).Child as Grid;
+            Assert.NotNull(row);
+            Assert.Equal(header.ColumnDefinitions.Select(c => c.Width).ToArray(), row!.ColumnDefinitions.Select(c => c.Width).ToArray());
+            Assert.Equal(MainWindow.CueColumns, string.Join(",", header.ColumnDefinitions.Select(c =>
+                c.Width.IsStar ? "*" : c.Width.Value.ToString(System.Globalization.CultureInfo.InvariantCulture))));
+            // Document view closes every timing column rather than rebuilding the row.
+            UiDriver.SetView(window, document: true);
+            Assert.Equal(MainWindow.DocumentColumns, string.Join(",", row.ColumnDefinitions.Select(c =>
+                c.Width.IsStar ? "*" : c.Width.Value.ToString(System.Globalization.CultureInfo.InvariantCulture))));
         }
         finally { window.Close(); }
     }

@@ -553,6 +553,9 @@ public sealed partial class MainWindow : Window
                 blockTimingInputs.Keys.Any(TimingTouched);
         if (dirty) status.Text = $"Unsaved changes · based on revision {snapshot.Revision}";
         else SavedStatus();
+        // Typing moves every word after the caret, and can take a paragraph away from its recognized words
+        // altogether; the highlight has to be recomputed now rather than at the next word boundary.
+        RenderInlineHighlight(activeSpans);
         UpdateControls();
     }
     private void SavedStatus() => status.Text = snapshot is null ? "No project open" : $"Saved · revision {snapshot.Revision}";
