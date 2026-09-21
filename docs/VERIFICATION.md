@@ -3,6 +3,59 @@
 - Repository: `C:/Users/pcuser/source/repos/SoundOff`, branch `main`.
 - Scope: Windows development build, existing local WhisperX runtime/model pack, synthetic English TTS and video input, Windows playback, output-endpoint loopback, and combined microphone+system capture. This is not a release or completion of the architecture's acceptance matrix.
 
+## Document page and cue table (2026-09-21)
+
+The editor was rebuilt around two views: a page of words with the spoken word lit inside the text, and a cue
+table in the shape subtitle editors use. See [the view guide](ui-redesign.md) for what each one does.
+
+- `dotnet build SoundOff.sln -c Release`: passed, **zero warnings/errors**.
+- `dotnet test SoundOff.sln -c Release --no-build`: **344 passed, 0 failed, 0 skipped** (341 before; three tests
+  were added with this work).
+- `python scripts/verify.py --clean --desktop-smoke`: **exit 0**, rebuilt from clean with `--locked-mode`
+  restore, **344 passed, 0 failed**, worker and desktop self-tests passed, native window smoke passed, and the
+  inference, capture and playback adapters all recorded as exercised — real WhisperX recognition and alignment
+  on the repository's synthetic English TTS audio, real Windows output-endpoint loopback with pause/resume, and
+  the real Windows playback device at zero volume (`artifacts/verification/result.json`, a local ignored
+  artifact).
+
+**The window was run and measured, not only tested.** The Release build was launched against a project holding
+four word-aligned paragraphs, two speakers and the repository's `tts-english.wav`, built by a scratch tool
+outside the repository, with `SOUNDOFF_SETTINGS_PATH` redirected away from the real user's settings. Only
+SoundOff's own window was captured, by `PrintWindow` on its HWND rather than a desktop screenshot.
+
+- **New tests.** The reading highlight lights `Hello` at 1.2 s and `later` at 4.2 s inside a paragraph whose text
+  and recognized words agree, lights nothing in the paragraphs that are not being spoken, and drops to nothing
+  the moment the text is edited away from its words. F8 and F9 write the playhead into the focused paragraph and
+  survive a save and reopen as `0:00:02.250000`/`0:00:06.500000`. The cue headings and a cue row are asserted to
+  carry identical column definitions, both equal to `MainWindow.CueColumns`.
+- **Left edges in the dark document view, measured by scanning for the first column that differs from the page
+  colour.** With the page edge at x=798 and the playing paragraph's rail at 807, the title, the provenance
+  notice, the speaker cue and Add paragraph all begin at **876**, the same pixel as the paragraph text; the
+  margin timestamp sits at 841, in the gutter column. The document lead had been inset 74 px against a text
+  column starting at 69, which put four controls three pixels right of the words.
+- **Cue headings against their cells**, same scan: `Start` heading 62 against a start box whose text begins at
+  63; `Speaker` 364 against 367; `Text` 512 against 513. The 2 px offset is the row's accent rail, which the
+  heading strip does not carry.
+- **Colours sampled from the rendered window**, not read off a picture: page `#232726`/`#FFFFFF`, canvas
+  `#171918`/`#EFEFED`, top bar `#1E2120`/`#F6F6F4`, reading highlight `#1E5C63`/`#B9E4E9`, playing cue row
+  `#1C2A2C` against a quiet row on `#171918`, segmented track `#E3E7E4` with the lit segment `#FFFFFF`. Every
+  one is the committed token.
+- **Contrast computed with the WCAG formula from the committed hex**: body text on the page 15.9:1 Light and
+  13.0:1 Dark; body text on the reading highlight **11.6:1 Light, 6.5:1 Dark**; muted text on the page 6.4:1 and
+  6.5:1; body text on a playing cue row 13.9:1 and 12.8:1. A comment claiming 6.9:1 for the Dark highlight was
+  wrong and was corrected to the measured 6.5:1. The page against the desk is 1.15:1 (Light) and 1.17:1 (Dark),
+  which is a paper-on-desk relationship carried by a hairline border, and the segmented track is 1.15:1 against
+  the Light top bar, which is why that control is outlined.
+
+**Not covered.** No screen-reader, keyboard-only or high-contrast pass on the rebuilt controls; the icon buttons
+carry tooltips and `AutomationProperties.Name` but were not driven with assistive technology. The double-tap
+gesture that seeks to a word is not exercised by a test — the character-offset mapping under it is, through the
+same helper the highlight uses. The two drag handles (side panel, waveform) and the Settings flyout were not
+captured: an Avalonia flyout is its own top-level window, which `PrintWindow` on the main HWND does not include.
+The reading highlight's rectangles come from the live `TextPresenter` layout, so they are drawing geometry from
+the real control, but no raster comparison of the highlight against the glyphs was made. Nothing here is a
+performance claim: the longest transcript exercised in the window had four paragraphs.
+
 ## Interface audit (2026-09-18)
 
 A consistency pass over `App.axaml` and the window's layout. See [the view guide](ui-redesign.md#interface-audit-2026-09-18) for what changed and why.
@@ -21,7 +74,7 @@ A consistency pass over `App.axaml` and the window's layout. See [the view guide
 
 ## Current editor and speaker operations (2026-09-17)
 
-Current mode labels are **Document** and **Timings**; **Tools** toggles the side panel. Waveform and playback share the bottom transport. Split/merge speaker corrections are available under each speaker's **⋯** menu. See [the view guide](ui-redesign.md) and [in-app help](HELP.md).
+Current mode labels are **Document** and **Timings**; the side panel is toggled from the top bar. Waveform and playback share the bottom transport. Split/merge speaker corrections are available under each speaker's **⋯** menu. See [the view guide](ui-redesign.md) and [in-app help](HELP.md).
 
 - `dotnet build SoundOff.sln -c Release`: passed, zero warnings/errors.
 - `dotnet test SoundOff.sln -c Release --no-build --logger 'trx;LogFileName=release-full.trx' --results-directory artifacts/speaker-tests`: **341 passed, 0 failed, 0 skipped**; TRX counters parsed and checked.
