@@ -22,7 +22,9 @@ public sealed partial class MainWindow
     internal const string DocumentColumns = "62,0,0,0,0,*,62";
     // Timestamps sit in the page's left margin, so the title and the body share one left edge. In the table the
     // same run of controls lines up with the row numbers instead.
-    private const double DocumentInset = 74, TableInset = 12;
+    // 62 for the gutter column plus the 7 the body carries, measured from the rendered window: the title, the
+    // provenance notice and the footer then start on exactly the same pixel as the paragraph text.
+    private const double DocumentInset = 69, TableInset = 12;
 
     private ToggleButton documentViewButton = null!, timingsViewButton = null!;
     private Control viewSwitch = null!, cueHeader = null!;
