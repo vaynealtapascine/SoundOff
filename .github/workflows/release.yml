@@ -47,7 +47,9 @@ jobs:
         include:
           - { os: windows-latest, rid: win-x64 }
           - { os: macos-latest,   rid: osx-arm64 }
-          - { os: macos-13,       rid: osx-x64 }
+          # Cross-compiled from the Apple Silicon runner rather than waiting on a scarce Intel one; .NET
+          # produces the same payload either way, and neither macOS build is verified by running it anyway.
+          - { os: macos-latest,   rid: osx-x64 }
           - { os: ubuntu-latest,  rid: linux-x64 }
     runs-on: ${{ matrix.os }}
     steps:

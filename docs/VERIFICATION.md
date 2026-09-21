@@ -3,6 +3,44 @@
 - Repository: `C:/Users/pcuser/source/repos/SoundOff`, branch `main`.
 - Scope: Windows development build, existing local WhisperX runtime/model pack, synthetic English TTS and video input, Windows playback, output-endpoint loopback, and combined microphone+system capture. This is not a release or completion of the architecture's acceptance matrix.
 
+## First tagged build, 0.1.0 (2026-09-21)
+
+The solution carries a version for the first time and a workflow publishes it for four platforms. What that
+release can honestly claim, per platform, is the whole point of this section.
+
+- `python scripts/verify.py --clean --desktop-smoke`: **exit 0**, rebuilt from clean with a `--locked-mode`
+  restore, **355 passed, 0 failed**, worker and desktop self-tests passed, native window smoke passed, and the
+  inference, capture and playback adapters all recorded as exercised on real hardware.
+- **The Windows release artifact itself was built and run**, not just the development build. A self-contained,
+  single-file `win-x64` publish passed `--self-test` with all ten checks including `real-child-worker-fixture`,
+  and the published `SoundOff.Desktop.exe` was launched against a word-aligned project and captured: it renders
+  exactly as the development build does.
+- **The lock files now cover every release platform.** The four projects declare
+  `win-x64;osx-x64;osx-arm64;linux-x64`, so each platform's native packages are pinned, and
+  `dotnet restore SoundOff.sln --locked-mode` passes over all four. The publish step itself cannot use locked
+  mode, because NuGet compares the whole RID set and `-r` narrows it to one.
+- **A packaging bug was found and fixed by publishing for a second platform.** The fixture worker was copied
+  with a glob over `net8.0/**/*`, which a runtime-specific build nests one level below; a Linux publish was
+  therefore sweeping up the Windows worker, `.exe` and all. The copy follows the RID now, and an `osx-arm64`
+  payload was checked to contain no `.exe` and no other platform's folder.
+- **The demo project no longer needs a .NET install.** `FixtureWorkerClient` spawned `dotnet <worker.dll>`, so
+  the one feature that starts a child process made a runtime install a requirement of an otherwise
+  self-contained app. It prefers the worker's own launcher when one is published and falls back to `dotnet`
+  when it is not.
+- **The private runtime is looked for where each platform puts it.** Six call sites hard-coded the Windows
+  `venv/Scripts/python.exe`, so off Windows a runtime could never be found at all. `scripts/runtime_paths.py`
+  and `InferenceRuntime.VenvPython` now pick `bin/python` elsewhere, with unit tests for both layouts.
+
+**Not covered, and it is the largest gap in this document.** The macOS and Linux artifacts have **never been
+run**, by anyone, on any machine. They are built from this source by the release workflow and nothing more is
+claimed for them. Specifically: playback and recording have no adapter on those platforms and the app says so
+where their controls are; transcription's paths are now platform-correct but transcription has not been run
+there; the macOS builds are unsigned, not notarized and not `.app` bundles, so Gatekeeper blocks them until the
+quarantine attribute is cleared by hand. The release is marked as a prerelease and its notes say all of this.
+
+The hosted CI test job is not a substitute: it runs the same suite minus `CaptureEngineTests`,
+`PlaybackEngineTests` and `InferenceTests`, because a hosted runner has no audio device and no model pack.
+
 ## Review round: click-to-seek, colours and room (2026-09-21)
 
 A second pass over the rebuilt window, answering seven questions about it. See [the view guide](ui-redesign.md).
