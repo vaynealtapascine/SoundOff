@@ -163,6 +163,7 @@ public sealed class UiTests
         try
         {
             Assert.True(window.FindControl<Control>("StartScreen")!.IsVisible); // no project: the start screen, not an empty editor
+            Assert.Contains("blank", window.FindControl<Border>("DocumentPage")!.Classes); // and no empty page behind it
             Assert.False(File.Exists(folder.Project)); Assert.False(Button(window, "SaveButton").IsEnabled);
             Assert.False(UiDriver.Item(window, "CopyTextItem").IsEnabled);
             Click(window, "DemoItem"); await Idle(window); Assert.Contains("Saved · revision 1", Status(window));

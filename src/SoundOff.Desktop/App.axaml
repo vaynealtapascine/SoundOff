@@ -503,6 +503,11 @@
       <Setter Property="Margin" Value="12,4,4,0" />
       <Setter Property="HorizontalAlignment" Value="Stretch" />
     </Style>
+    <!-- No project: the start screen sits in front, and an empty sheet of paper behind it reads as a bar. -->
+    <Style Selector="Border.page.blank">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+    </Style>
 
     <Style Selector="Border.badge">
       <Setter Property="CornerRadius" Value="{StaticResource RadiusMd}" /><Setter Property="Padding" Value="10,4" />

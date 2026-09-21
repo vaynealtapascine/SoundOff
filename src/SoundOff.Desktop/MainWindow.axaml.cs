@@ -337,6 +337,10 @@ public sealed partial class MainWindow : Window
         path.Text = store?.PathName ?? "";
         ToolTip.SetTip(path, store?.PathName);
         startScreen.IsVisible = store is null;
+        // The page has a surface of its own now, so an empty one would sit behind the start screen as a bar.
+        // Its paper is taken away rather than the scroller hidden: an unmeasured ScrollViewer never builds its
+        // content, and the transcript's controls have to exist for the window to be driven at all.
+        documentPage.Classes.Set("blank", store is null);
         historyCard.IsVisible = store is not null;
         speakersCard.IsVisible = snapshot is not null && snapshot.Provenance != Provenance.Empty;
         Title = store is null || snapshot is null ? "SoundOff" : $"{snapshot.Title} — SoundOff";
