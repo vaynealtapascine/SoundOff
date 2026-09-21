@@ -3,5 +3,16 @@
     <NuGetAudit>false</NuGetAudit>
     <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
     <Deterministic>true</Deterministic>
+
+    <!-- One version for every assembly in the solution. A release tag is this number with a v in front, and the
+         Project menu shows it, so a report can say which build it came from. -->
+    <Version>0.1.0</Version>
+    <Product>SoundOff</Product>
+    <Authors>Vayne Altapascine</Authors>
+    <Company>Vayne Altapascine</Company>
+    <Copyright>Copyright (c) 2026 Vayne Altapascine</Copyright>
+    <Description>Local transcription editor: import or record audio and video, transcribe on-device with WhisperX, and review word-synced text and speakers.</Description>
+    <RepositoryUrl>https://github.com/vaynealtapascine/SoundOff</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
   </PropertyGroup>
 </Project>

@@ -93,6 +93,20 @@ public sealed class LayoutTests
         Assert.Equal(clampedWaveform, settings.ClampedWaveformHeight());
     }
 
+    // A bug report has to be able to say which build it came from.
+    [AvaloniaFact] public void The_project_menu_names_the_build()
+    {
+        using var folder = new TestDirectory();
+        var window = new MainWindow(null, folder.Settings); window.Show();
+        try
+        {
+            var item = window.FindControl<MenuItem>("VersionItem")!;
+            Assert.False(item.IsEnabled);
+            Assert.Equal("SoundOff " + typeof(MainWindow).Assembly.GetName().Version!.ToString(3), item.Header);
+        }
+        finally { window.Close(); }
+    }
+
     [AvaloniaFact] public void The_chosen_view_outlives_the_window()
     {
         using var folder = new TestDirectory();

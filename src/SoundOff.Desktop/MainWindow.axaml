@@ -27,6 +27,9 @@
                 <Separator />
                 <MenuItem x:Name="ImportBundleItem" Header="Import bundle…" />
                 <MenuItem x:Name="ExportBundleItem" Header="Export bundle…" />
+                <Separator />
+                <!-- Not an action: which build this is, so a report can say. -->
+                <MenuItem x:Name="VersionItem" IsEnabled="False" />
               </MenuFlyout>
             </Button.Flyout>
           </Button>

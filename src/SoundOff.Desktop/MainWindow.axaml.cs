@@ -95,6 +95,7 @@ public sealed partial class MainWindow : Window
         export.Click += async (_, _) => await GuardAsync(ExportAsync);
         copy.Click += async (_, _) => await GuardAsync(CopyAsync);
         this.FindControl<Button>("HelpButton")!.Click += (_, _) => ShowHelp();
+        this.FindControl<MenuItem>("VersionItem")!.Header = "SoundOff " + BuildVersion;
         recent = settings.RecentProjects; recentHost = this.FindControl<StackPanel>("RecentHost")!; historyHost = this.FindControl<StackPanel>("HistoryHost")!;
         InitializeSearch();
         InitializeDocumentView();
@@ -141,6 +142,20 @@ public sealed partial class MainWindow : Window
         AddHandler(KeyDownEvent, OnShortcut, RoutingStrategies.Tunnel);
         Render(); RenderRecents();
         if (settingsProblem is not null) status.Text = settingsProblem + " " + status.Text;
+    }
+
+    // The assembly's informational version, without the build metadata a source-linked build appends.
+    internal static string BuildVersion
+    {
+        get
+        {
+            var informational = typeof(MainWindow).Assembly
+                .GetCustomAttributes(typeof(System.Reflection.AssemblyInformationalVersionAttribute), false)
+                .OfType<System.Reflection.AssemblyInformationalVersionAttribute>().FirstOrDefault()?.InformationalVersion;
+            var version = informational ?? typeof(MainWindow).Assembly.GetName().Version?.ToString() ?? "unknown";
+            var plus = version.IndexOf('+');
+            return plus < 0 ? version : version[..plus];
+        }
     }
 
     private void ShowHelp()

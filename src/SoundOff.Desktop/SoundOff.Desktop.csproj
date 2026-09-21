@@ -23,8 +23,13 @@
   <Target Name="CopyInferenceWorker" AfterTargets="Build">
     <Copy SourceFiles="$(MSBuildProjectDirectory)/../SoundOff.Worker.Python/soundoff_worker.py" DestinationFolder="$(OutDir)worker" />
   </Target>
+  <!-- A runtime-specific build puts the fixture worker under its own RID folder, and a plain build does not.
+       Following the RID keeps a publish for one platform from sweeping up another platform's worker. -->
+  <PropertyGroup>
+    <FixtureWorkerDir>$(MSBuildProjectDirectory)/../SoundOff.Worker/bin/$(Configuration)/net8.0/$(RuntimeIdentifier)/</FixtureWorkerDir>
+  </PropertyGroup>
   <Target Name="CopyFixtureWorker" AfterTargets="Build">
-    <ItemGroup><WorkerFiles Include="$(MSBuildProjectDirectory)/../SoundOff.Worker/bin/$(Configuration)/net8.0/**/*" /></ItemGroup>
+    <ItemGroup><WorkerFiles Include="$(FixtureWorkerDir)**/*" Exclude="$(FixtureWorkerDir)*-*/**/*" /></ItemGroup>
     <Copy SourceFiles="@(WorkerFiles)" DestinationFiles="@(WorkerFiles->'$(OutDir)worker/%(RecursiveDir)%(Filename)%(Extension)')" />
   </Target>
   <Target Name="PublishFixtureWorker" AfterTargets="Publish">

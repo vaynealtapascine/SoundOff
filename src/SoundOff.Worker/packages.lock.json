@@ -63,7 +63,7 @@
       "soundoff.protocol": {
         "type": "Project",
         "dependencies": {
-          "SoundOff.Core": "[1.0.0, )"
+          "SoundOff.Core": "[0.1.0, )"
         }
       }
     }
