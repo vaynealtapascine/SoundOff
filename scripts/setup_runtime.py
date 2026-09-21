@@ -16,6 +16,9 @@ import shutil
 import subprocess
 import sys
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from runtime_paths import venv_python  # noqa: E402
+
 ROOT = Path(__file__).resolve().parents[1]
 REQUIREMENTS = ROOT / "runtime" / "requirements.txt"
 PYTORCH_CUDA_INDEX = "https://download.pytorch.org/whl/cu126"
@@ -48,9 +51,9 @@ def main() -> int:
         print("uv is required (https://docs.astral.sh/uv/); it provisions an isolated interpreter without touching system Python.", file=sys.stderr)
         return 2
     environment = dict(os.environ, UV_PYTHON_PREFERENCE="only-managed", PIP_DISABLE_PIP_VERSION_CHECK="1")
-    if not (venv / "Scripts" / "python.exe").exists():
+    if not venv_python(venv).exists():
         run([uv, "venv", "--python", args.python, str(venv)], env=environment)
-    python = str(venv / "Scripts" / "python.exe")
+    python = str(venv_python(venv))
     run([uv, "pip", "install", "--python", python, "-r", str(REQUIREMENTS)], env=environment)
     if args.gpu:
         run([uv, "pip", "install", "--python", python, "--index-url", PYTORCH_CUDA_INDEX, "torch==2.8.0", "torchaudio==2.8.0", "torchvision==0.23.0"], env=environment)

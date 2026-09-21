@@ -14,6 +14,9 @@ import os
 from pathlib import Path
 import subprocess
 import sys
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from runtime_paths import venv_python  # noqa: E402
 import uuid
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -25,7 +28,7 @@ def default_base() -> Path:
     if home:
         return Path(home)
     for candidate in (Path(os.environ.get("LOCALAPPDATA") or Path.home() / "AppData" / "Local") / "SoundOff", Path.home() / "SoundOff"):
-        if (candidate / "runtime" / "venv" / "Scripts" / "python.exe").exists():
+        if venv_python(candidate / "runtime" / "venv").exists():
             return candidate
     return Path(os.environ.get("LOCALAPPDATA") or Path.home() / "AppData" / "Local") / "SoundOff"
 
@@ -33,7 +36,7 @@ def default_base() -> Path:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("command", choices=["hello", "prepare", "transcribe"])
-    parser.add_argument("--python", type=Path, default=default_base() / "runtime" / "venv" / "Scripts" / "python.exe")
+    parser.add_argument("--python", type=Path, default=venv_python(default_base() / "runtime" / "venv"))
     parser.add_argument("--models", type=Path, default=default_base() / "models")
     parser.add_argument("--log", type=Path, default=None)
     parser.add_argument("--model", default="small")

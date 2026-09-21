@@ -57,15 +57,21 @@ public sealed record InferenceRuntime(string PythonPath, string WorkerScriptPath
         if (!string.IsNullOrWhiteSpace(home)) candidates.Add(home);
         candidates.Add(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData, Environment.SpecialFolderOption.DoNotVerify), "SoundOff"));
         candidates.Add(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile, Environment.SpecialFolderOption.DoNotVerify), "SoundOff"));
-        var root = candidates.FirstOrDefault(c => File.Exists(Path.Combine(c, "runtime", "venv", "Scripts", "python.exe"))) ?? candidates[0];
+        var root = candidates.FirstOrDefault(c => File.Exists(VenvPython(Path.Combine(c, "runtime")))) ?? candidates[0];
         return ForRoot(root);
     }
     public static InferenceRuntime ForRoot(string root)
     {
         var runtime = Path.Combine(root, "runtime");
-        return new(Path.Combine(runtime, "venv", "Scripts", "python.exe"), Path.Combine(AppContext.BaseDirectory, "worker", "soundoff_worker.py"),
+        return new(VenvPython(runtime), Path.Combine(AppContext.BaseDirectory, "worker", "soundoff_worker.py"),
             Path.Combine(root, "models"), Path.Combine(runtime, "runtime.json"));
     }
+    // A virtual environment puts its interpreter in Scripts on Windows and bin everywhere else. Looking only
+    // where Windows puts it meant a runtime could never be found on macOS or Linux, which is a different claim
+    // from "this build has no audio adapter".
+    internal static string VenvPython(string runtime) => OperatingSystem.IsWindows()
+        ? Path.Combine(runtime, "venv", "Scripts", "python.exe")
+        : Path.Combine(runtime, "venv", "bin", "python");
     public bool IsInstalled => File.Exists(PythonPath) && File.Exists(WorkerScriptPath);
     // Written by PrepareAsync only after the worker verified every resource; its absence means "not ready", never "download now".
     public string PackManifestPath(string model) => Path.Combine(ModelsDir, "packs", model + ".json");
