@@ -11,10 +11,15 @@ release can honestly claim, per platform, is the whole point of this section.
 - `python scripts/verify.py --clean --desktop-smoke`: **exit 0**, rebuilt from clean with a `--locked-mode`
   restore, **355 passed, 0 failed**, worker and desktop self-tests passed, native window smoke passed, and the
   inference, capture and playback adapters all recorded as exercised on real hardware.
-- **The Windows release artifact itself was built and run**, not just the development build. A self-contained,
-  single-file `win-x64` publish passed `--self-test` with all ten checks including `real-child-worker-fixture`,
-  and the published `SoundOff.Desktop.exe` was launched against a word-aligned project and captured: it renders
-  exactly as the development build does.
+- **The published Windows asset was downloaded from the release page and run.** `SoundOff-0.1.0-win-x64.zip`
+  carries a version resource reading `0.1.0+61121c0`, 197 files in `worker/` matching a local publish exactly,
+  the worker's own launcher, and `docs/HELP.md`. It passed `--self-test` with all ten checks including
+  `real-child-worker-fixture`, which is the path that starts a child process. Launched against a word-aligned
+  project it opened a window titled "Kitchen table interview — SoundOff" and rendered exactly as the
+  development build does.
+- The workflow was proved with two dry runs before any tag existed. The first left `Publish osx-x64` queued for
+  ten minutes on a scarce hosted Intel macOS runner, so that target is cross-compiled from the Apple Silicon
+  runner instead; the second was green on all four platforms.
 - **The lock files now cover every release platform.** The four projects declare
   `win-x64;osx-x64;osx-arm64;linux-x64`, so each platform's native packages are pinned, and
   `dotnet restore SoundOff.sln --locked-mode` passes over all four. The publish step itself cannot use locked
