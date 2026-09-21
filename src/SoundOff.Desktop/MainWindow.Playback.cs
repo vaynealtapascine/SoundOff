@@ -100,8 +100,19 @@ public sealed partial class MainWindow
         playback.Seek(Math.Clamp(playback.PositionMicroseconds + delta, 0, playback.DurationMicroseconds));
         RefreshPlaybackHighlight(force: true);
     }
-    // Double-clicking a word already selects it; taking the playhead there too is the gesture that reads as
-    // "this word". A plain click stays a caret move, so typing never drags the audio around.
+    // Clicking a word puts the caret there AND takes the playhead there, the way every transcript editor a
+    // practised user already knows behaves. It never starts playback, so a click while paused only moves the
+    // cursor and the playhead together; a click while playing rewinds to the word you are about to correct,
+    // which is the thing you wanted to hear again anyway.
+    //
+    // Two clicks are deliberately left alone: a drag that selects a range is not a seek, and a paragraph with
+    // no timing says nothing rather than complaining on every click inside it.
+    private void ClickSeek(Guid blockId)
+    {
+        if (!blockInputs.TryGetValue(blockId, out var box) || box.SelectionStart != box.SelectionEnd) return;
+        if (snapshot?.Blocks.FirstOrDefault(b => b.Id == blockId)?.Timing is null) return;
+        SeekToTypedWord(blockId);
+    }
     private void SeekToTypedWord(Guid blockId)
     {
         if (snapshot?.Blocks.FirstOrDefault(b => b.Id == blockId) is not { } block) return;
@@ -151,14 +162,15 @@ public sealed partial class MainWindow
         if (snapshot?.Blocks.FirstOrDefault(b => b.Id == blockId) is not { } block) return;
         var (availability, target) = PlaybackCursor.SeekTarget(block);
         if (availability == SeekAvailability.Untimed) { SetPlaybackText("That paragraph has no timing."); return; }
-        SetPlaybackText(""); playback.Seek(target); RefreshPlaybackHighlight(force: true);
+        SetPlaybackText(""); followSuspended = false; playback.Seek(target); RefreshPlaybackHighlight(force: true);
     }
     private void SeekToWord(Guid blockId, int wordIndex)
     {
         if (snapshot?.Blocks.FirstOrDefault(b => b.Id == blockId) is not { } block) return;
         var (availability, target) = PlaybackCursor.SeekTarget(block, wordIndex);
         if (availability == SeekAvailability.Untimed) { SetPlaybackText("That paragraph has no timing."); return; }
-        playback.Seek(target); RefreshPlaybackHighlight(force: true);
+        // Asking to be taken to a word is the opposite of wandering off, so following resumes with it.
+        followSuspended = false; playback.Seek(target); RefreshPlaybackHighlight(force: true);
         SetPlaybackText(availability == SeekAvailability.Unaligned ? "That word was never aligned, so the playhead moved to its paragraph." : "");
     }
 

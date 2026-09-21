@@ -6,7 +6,7 @@ SoundOff turns recordings into editable transcripts on this computer. Nothing is
 
 1. **Import** audio or video, drop a file on the window, or **Record**. The first import or recording asks where to save the project (a `.soundoff.sqlite` file). Imported files are copied; the original is never modified. A dropped project or bundle is refused rather than treated as a recording.
 2. **Transcribe.** The first time, **Prepare model pack** downloads about 2 GB once. After that, transcription runs offline.
-3. Press play. In **Document** the word being spoken lights up inside the text; double-click any word to move the playhead there. In **Timings** the words of the playing paragraph also appear as a row underneath, and clicking one moves the playhead.
+3. Press play. In **Document** the word being spoken lights up inside the text; click any word to put the cursor and the playhead there together. In **Timings** the words of the playing paragraph also appear as a row underneath, and clicking one moves the playhead.
 4. **Correct** the text, speakers and timing, then **Save**.
 5. **Export** (the tray icon at the top right) writes text or subtitles; the project name at the top left exports a bundle.
 
@@ -62,7 +62,8 @@ The switch at the top of the window chooses between them, and so do Ctrl+1 and C
 - **Play** (Ctrl+Space), skip 5 seconds back or forward (Alt+Left and Alt+Right), or drag the position bar.
 - Click or drag the waveform to seek without playing. **+**, **−**, **Fit** and the mouse wheel change its zoom. Close zoom draws actual sample minima/maxima from bounded background reads. Analysis supports up to six hours; failures leave playback independently available.
 - **Follow** — the target button beside the volume — keeps the playing paragraph in view. Typing or moving around the document pauses following until you turn Follow on again.
-- Moving the playhead never starts playback. Double-click a word in Document view, click a word in the Timings word row, or click a paragraph's timestamp or row number. A word that alignment never placed jumps to the start of its paragraph instead.
+- Moving the playhead never starts playback. Click a word in the text, click a word in the Timings word row, or click a paragraph's timestamp or row number. Selecting a range of text is a selection, not a move, and a paragraph with no timing stays where it is. A word that alignment never placed jumps to the start of its paragraph instead.
+- Following resumes when you ask to be taken somewhere, because that is the opposite of wandering off.
 - Drag the handle above the waveform to give it more or less height. The side panel has a drag handle of its own. Both sizes are remembered.
 - There is no playback speed control.
 - Video plays as a 10 frames-per-second preview kept in step with the audio. The film button beside the position bar hides it, which stops decoding; audio keeps playing. Its height is in **Settings**.

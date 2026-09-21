@@ -60,6 +60,15 @@ public sealed class PlaybackUiTests
     private static TextBox[] Blocks(MainWindow w) => w.GetVisualDescendants().OfType<TextBox>().Where(t => t.Classes.Contains("transcript")).ToArray();
     private static string Playback(MainWindow w) => w.FindControl<TextBlock>("PlaybackText")!.Text ?? "";
     private static WordHighlight[] Highlights(MainWindow w) => w.GetVisualDescendants().OfType<WordHighlight>().ToArray();
+    // The gesture a click produces, raised on the control the way the recognizer would.
+    private static void Tap(Control control)
+    {
+        var pointer = new Pointer(7, PointerType.Mouse, true);
+        var pointerArgs = new PointerEventArgs(Gestures.TappedEvent, control, pointer, control,
+            new Avalonia.Point(0, 0), 0, new PointerPointProperties(), KeyModifiers.None);
+        control.RaiseEvent(new TappedEventArgs(Gestures.TappedEvent, pointerArgs));
+    }
+    private static void Caret(TextBox box, int at) { box.CaretIndex = at; box.SelectionStart = at; box.SelectionEnd = at; }
 
     // Two speakers whose paragraphs overlap in time, with word evidence including one unaligned word.
     private static Transcript Timed(Guid projectId)
@@ -187,6 +196,48 @@ public sealed class PlaybackUiTests
             Dispatcher.UIThread.RunJobs();
             Assert.Equal(0, Highlights(window)[0].Span.Length);
             Assert.True(Button(window, "SaveButton").IsEnabled);       // and it is an ordinary draft edit
+            Discard(window);
+        }
+        finally { window.Close(); }
+    }
+
+    // Clicking the text is how a transcript editor moves: the caret and the playhead go to the same word.
+    [AvaloniaFact] public async Task Clicking_a_word_takes_the_playhead_there_without_starting_playback()
+    {
+        using var folder = new TestDirectory();
+        var source = Timed(Guid.NewGuid());
+        source = source with { Blocks = source.Blocks.SetItem(0, source.Blocks[0] with { Text = "Hello drifting later" }) };
+        var (window, engine) = await OpenAsync(folder, source);
+        try
+        {
+            var box = Blocks(window)[0];
+            engine.Seek(9_000_000);
+            Caret(box, 17);                                            // inside "later", which starts at 4.0 s
+            Tap(box);
+            Assert.Equal(4_000_000, engine.PositionMicroseconds);
+            Assert.NotEqual(PlaybackStatus.Playing, engine.Status);    // moving is not playing
+
+            // A drag that selects a range is a selection, not a seek.
+            engine.Seek(9_000_000);
+            box.SelectionStart = 0; box.SelectionEnd = 5;
+            Tap(box);
+            Assert.Equal(9_000_000, engine.PositionMicroseconds);
+
+            // An untimed paragraph says nothing rather than complaining on every click inside it.
+            var untimed = Blocks(window)[2];
+            Caret(untimed, 1);
+            Tap(untimed);
+            Assert.Equal(9_000_000, engine.PositionMicroseconds);
+            Assert.DoesNotContain("no timing", Playback(window));
+
+            // Typing suspends follow; asking to be taken to a word is the opposite of wandering off.
+            Click(window, "PlayPauseButton"); Dispatcher.UIThread.RunJobs();
+            box.Text = "Hello drifting later!"; Dispatcher.UIThread.RunJobs();
+            Assert.Contains("Follow is paused", Playback(window));
+            Caret(box, 2);                                             // inside "Hello", which starts at 1.0 s
+            Tap(box);
+            Assert.Equal(1_000_000, engine.PositionMicroseconds);
+            Assert.Equal("", Playback(window));
             Discard(window);
         }
         finally { window.Close(); }

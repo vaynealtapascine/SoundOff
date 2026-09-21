@@ -456,9 +456,8 @@ public sealed partial class MainWindow : Window
                 var input = new TextBox { Text = block.Text, AcceptsReturn = true, TextWrapping = TextWrapping.Wrap, MaxLength = DocumentRules.MaxBlockLength, IsUndoEnabled = false };
                 input.Classes.Add("transcript"); AutomationProperties.SetName(input, "Transcript block by " + name);
                 input.PropertyChanged += OnDraftChanged; blockInputs.Add(id, input);
-                // Double-click already selects a word; taking the playhead there too is the one gesture that reads
-                // as "this word". A plain click stays a plain click, so typing never moves the audio.
-                input.AddHandler(Gestures.DoubleTappedEvent, (_, _) => SeekToTypedWord(id), RoutingStrategies.Bubble);
+                // A click in the text moves the caret and the playhead together; it never starts playback.
+                input.AddHandler(Gestures.TappedEvent, (_, _) => ClickSeek(id), RoutingStrategies.Bubble);
                 var highlight = new WordHighlight(input);
                 blockHighlights.Add(id, highlight);
                 var layer = new Panel();

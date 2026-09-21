@@ -15,8 +15,11 @@ A page of words on a desk, the way a word processor shows one.
 - Every timed paragraph shows where it starts in the page's left margin. Clicking that timestamp moves the
   playhead there. The title, the provenance notice and the body all share the text column's left edge, so the
   timestamps hang in the margin rather than pushing the text around.
-- A plain click is only a caret move: typing never drags the audio around. **Double-clicking** a word selects it
-  and takes the playhead to it, which is the one gesture that already means "this word".
+- **Clicking a word puts the caret there and takes the playhead there**, the way every transcript editor a
+  practised user already knows behaves. It never starts playback: a click while paused moves the cursor and the
+  playhead together, and a click while playing rewinds to the word you are about to correct, which is the thing
+  you wanted to hear again. A drag that selects a range is a selection, not a move; a paragraph with no timing
+  stays put rather than complaining on every click inside it; and following resumes on an explicit move.
 - Paragraph actions (**⋯**) sit in the right margin and surface on hover.
 
 ### How the highlight works, and what it will not do
