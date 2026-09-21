@@ -3,6 +3,34 @@
 - Repository: `C:/Users/pcuser/source/repos/SoundOff`, branch `main`.
 - Scope: Windows development build, existing local WhisperX runtime/model pack, synthetic English TTS and video input, Windows playback, output-endpoint loopback, and combined microphone+system capture. This is not a release or completion of the architecture's acceptance matrix.
 
+## Review round: click-to-seek, colours and room (2026-09-21)
+
+A second pass over the rebuilt window, answering seven questions about it. See [the view guide](ui-redesign.md).
+
+- `dotnet build SoundOff.sln -c Release`: passed, **zero warnings/errors**.
+- `python scripts/verify.py --clean --desktop-smoke`: **exit 0**, rebuilt from clean with `--locked-mode`
+  restore, **353 passed, 0 failed**, worker and desktop self-tests passed, native window smoke passed, and the
+  inference, capture and playback adapters all recorded as exercised.
+- **New tests.** A click in the text moves the caret and the playhead to the same word (`later` at 4.0 s) and
+  does not start playback; a range selection is not a seek; an untimed paragraph neither moves nor complains;
+  and a click resumes the following that typing had suspended. "Fill the window" clears the page's measure and
+  comes back set in the next window. A 1750 px window puts the video preview in column 1, row 2 beside the
+  transcript, sized by width; shrinking to 900 px puts it back above the transcript, and neither move starts a
+  new decoder process.
+- **Two bugs found by looking, not by testing.**
+  - The document page was centred, which in Avalonia sizes a border to its content. It had never been 880 px
+    wide — it grew and shrank with the longest paragraph — and "Fill the window" appeared to do nothing,
+    because lifting a cap the page was not reaching changes nothing. Measured from the rendered window after
+    the fix: **880 px** exactly with the measure on, and **2176 px of a 2247 px work area** with the option on.
+  - Recorded in the previous section: an empty page standing behind the start screen.
+- **Colour.** The eight speaker chips are decorative: the speaker's name is always beside the chip, in the cue
+  table, the Document cue and the Speakers card, so colour is a second channel for scanning rather than the
+  only thing saying who is speaking. No contrast ratio is claimed for them.
+
+**Not covered.** The keyboard swap (Alt+Left/Alt+Right for the timing marks, F8/F9 for the five-second nudges)
+is exercised for the marks and not for the nudges. The docking threshold is a width in code, not a measurement
+of what is comfortable to read beside a video. Nothing here is a performance claim.
+
 ## Document page and cue table (2026-09-21)
 
 The editor was rebuilt around two views: a page of words with the spoken word lit inside the text, and a cue
