@@ -4,6 +4,40 @@ SoundOff shows one transcript two ways. The switch sits in the middle of the top
 same thing. Both views are built from the very same input controls, so switching cannot save, reparse or discard
 a draft, and it leaves the waveform zoom alone.
 
+## Getting in, and the empty project
+
+- **Start screen.** Two tiles of the same size: **Transcribe a file** and **Record**. The Record tile holds the
+  recorder itself (mode, device, Record/Pause/Stop), so making a recording does not mean finding a side panel
+  first. Underneath are Open and the demo, and the recent projects as rows — the whole row opens one, Forget waits
+  under the pointer, and each says when it was last opened.
+- **No side panel without a project.** It has nothing to hold there, so the start screen has the window to itself;
+  the panel preference is kept and applies again once a project is open.
+- **One recorder, two homes.** The same controls move from the Record tile into the Audio card when a project
+  exists. Once the project has audio they fold away under **Record a new take**, and open again by themselves
+  while a take runs.
+- **Recording indicator.** A running take shows a red pill in the top bar with its clock and **Stop**, whether the
+  side panel is open or not. Recording has its own red, used for nothing else.
+- **Drop target.** While a usable file is dragged over the window, the window says **Drop to import** across the
+  work area. Files it would refuse produce no target.
+- **The empty project.** With audio and no transcript, the middle of the window says so and offers **Transcribe**,
+  with its progress and Cancel in the same place. Without audio it offers Import. The side panel's Transcribe
+  button is the same action kept in reach, so it is never the accent; once there is a transcript it reads
+  **Transcribe again**.
+- **Chrome follows the project.** Undo, Redo and Save appear with a project; Find and Export with a transcript; a
+  dot beside the project's name marks unsaved changes.
+
+## Moving around
+
+- **The waveform is a timeline.** Each timed paragraph is a band in its speaker's colour, with a solid cap and a
+  faint wash, and the band being spoken is brighter. A ruler gives round-numbered times; pointing at the strip shows
+  the time under the pointer. Bands come from the **saved** timing, so they move when a retimed paragraph is saved.
+- **Gestures on the strip.** Click or drag seeks; **double-click plays from there**; the wheel zooms around the
+  pointer; **Shift+wheel** or a sideways swipe slides the view without moving the playhead. Zoom (**−**, **Fit**,
+  **+**) moved into the transport row, so the strip has its full width.
+- **Double-click is the one way to start playback from the transcript.** A single click on a timestamp or row number
+  still only moves the playhead, as before; a double-click plays from there.
+- **Alt+Up / Alt+Down** step to the previous or next paragraph, taking the caret and, when it is timed, the playhead.
+
 ## Document
 
 A page of words on a desk, the way a word processor shows one.

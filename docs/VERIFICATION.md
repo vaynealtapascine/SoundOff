@@ -3,6 +3,27 @@
 - Repository: `C:/Users/pcuser/source/repos/SoundOff`, branch `main`.
 - Scope: Windows development build, existing local WhisperX runtime/model pack, synthetic English TTS and video input, Windows playback, output-endpoint loopback, and combined microphone+system capture. This is not a release or completion of the architecture's acceptance matrix.
 
+## Ways in, the waveform timeline and moving around (2026-10-05)
+
+- `python scripts/verify.py --clean --desktop-smoke`: **exit 0**, **358 passed, 0 failed**, worker and desktop
+  self-tests passed, native window smoke passed, inference, capture and playback adapters all exercised.
+- New tests drive the real controls: the waveform's bands come one per *timed* paragraph and the spoken one is
+  lit; Shift+wheel slides the view and leaves the playhead and the play state alone; Alt+Up/Alt+Down step through
+  paragraphs, moving the playhead only to timed ones and never starting playback; the recorder starts on the start
+  screen, moves to the Audio card when recording creates the project, folds under **Record a new take** once there
+  is audio, and a running take shows its clock in the top bar and stops from there; an empty project offers
+  Transcribe in the middle of the window and hides Find and Export.
+- Five existing tests changed with the behaviour they describe: the side-panel tests now open a project first
+  (the panel is not shown without one, which one of them now asserts), the recent-project rows are grids, and the
+  media line is a name plus a separate detail line.
+- Looked at the running Release build, Dark and Light, Document and Timings, the start screen and an empty project
+  with audio, using a ten-paragraph, three-speaker project with a 65-second recording.
+
+**Not looked at in the running app:** the drop overlay (it needs a real drag from another window), the recording
+indicator during a real take (a real take records the microphone), double-click to play on the waveform and on a
+timestamp (a double-click gesture is not something the headless tests can raise; the code path it calls is the
+same seek-then-play as the play button), and hover readouts on the waveform.
+
 ## First tagged build, 0.1.0 (2026-09-21)
 
 The solution carries a version for the first time and a workflow publishes it for four platforms. What that

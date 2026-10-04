@@ -4,8 +4,8 @@ SoundOff turns recordings into editable transcripts on this computer. Nothing is
 
 ## Getting started
 
-1. **Import** audio or video, drop a file on the window, or **Record**. The first import or recording asks where to save the project (a `.soundoff.sqlite` file). Imported files are copied; the original is never modified. A dropped project or bundle is refused rather than treated as a recording.
-2. **Transcribe.** The first time, **Prepare model pack** downloads about 2 GB once. After that, transcription runs offline.
+1. The start screen offers two ways in: **Transcribe a file** (choose one, or drop it anywhere on the window — the window says **Drop to import** while a usable file is over it) and **Record**, which has the recorder right there. The first import or recording asks where to save the project (a `.soundoff.sqlite` file). Imported files are copied; the original is never modified. A dropped project or bundle is refused rather than treated as a recording. Recent projects are listed underneath; click one to open it.
+2. **Transcribe.** A project with audio and no transcript says so in the middle of the window, with **Transcribe** and its progress right there. The first time, **Prepare model pack** in the side panel downloads about 2 GB once. After that, transcription runs offline.
 3. Press play. In **Document** the word being spoken lights up inside the text; click any word to put the cursor and the playhead there together. In **Timings** the words of the playing paragraph also appear as a row underneath, and clicking one moves the playhead.
 4. **Correct** the text, speakers and timing, then **Save**.
 5. **Export** (the tray icon at the top right) writes text or subtitles; the project name at the top left exports a bundle.
@@ -21,7 +21,7 @@ The switch at the top of the window chooses between them, and so do Ctrl+1 and C
 
 ## Editing and saving
 
-- Typing creates unsaved changes. **Save** (Ctrl+S) records them as a new revision; **Discard**, which appears beside it only while there is something to discard, throws them away and asks first, because undo cannot bring them back.
+- Typing creates unsaved changes, marked by a dot beside the project's name. **Save** (Ctrl+S) records them as a new revision; **Discard**, which appears beside it only while there is something to discard, throws them away and asks first, because undo cannot bring them back.
 - The dot at the left of the status bar is the state: saved, unsaved changes, working, or the last action failed. When something fails, the message beside it turns red until the next action succeeds.
 - **Undo** (Ctrl+Z) and **Redo** (Ctrl+Y) step through saved revisions and still work after you reopen the project. They are unavailable while you have unsaved changes, so undo never silently throws away typing.
 - Each paragraph's **⋯** menu can split it at the cursor, merge it with the next one, insert a paragraph below or delete it. Ctrl+Enter splits at the cursor without opening the menu. Each action saves your current changes together with the action as one revision.
@@ -52,16 +52,19 @@ The switch at the top of the window chooses between them, and so do Ctrl+1 and C
 - **Microphone** records the selected input.
 - **Whole computer** records every app playing on the selected output device, and nothing playing on other devices. Recording a single app is not supported.
 - **Microphone + whole computer** records both and lines them up using each device's own hardware clock. Use headphones: there is no echo cancellation. If a device's clock misbehaves (common with virtual audio devices), both sources stop and the audio captured so far is kept.
-- Starting a recording pauses playback.
+- Starting a recording pauses playback. While a take runs, the top bar shows a red recording indicator with its clock and **Stop**, whether or not the side panel is open.
+- Once a project has audio, the recorder folds away under **Record a new take** in the Audio card.
 - Pausing excludes paused time from the recording. Pause-gap counts are session-only for a single source; they are not saved in the project.
 - If a finished take cannot be saved, **Keep recording** tries again. There is no automatic recovery after a crash: import the take from the project's `recordings` folder instead.
 
 ## Playback and video
 
 - **Play** (Ctrl+Space), skip 5 seconds back or forward (F8 and F9), or drag the position bar.
-- Click or drag the waveform to seek without playing. **+**, **−**, **Fit** and the mouse wheel change its zoom. Close zoom draws actual sample minima/maxima from bounded background reads. Analysis supports up to six hours; failures leave playback independently available.
+- The waveform is a timeline of the transcript: each timed paragraph is a band in its speaker's colour, the one being spoken is lit, and a ruler along the top gives the time. Pointing at it shows the time under the pointer.
+- Click or drag the waveform to seek without playing; **double-click** to play from that point. **−**, **Fit** and **+** beside the transport, or the mouse wheel over the strip, change its zoom; **Shift+wheel** or a sideways swipe slides along the recording without moving the playhead. Close zoom draws actual sample minima/maxima from bounded background reads. Analysis supports up to six hours; failures leave playback independently available.
 - **Follow** — the target button beside the volume — keeps the playing paragraph in view. Typing or moving around the document pauses following until you turn Follow on again.
-- Moving the playhead never starts playback. Click a word in the text, click a word in the Timings word row, or click a paragraph's timestamp or row number. Selecting a range of text is a selection, not a move, and a paragraph with no timing stays where it is. A word that alignment never placed jumps to the start of its paragraph instead.
+- Moving the playhead never starts playback. Click a word in the text, click a word in the Timings word row, or click a paragraph's timestamp or row number. Double-clicking a timestamp, a row number or the waveform is the one deliberate exception: it plays from there.
+- **Alt+Up** and **Alt+Down** move to the previous or next paragraph, taking the cursor and, if the paragraph is timed, the playhead with them. Selecting a range of text is a selection, not a move, and a paragraph with no timing stays where it is. A word that alignment never placed jumps to the start of its paragraph instead.
 - Following resumes when you ask to be taken somewhere, because that is the opposite of wandering off.
 - Drag the handle above the waveform to give it more or less height. The side panel has a drag handle of its own. Both sizes are remembered.
 - There is no playback speed control.
@@ -102,6 +105,7 @@ The switch at the top of the window chooses between them, and so do Ctrl+1 and C
 | Ctrl+1 / Ctrl+2 | Document view / Timings view |
 | Ctrl+Space | Play or pause |
 | Alt+Left / Alt+Right | Mark this paragraph's start / end at the playhead |
+| Alt+Up / Alt+Down | Previous / next paragraph |
 | F8 / F9 | Back or forward 5 seconds |
 | Ctrl+Enter | Split the paragraph at the cursor |
 | F1 | Help |
@@ -110,7 +114,7 @@ The switch at the top of the window chooses between them, and so do Ctrl+1 and C
 
 **Settings** holds what you set once and rarely change: the theme (dark by default, light, or follow the system), reduced motion, whether the document fills the window, the spoken language and processing device for transcription, and the video preview's height. What to record and on which device stay in the Audio panel, where they are chosen before a take.
 
-The panel button (Ctrl+B) hides the side panel so the transcript gets the whole window. Recording, transcription, speakers and history live in that panel, so hide it while reading and correcting and show it again when you need them.
+The panel button (Ctrl+B) hides the side panel so the transcript gets the whole window. Recording, transcription, speakers and history live in that panel, so hide it while reading and correcting and show it again when you need them. With no project open there is no side panel: the start screen has its own recorder.
 
 The project's name sits at the top left and is renamed there.
 
