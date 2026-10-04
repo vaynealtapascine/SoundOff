@@ -8,6 +8,8 @@ public static class MediaFormats
     public static readonly string[] Extensions =
         [".wav", ".mp3", ".m4a", ".aac", ".flac", ".ogg", ".opus", ".mp4", ".mov", ".mkv", ".webm"];
     public static string[] Patterns => Extensions.Select(e => "*" + e).ToArray();
+    public static bool IsVideo(string path) =>
+        Path.GetExtension(path).ToLowerInvariant() is ".mp4" or ".mov" or ".mkv" or ".webm";
     public static bool IsRecognized(string path) =>
         Extensions.Contains(Path.GetExtension(path).ToLowerInvariant(), StringComparer.Ordinal);
 }

@@ -16,7 +16,7 @@ public sealed partial class MainWindow
     // # · start · end · length · speaker · text · actions
     // The time cells hold a full h:mm:ss.ffffff, which is what the document stores; nothing is rounded for
     // display, so the column is wide enough to show all six fraction digits.
-    internal const string CueColumns = "44,118,118,58,148,*,62";
+    internal const string CueColumns = "44,118,118,58,170,*,62";
     // The same seven columns with every timing cell closed: the gutter carries a timestamp instead of a number,
     // and the text keeps the rest of the measure.
     internal const string DocumentColumns = "62,0,0,0,0,*,62";

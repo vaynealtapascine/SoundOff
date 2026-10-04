@@ -48,7 +48,8 @@ public sealed class TranscribeUiTests
             Assert.False(Button(window, "TranscribeButton").IsEnabled); Assert.True(Button(window, "PreparePackButton").IsEnabled);
             Assert.Contains("not prepared yet", window.FindControl<TextBlock>("RuntimeText")!.Text);
             Click(window, "ImportMediaButton"); await Idle(window); // creates the project first, then copies the clip
-            Assert.Contains("Imported tts-english.wav", Status(window)); Assert.StartsWith("tts-english.wav · 0:09", window.FindControl<TextBlock>("MediaText")!.Text);
+            Assert.Contains("Imported tts-english.wav", Status(window)); Assert.Equal("tts-english.wav", window.FindControl<TextBlock>("MediaText")!.Text);
+            Assert.StartsWith("0:09 · ", window.FindControl<TextBlock>("MediaDetail")!.Text);
             Assert.True(File.Exists(folder.Project)); Assert.False(Button(window, "TranscribeButton").IsEnabled);
             Click(window, "PreparePackButton"); await JobDone(window);
             Assert.StartsWith("Model pack ready (small · en, tl", Job(window)); Assert.True(runtime.IsPackReady("small"));

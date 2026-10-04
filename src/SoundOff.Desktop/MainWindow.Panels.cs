@@ -2,6 +2,7 @@ using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Layout;
 using Avalonia.Media;
+using Avalonia.VisualTree;
 using SoundOff.Core;
 
 namespace SoundOff.Desktop;
@@ -59,6 +60,18 @@ public sealed partial class MainWindow
         snapshot = store!.Restore(snapshot!.Revision, revision); Render(); SavedStatus();
     }
 
+    // How long ago, the way a person says it; past a week the date itself is clearer.
+    internal static string Ago(DateTime utc)
+    {
+        var span = DateTime.UtcNow - utc;
+        return span.TotalMinutes < 1 ? "just now"
+            : span.TotalHours < 1 ? $"{(int)span.TotalMinutes} min ago"
+            : span.TotalDays < 1 ? $"{(int)span.TotalHours} h ago"
+            : span.TotalDays < 2 ? "yesterday"
+            : span.TotalDays < 7 ? $"{(int)span.TotalDays} days ago"
+            : utc.ToLocalTime().ToString("d MMM yyyy");
+    }
+
     private void RememberCurrent()
     {
         if (store is null || snapshot is null) return;
@@ -81,20 +94,41 @@ public sealed partial class MainWindow
         foreach (var entry in list.Projects)
         {
             var exists = File.Exists(entry.Path);
-            var row = new StackPanel { Spacing = 2 }; row.Classes.Add("recent");
-            row.Children.Add(new TextBlock { Text = entry.Title, FontWeight = FontWeight.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis });
-            var location = new TextBlock { Text = exists ? entry.Path : "MISSING · " + entry.Path, TextTrimming = TextTrimming.PathSegmentEllipsis };
-            location.Classes.Add("muted"); ToolTip.SetTip(location, entry.Path); row.Children.Add(location);
-            var buttons = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 4, Margin = new Avalonia.Thickness(-8, 0, 0, 0) };
+            // One line to recognise it by, one to say where and when; the whole row opens it, and Forget waits
+            // under the pointer rather than sitting beside every entry.
+            var row = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,*,Auto"), ColumnSpacing = 12 }; row.Classes.Add("recent");
+            var icon = new Border { Classes = { "mediaicon" }, VerticalAlignment = VerticalAlignment.Center,
+                Child = new PathIcon { Classes = { "document" }, Width = 16, Height = 16 } };
+            row.Children.Add(icon);
+            var text = new StackPanel { Spacing = 1, VerticalAlignment = VerticalAlignment.Center };
+            text.Children.Add(new TextBlock { Text = entry.Title, FontWeight = FontWeight.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis });
+            var when = DateTime.TryParse(entry.LastOpenedUtc, null, System.Globalization.DateTimeStyles.AdjustToUniversal | System.Globalization.DateTimeStyles.AssumeUniversal, out var opened)
+                ? "Opened " + Ago(opened) + " · " : "";
+            var location = new TextBlock { Text = exists ? when + entry.Path : "MISSING · " + entry.Path, TextTrimming = TextTrimming.PathSegmentEllipsis };
+            location.Classes.Add("muted"); ToolTip.SetTip(location, entry.Path); text.Children.Add(location);
+            Grid.SetColumn(text, 1); row.Children.Add(text);
+            var buttons = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 2, VerticalAlignment = VerticalAlignment.Center };
             var openRow = Action("Open", "Open recent project " + entry.Title, () => GuardAsync(() => OpenPathAsync(entry.Path)), enabled: exists);
             var forget = Action("Forget", "Forget recent project " + entry.Title, () =>
             {
                 try { recent.Forget(entry.Path); } catch (Exception e) when (e is IOException or UnauthorizedAccessException) { status.Text = "Could not update the recent-project list: " + e.Message; }
                 RenderRecents(); return Task.CompletedTask;
             });
-            openRow.Classes.Add("quiet"); forget.Classes.Add("quiet");
+            openRow.Classes.Add("quiet"); forget.Classes.Add("quiet"); openRow.Classes.Add("faint"); forget.Classes.Add("faint");
             buttons.Children.Add(openRow); buttons.Children.Add(forget);
-            row.Children.Add(buttons); recentHost.Children.Add(Row(row));
+            Grid.SetColumn(buttons, 2); row.Children.Add(buttons);
+            var container = Row(row); container.Classes.Add("card"); container.Classes.Add("recentrow");
+            if (exists)
+            {
+                container.Cursor = new Avalonia.Input.Cursor(Avalonia.Input.StandardCursorType.Hand);
+                container.Tapped += async (_, e) =>
+                {
+                    // The trailing buttons do their own thing; anywhere else on the row opens the project.
+                    if (e.Source is Avalonia.Visual source && source.FindAncestorOfType<Button>(includeSelf: true) is not null) return;
+                    await GuardAsync(() => OpenPathAsync(entry.Path));
+                };
+            }
+            recentHost.Children.Add(container);
             var item = new MenuItem { Header = exists ? entry.Title : entry.Title + " (missing)", IsEnabled = exists };
             ToolTip.SetTip(item, entry.Path); AutomationProperties.SetName(item, "Open recent project " + entry.Title);
             item.Click += async (_, _) => await GuardAsync(() => OpenPathAsync(entry.Path));

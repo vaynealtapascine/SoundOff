@@ -36,17 +36,23 @@
           <TextBox x:Name="TitleInput" Classes="title" MaxLength="200" Watermark="Project title" IsUndoEnabled="False"
                    IsVisible="False" MinWidth="130" MaxWidth="340" VerticalAlignment="Center"
                    AutomationProperties.Name="Project title" ToolTip.Tip="Rename this project" />
-          <Border Classes="divider" />
-          <Button x:Name="UndoButton" Classes="quiet icon" ToolTip.Tip="Undo (Ctrl+Z)" AutomationProperties.Name="Undo">
-            <PathIcon Classes="glyph undo" />
-          </Button>
-          <Button x:Name="RedoButton" Classes="quiet icon" ToolTip.Tip="Redo (Ctrl+Y)" AutomationProperties.Name="Redo">
-            <PathIcon Classes="glyph redo" />
-          </Button>
-          <Button x:Name="SaveButton" Content="Save" Classes="accent" Margin="6,0,0,0" ToolTip.Tip="Save (Ctrl+S)" />
-          <!-- Discard appears only while there is a draft to discard. -->
-          <Button x:Name="DiscardButton" Content="Discard" Classes="quiet" IsVisible="False"
-                  ToolTip.Tip="Throw away unsaved changes" />
+          <!-- The editor's "this has changed" mark, where the eye already is: beside the document's name. -->
+          <Ellipse x:Name="DirtyDot" Classes="dirty" IsVisible="False" VerticalAlignment="Center"
+                   ToolTip.Tip="Unsaved changes" AutomationProperties.Name="Unsaved changes" />
+          <!-- Nothing to undo, redo or save before there is a project, so none of it is shown. -->
+          <StackPanel x:Name="EditTools" Orientation="Horizontal" Spacing="2" IsVisible="False">
+            <Border Classes="divider" />
+            <Button x:Name="UndoButton" Classes="quiet icon" ToolTip.Tip="Undo (Ctrl+Z)" AutomationProperties.Name="Undo">
+              <PathIcon Classes="glyph undo" />
+            </Button>
+            <Button x:Name="RedoButton" Classes="quiet icon" ToolTip.Tip="Redo (Ctrl+Y)" AutomationProperties.Name="Redo">
+              <PathIcon Classes="glyph redo" />
+            </Button>
+            <Button x:Name="SaveButton" Content="Save" Classes="accent" Margin="6,0,0,0" ToolTip.Tip="Save (Ctrl+S)" />
+            <!-- Discard appears only while there is a draft to discard. -->
+            <Button x:Name="DiscardButton" Content="Discard" Classes="quiet" IsVisible="False"
+                    ToolTip.Tip="Throw away unsaved changes" />
+          </StackPanel>
         </StackPanel>
 
         <Border x:Name="ViewSwitch" Grid.Column="1" Classes="segmented" HorizontalAlignment="Center"
@@ -60,11 +66,21 @@
         </Border>
 
         <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="2" VerticalAlignment="Center">
+          <!-- A take in progress is visible whatever else is on screen, with the one action it needs. -->
+          <Border x:Name="RecordingPill" Classes="recpill" IsVisible="False" Margin="0,0,8,0">
+            <StackPanel Orientation="Horizontal" Spacing="8">
+              <Ellipse x:Name="RecordingPillDot" Classes="rec" VerticalAlignment="Center" />
+              <TextBlock x:Name="RecordingPillText" Classes="clock" FontSize="13" VerticalAlignment="Center" />
+              <Button x:Name="RecordingPillStop" Classes="quiet" Content="Stop" Padding="8,2" MinHeight="24" Height="24"
+                      ToolTip.Tip="Stop and keep the recording" AutomationProperties.Name="Stop recording" />
+            </StackPanel>
+          </Border>
           <ToggleButton x:Name="FindToggle" Classes="subtle icon" ToolTip.Tip="Find and replace (Ctrl+F)"
-                        AutomationProperties.Name="Find and replace">
+                        AutomationProperties.Name="Find and replace" IsVisible="False">
             <PathIcon Classes="glyph search" />
           </ToggleButton>
-          <Button x:Name="ExportMenuButton" Classes="quiet icon" AutomationProperties.Name="Export menu" ToolTip.Tip="Export and copy">
+          <Button x:Name="ExportMenuButton" Classes="quiet icon" AutomationProperties.Name="Export menu" ToolTip.Tip="Export and copy"
+                  IsVisible="False">
             <PathIcon Classes="glyph export" />
             <Button.Flyout>
               <MenuFlyout Placement="BottomEdgeAlignedRight">
@@ -78,8 +94,8 @@
               </MenuFlyout>
             </Button.Flyout>
           </Button>
-          <Border Classes="divider" />
-          <ToggleButton x:Name="SidebarToggle" Classes="subtle icon" IsChecked="True"
+          <Border x:Name="PanelDivider" Classes="divider" IsVisible="False" />
+          <ToggleButton x:Name="SidebarToggle" Classes="subtle icon" IsChecked="True" IsVisible="False"
                         ToolTip.Tip="Hide the side panel (Ctrl+B)" AutomationProperties.Name="Show or hide the side panel">
             <PathIcon Classes="glyph panel" />
           </ToggleButton>
@@ -176,31 +192,83 @@
           <!-- Matching the viewport height lets the panel sit centred in an empty window while a long
                recent list still grows past it and scrolls. -->
           <Grid MinHeight="{Binding $parent[ScrollViewer].Bounds.Height}">
-            <StackPanel MaxWidth="540" Spacing="30" Margin="24" HorizontalAlignment="Center" VerticalAlignment="Center">
-              <StackPanel Spacing="12" HorizontalAlignment="Center">
-                <Border Width="60" Height="60" CornerRadius="19" HorizontalAlignment="Center"
+            <StackPanel MaxWidth="760" Spacing="28" Margin="32" HorizontalAlignment="Stretch" VerticalAlignment="Center">
+              <StackPanel Spacing="10" HorizontalAlignment="Center">
+                <Border Width="56" Height="56" CornerRadius="17" HorizontalAlignment="Center"
                         Background="{DynamicResource AccentSoftBrush}">
-                  <PathIcon Classes="volume" Width="28" Height="28" Foreground="{DynamicResource PrimaryBrush}" />
+                  <PathIcon Classes="volume" Width="26" Height="26" Foreground="{DynamicResource PrimaryBrush}" />
                 </Border>
                 <TextBlock Text="SoundOff" Classes="heading" HorizontalAlignment="Center" />
                 <TextBlock Text="Turn a recording into a document. On this computer." Classes="muted" FontSize="14"
                            HorizontalAlignment="Center" TextAlignment="Center" />
               </StackPanel>
-              <StackPanel Spacing="10" HorizontalAlignment="Center">
-                <Button x:Name="StartImportButton" Content="Import audio or video…" Classes="accent"
-                        MinWidth="260" IsDefault="True" ToolTip.Tip="Drop a file on this window too" />
-                <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center">
-                  <Button x:Name="StartOpenButton" Content="Open project…" Classes="quiet" />
-                  <Button x:Name="StartDemoButton" Content="Try a demo" Classes="quiet" />
-                </StackPanel>
+
+              <!-- The two ways in, side by side and the same size: bring a file, or make one. -->
+              <Grid ColumnDefinitions="*,*" ColumnSpacing="16">
+                <Border Classes="tile drop">
+                  <StackPanel Spacing="14">
+                    <Border Classes="tileicon"><PathIcon Classes="export" Width="20" Height="20" /></Border>
+                    <StackPanel Spacing="4">
+                      <TextBlock Text="Transcribe a file" Classes="tiletitle" />
+                      <TextBlock Text="Audio or video. Drop it anywhere on this window, or choose it." Classes="muted"
+                                 TextWrapping="Wrap" FontSize="13" />
+                    </StackPanel>
+                    <Button x:Name="StartImportButton" Content="Choose a file…" Classes="accent" HorizontalAlignment="Left"
+                            IsDefault="True" ToolTip.Tip="Drop a file on this window too" />
+                  </StackPanel>
+                </Border>
+                <Border x:Name="StartRecordTile" Grid.Column="1" Classes="tile">
+                  <StackPanel Spacing="14">
+                    <Border Classes="tileicon rec"><PathIcon Classes="mic" Width="20" Height="20" /></Border>
+                    <StackPanel Spacing="4">
+                      <TextBlock Text="Record" Classes="tiletitle" />
+                      <TextBlock Text="A microphone, the computer's own sound, or both at once." Classes="muted"
+                                 TextWrapping="Wrap" FontSize="13" />
+                    </StackPanel>
+                    <!-- The recorder itself lives here until there is a project, then moves to the Audio card. -->
+                    <ContentControl x:Name="StartRecordHost" />
+                  </StackPanel>
+                </Border>
+              </Grid>
+
+              <StackPanel Orientation="Horizontal" Spacing="4" HorizontalAlignment="Center" Margin="0,-12,0,0">
+                <Button x:Name="StartOpenButton" Content="Open a project…" Classes="quiet" />
+                <TextBlock Text="·" Classes="muted" VerticalAlignment="Center" />
+                <Button x:Name="StartDemoButton" Content="Try a demo" Classes="quiet" />
               </StackPanel>
+
               <StackPanel Spacing="6">
-                <TextBlock Text="Recent" Classes="section" Margin="8,0,0,0" />
+                <TextBlock Text="Recent" Classes="section" Margin="12,0,0,0" />
                 <StackPanel x:Name="RecentHost" Spacing="2" />
               </StackPanel>
             </StackPanel>
           </Grid>
         </ScrollViewer>
+        <!-- A project with no transcript yet: the next step is offered where the transcript will appear, and its
+             progress is shown there too, rather than in a side panel the eye has no reason to visit. -->
+        <Border x:Name="EmptyTranscript" Grid.Row="2" Classes="emptystate" IsVisible="False"
+                HorizontalAlignment="Center" VerticalAlignment="Center">
+          <StackPanel Spacing="14" Width="400">
+            <Border Classes="tileicon" HorizontalAlignment="Center"><PathIcon Classes="document" Width="20" Height="20" /></Border>
+            <StackPanel Spacing="6">
+              <TextBlock Text="No transcript yet" FontSize="20" FontWeight="SemiBold" HorizontalAlignment="Center" />
+              <TextBlock x:Name="EmptyHint" Classes="muted" FontSize="13" TextWrapping="Wrap" TextAlignment="Center"
+                         HorizontalAlignment="Center" />
+            </StackPanel>
+            <StackPanel Orientation="Horizontal" Spacing="8" HorizontalAlignment="Center">
+              <Button x:Name="EmptyTranscribeButton" Classes="accent" Content="Transcribe" MinWidth="150"
+                      AutomationProperties.Name="Transcribe the recording" ToolTip.ShowOnDisabled="True" />
+              <Button x:Name="EmptyCancelButton" Classes="quiet" Content="Cancel" IsVisible="False"
+                      AutomationProperties.Name="Cancel transcription" />
+              <Button x:Name="EmptyImportButton" Classes="accent" Content="Import audio or video…" IsVisible="False"
+                      AutomationProperties.Name="Import audio or video for this project" />
+            </StackPanel>
+            <ProgressBar x:Name="EmptyProgress" Minimum="0" Maximum="1" Height="4" IsVisible="False"
+                         AutomationProperties.Name="Transcription progress" />
+            <TextBlock x:Name="EmptyJobText" Classes="muted" TextWrapping="Wrap" TextAlignment="Center" IsVisible="False" />
+          </StackPanel>
+        </Border>
+
         <!-- Floated over the transcript rather than pushing it down: opening Find must not move the
              paragraph being read. -->
         <Border x:Name="FindBar" Grid.Row="2" Classes="findbar" IsVisible="False" Margin="24,12,24,0" MaxWidth="720"
@@ -227,23 +295,50 @@
               <TextBlock Text="Audio" Classes="section" VerticalAlignment="Center" />
               <Button x:Name="ImportMediaButton" Grid.Column="1" Content="Import…" Classes="quiet" ToolTip.Tip="Import audio or video" />
             </Grid>
-            <TextBlock x:Name="MediaText" TextWrapping="Wrap" IsVisible="False" FontSize="13" />
-            <!-- What to record and on which device stay in reach: they are chosen before a take, not once. -->
-            <ComboBox x:Name="CaptureModeChoice" SelectedIndex="0" HorizontalAlignment="Stretch" AutomationProperties.Name="What to record">
-              <ComboBoxItem>Microphone</ComboBoxItem><ComboBoxItem>Whole computer</ComboBoxItem><ComboBoxItem>Microphone + whole computer</ComboBoxItem>
-            </ComboBox>
-            <ComboBox x:Name="CaptureDeviceChoice" HorizontalAlignment="Stretch" AutomationProperties.Name="Recording device" />
-            <StackPanel x:Name="CaptureRenderPanel" IsVisible="False" Spacing="6">
-              <TextBlock Text="Computer audio" Classes="muted" />
-              <ComboBox x:Name="CaptureRenderChoice" HorizontalAlignment="Stretch" AutomationProperties.Name="Computer audio render endpoint" />
-            </StackPanel>
-            <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="6">
-              <Button x:Name="RecordButton" Content="Record" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" />
-              <Button x:Name="PauseRecordButton" Grid.Column="1" Content="Pause" Classes="quiet" />
-              <Button x:Name="StopRecordButton" Grid.Column="2" Content="Stop" Classes="quiet" />
-            </Grid>
-            <ProgressBar x:Name="LevelMeter" Minimum="0" Maximum="1" Height="4" IsVisible="False" AutomationProperties.Name="Input level" />
-            <TextBlock x:Name="RecordText" TextWrapping="Wrap" Classes="muted" IsVisible="False" />
+            <!-- The file this project is about: what it is and how long, as a row rather than a sentence. -->
+            <Border x:Name="MediaRow" Classes="mediarow" IsVisible="False">
+              <Grid ColumnDefinitions="Auto,*" ColumnSpacing="10">
+                <Border Classes="mediaicon"><PathIcon x:Name="MediaIcon" Classes="wave" Width="16" Height="16" /></Border>
+                <StackPanel Grid.Column="1" Spacing="1" VerticalAlignment="Center">
+                  <TextBlock x:Name="MediaText" TextTrimming="CharacterEllipsis" FontSize="13" FontWeight="SemiBold" />
+                  <TextBlock x:Name="MediaDetail" Classes="muted" />
+                </StackPanel>
+              </Grid>
+            </Border>
+            <!-- Recording is chosen per take, so it stays in reach — but folded away once there is audio to work on. -->
+            <ToggleButton x:Name="NewTakeToggle" Classes="disclosure" IsVisible="False" HorizontalAlignment="Stretch"
+                          AutomationProperties.Name="Record a new take">
+              <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
+                <PathIcon Classes="mic" Width="14" Height="14" />
+                <TextBlock Grid.Column="1" Text="Record a new take" VerticalAlignment="Center" />
+                <PathIcon x:Name="NewTakeChevron" Grid.Column="2" Classes="small expand" />
+              </Grid>
+            </ToggleButton>
+            <ContentControl x:Name="CardRecordHost">
+              <StackPanel x:Name="RecordPanel" Spacing="10">
+                <!-- What to record and on which device stay in reach: they are chosen before a take, not once. -->
+                <ComboBox x:Name="CaptureModeChoice" SelectedIndex="0" HorizontalAlignment="Stretch" AutomationProperties.Name="What to record">
+                  <ComboBoxItem>Microphone</ComboBoxItem><ComboBoxItem>Whole computer</ComboBoxItem><ComboBoxItem>Microphone + whole computer</ComboBoxItem>
+                </ComboBox>
+                <ComboBox x:Name="CaptureDeviceChoice" HorizontalAlignment="Stretch" AutomationProperties.Name="Recording device" />
+                <StackPanel x:Name="CaptureRenderPanel" IsVisible="False" Spacing="6">
+                  <TextBlock Text="Computer audio" Classes="muted" />
+                  <ComboBox x:Name="CaptureRenderChoice" HorizontalAlignment="Stretch" AutomationProperties.Name="Computer audio render endpoint" />
+                </StackPanel>
+                <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="6">
+                  <Button x:Name="RecordButton" Classes="record" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                      <Ellipse Classes="rec" VerticalAlignment="Center" />
+                      <TextBlock x:Name="RecordButtonText" Text="Record" VerticalAlignment="Center" />
+                    </StackPanel>
+                  </Button>
+                  <Button x:Name="PauseRecordButton" Grid.Column="1" Content="Pause" Classes="quiet" />
+                  <Button x:Name="StopRecordButton" Grid.Column="2" Content="Stop" Classes="quiet" />
+                </Grid>
+                <ProgressBar x:Name="LevelMeter" Classes="level" Minimum="0" Maximum="1" Height="6" IsVisible="False" AutomationProperties.Name="Input level" />
+                <TextBlock x:Name="RecordText" TextWrapping="Wrap" Classes="muted" IsVisible="False" />
+              </StackPanel>
+            </ContentControl>
           </StackPanel></Border>
 
           <Border x:Name="TranscribeCard" Classes="card"><StackPanel Spacing="10">
@@ -288,21 +383,13 @@
       <Grid RowDefinitions="*,Auto,Auto" RowSpacing="8">
         <Border x:Name="WaveformHost" Classes="waveform" IsVisible="False" MinHeight="56">
           <Panel>
-            <controls:WaveformOverview x:Name="Waveform" Margin="0,0,96,0" AutomationProperties.Name="Recording waveform. Click to move the playhead"
-                                       ToolTip.Tip="Click or drag to move the playhead. Scroll on the strip or use the zoom buttons to change the time span shown." />
+            <controls:WaveformOverview x:Name="Waveform" AutomationProperties.Name="Recording waveform. Click to move the playhead"
+                                       ToolTip.Tip="Click or drag to move the playhead · double-click to play from there · scroll to zoom · Shift+scroll to slide along" />
             <TextBlock x:Name="WaveformStatus" Classes="muted" VerticalAlignment="Center" HorizontalAlignment="Center"
                        TextAlignment="Center" TextWrapping="Wrap" Margin="8,0" IsVisible="False" />
-            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Top" Spacing="2" Margin="0,2,4,0">
-              <Button x:Name="ZoomInButton" Classes="quiet" Content="＋" Width="26" Height="24" MinHeight="0" Padding="0"
-                      ToolTip.Tip="Zoom in — also scroll on the waveform" AutomationProperties.Name="Zoom waveform in" />
-              <Button x:Name="ZoomOutButton" Classes="quiet" Content="－" Width="26" Height="24" MinHeight="0" Padding="0"
-                      ToolTip.Tip="Zoom out" AutomationProperties.Name="Zoom waveform out" />
-              <Button x:Name="FitWaveButton" Classes="quiet" Content="Fit" MinHeight="24" Height="24" Padding="7,0"
-                      ToolTip.Tip="Show the whole recording" AutomationProperties.Name="Fit the whole recording in the waveform" />
-            </StackPanel>
           </Panel>
         </Border>
-        <Grid Grid.Row="1" ColumnDefinitions="Auto,Auto,Auto,Auto,*,Auto,Auto,Auto" ColumnSpacing="6">
+        <Grid Grid.Row="1" ColumnDefinitions="Auto,Auto,Auto,Auto,*,Auto,Auto,Auto,Auto" ColumnSpacing="6">
           <Button x:Name="SkipBackButton" Classes="quiet icon" ToolTip.Tip="Back 5 seconds (F8)" AutomationProperties.Name="Skip back five seconds">
             <PathIcon Classes="glyph back5" />
           </Button>
@@ -312,17 +399,28 @@
           </Button>
           <TextBlock x:Name="PositionText" Grid.Column="3" Classes="clock" FontSize="13" VerticalAlignment="Center" MinWidth="104" Margin="6,0,2,0" />
           <Slider x:Name="PositionSlider" Grid.Column="4" Minimum="0" Maximum="1000" Value="0" VerticalAlignment="Center" AutomationProperties.Name="Playback position" />
-          <WrapPanel x:Name="VideoControls" Grid.Column="5" IsVisible="False" VerticalAlignment="Center">
+          <!-- Zoom belongs to the waveform but sits with the other transport controls, so the strip keeps its full width. -->
+          <StackPanel x:Name="ZoomControls" Grid.Column="5" Orientation="Horizontal" Spacing="0" VerticalAlignment="Center" Margin="4,0">
+            <Button x:Name="ZoomOutButton" Classes="quiet icon" ToolTip.Tip="Zoom out" AutomationProperties.Name="Zoom waveform out">
+              <PathIcon Classes="glyph minus" />
+            </Button>
+            <Button x:Name="FitWaveButton" Classes="quiet" Content="Fit" MinHeight="0" Height="30" Padding="8,0"
+                    ToolTip.Tip="Show the whole recording" AutomationProperties.Name="Fit the whole recording in the waveform" />
+            <Button x:Name="ZoomInButton" Classes="quiet icon" ToolTip.Tip="Zoom in — also scroll on the waveform" AutomationProperties.Name="Zoom waveform in">
+              <PathIcon Classes="glyph plus" />
+            </Button>
+          </StackPanel>
+          <WrapPanel x:Name="VideoControls" Grid.Column="6" IsVisible="False" VerticalAlignment="Center">
             <ToggleButton x:Name="VideoPreviewToggle" Classes="subtle icon" IsChecked="True"
                           AutomationProperties.Name="Show or hide video preview (audio continues)">
               <PathIcon Classes="glyph film" />
             </ToggleButton>
           </WrapPanel>
-          <ToggleButton x:Name="FollowButton" Classes="subtle icon" Grid.Column="6" IsChecked="True"
+          <ToggleButton x:Name="FollowButton" Classes="subtle icon" Grid.Column="7" IsChecked="True"
                         ToolTip.Tip="Keep the playing paragraph in view" AutomationProperties.Name="Follow playback while it plays">
             <PathIcon Classes="glyph follow" />
           </ToggleButton>
-          <Button x:Name="VolumeButton" Grid.Column="7" Classes="quiet icon" AutomationProperties.Name="Volume" ToolTip.Tip="Volume">
+          <Button x:Name="VolumeButton" Grid.Column="8" Classes="quiet icon" AutomationProperties.Name="Volume" ToolTip.Tip="Volume">
             <PathIcon Classes="glyph volume" />
             <Button.Flyout>
               <Flyout Placement="TopEdgeAlignedRight">
@@ -333,6 +431,15 @@
         </Grid>
         <TextBlock x:Name="PlaybackText" Grid.Row="2" TextWrapping="Wrap" Classes="muted" IsVisible="False" />
       </Grid>
+    </Border>
+
+    <!-- Shown only while a usable file is dragged over the window: the drop target is the whole window, and it says so. -->
+    <Border x:Name="DropOverlay" Grid.Row="1" Grid.RowSpan="3" Classes="dropoverlay" IsVisible="False" IsHitTestVisible="False">
+      <StackPanel Spacing="10" HorizontalAlignment="Center" VerticalAlignment="Center">
+        <Border Classes="tileicon" HorizontalAlignment="Center"><PathIcon Classes="export" Width="22" Height="22" /></Border>
+        <TextBlock x:Name="DropOverlayText" Text="Drop to import" FontSize="20" FontWeight="SemiBold" HorizontalAlignment="Center" />
+        <TextBlock Text="The file is copied into the project; the original is not touched." Classes="muted" FontSize="13" HorizontalAlignment="Center" />
+      </StackPanel>
     </Border>
 
     <Border Grid.Row="4" Classes="statusbar">

@@ -12,11 +12,18 @@ namespace SoundOff.Tests;
 public sealed class LayoutTests
 {
     private static Grid Work(MainWindow window) => window.FindControl<Grid>("WorkArea")!;
+    // The side panel belongs to a project: the start screen carries its own recorder and has nothing for it.
+    private static MainWindow WithProject(TestDirectory folder)
+    {
+        if (!File.Exists(folder.Project)) using (SoundOff.Core.ProjectStore.Create(folder.Project)) { }
+        var window = new MainWindow(null, folder.Settings, folder.Project); window.Show();
+        return window;
+    }
 
     [AvaloniaFact] public void Dragging_the_side_panel_wider_is_remembered_across_windows()
     {
         using var folder = new TestDirectory();
-        var window = new MainWindow(null, folder.Settings); window.Show();
+        var window = WithProject(folder);
         try
         {
             var splitter = window.FindControl<GridSplitter>("SidebarSplitter")!;
@@ -30,7 +37,7 @@ public sealed class LayoutTests
         finally { window.Close(); }
 
         Assert.Contains("\"sidebarWidth\":430", File.ReadAllText(folder.SettingsPath));
-        window = new MainWindow(null, folder.Settings); window.Show();
+        window = WithProject(folder);
         try { Assert.Equal(430, Work(window).ColumnDefinitions[2].Width.Value); }
         finally { window.Close(); }
     }
@@ -39,7 +46,7 @@ public sealed class LayoutTests
     [AvaloniaFact] public void Collapsing_the_panel_releases_its_minimum_width()
     {
         using var folder = new TestDirectory();
-        var window = new MainWindow(null, folder.Settings); window.Show();
+        var window = WithProject(folder);
         try
         {
             window.FindControl<ToggleButton>("SidebarToggle")!.IsChecked = false;

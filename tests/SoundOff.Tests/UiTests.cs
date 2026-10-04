@@ -504,7 +504,17 @@ public sealed class UiTests
     [AvaloniaFact] public void Side_panel_collapses_by_button_or_shortcut_and_the_choice_is_remembered()
     {
         using var folder = new TestDirectory();
-        var window = new MainWindow(null, folder.Settings); window.Show();
+        // With nothing open there is nothing for the panel to hold, whatever the preference says.
+        var empty = new MainWindow(null, folder.Settings); empty.Show();
+        try
+        {
+            Assert.False(empty.FindControl<Control>("Sidebar")!.IsVisible);
+            Assert.False(empty.FindControl<Control>("SidebarToggle")!.IsVisible);
+            Assert.Equal(0, empty.FindControl<Grid>("WorkArea")!.ColumnDefinitions[2].Width.Value);
+        }
+        finally { empty.Close(); }
+        using (SoundOff.Core.ProjectStore.Create(folder.Project)) { }
+        var window = new MainWindow(null, folder.Settings, folder.Project); window.Show();
         var work = window.FindControl<Grid>("WorkArea")!;
         try
         {
@@ -521,7 +531,7 @@ public sealed class UiTests
         }
         finally { window.Close(); }
 
-        window = new MainWindow(null, folder.Settings); window.Show();
+        window = new MainWindow(null, folder.Settings, folder.Project); window.Show();
         try
         {
             Assert.False(window.FindControl<Control>("Sidebar")!.IsVisible);
@@ -532,7 +542,7 @@ public sealed class UiTests
         }
         finally { window.Close(); }
 
-        window = new MainWindow(null, folder.Settings); window.Show();
+        window = new MainWindow(null, folder.Settings, folder.Project); window.Show();
         try { Assert.True(window.FindControl<Control>("Sidebar")!.IsVisible); }
         finally { window.Close(); }
     }

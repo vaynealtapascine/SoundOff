@@ -53,8 +53,9 @@ public sealed class RecentTests
     private static void Click(MainWindow window, string name) => UiDriver.Click(window, name);
     private static void Discard(MainWindow window) => UiDriver.Discard(window);
     private static string Status(MainWindow window) => window.FindControl<TextBlock>("StatusText")!.Text ?? "";
-    private static StackPanel[] Rows(MainWindow window) => window.FindControl<StackPanel>("RecentHost")!.GetVisualDescendants().OfType<StackPanel>().Where(p => p.Classes.Contains("recent")).ToArray();
-    private static Button RowButton(StackPanel row, string label) => row.GetVisualDescendants().OfType<Button>().Single(b => (string?)b.Content == label);
+    private static Grid[] Rows(MainWindow window) => window.FindControl<StackPanel>("RecentHost")!.GetVisualDescendants().OfType<Grid>().Where(p => p.Classes.Contains("recent")).ToArray();
+    private static IEnumerable<TextBlock> Texts(Grid row) => row.GetVisualDescendants().OfType<TextBlock>();
+    private static Button RowButton(Grid row, string label) => row.GetVisualDescendants().OfType<Button>().Single(b => (string?)b.Content == label);
     private static async Task Idle(MainWindow window)
     {
         var deadline = DateTime.UtcNow.AddSeconds(10);
@@ -72,10 +73,10 @@ public sealed class RecentTests
             Assert.Contains(window.FindControl<StackPanel>("RecentHost")!.Children.OfType<TextBlock>(), t => t.Text == "No recent projects.");
             Click(window, "DemoItem"); await Idle(window);
             var rows = Rows(window); Assert.Single(rows);
-            Assert.Contains(rows[0].Children.OfType<TextBlock>(), t => t.Text == "Synthetic demo — editing practice");
+            Assert.Contains(Texts(rows[0]), t => t.Text == "Synthetic demo — editing practice");
             var title = window.GetVisualDescendants().OfType<TextBox>().Single(t => t.Classes.Contains("title"));
             title.Text = "Renamed demo"; Click(window, "SaveButton"); await Idle(window);
-            Assert.Contains(Rows(window)[0].Children.OfType<TextBlock>(), t => t.Text == "Renamed demo");
+            Assert.Contains(Texts(Rows(window)[0]), t => t.Text == "Renamed demo");
         }
         finally { window.Close(); }
         window = new MainWindow(new Picker(second), folder.Settings); window.Show();
@@ -84,12 +85,12 @@ public sealed class RecentTests
             Assert.Single(Rows(window));
             Click(window, "OpenProjectItem"); await Idle(window);
             var rows = Rows(window); Assert.Equal(2, rows.Length);
-            Assert.Contains(rows[0].Children.OfType<TextBlock>(), t => t.Text == "Second project");
-            Assert.Contains(rows[1].Children.OfType<TextBlock>(), t => t.Text == "Renamed demo");
+            Assert.Contains(Texts(rows[0]), t => t.Text == "Second project");
+            Assert.Contains(Texts(rows[1]), t => t.Text == "Renamed demo");
             RowButton(rows[1], "Open").RaiseEvent(new RoutedEventArgs(Avalonia.Controls.Button.ClickEvent)); await Idle(window);
             Assert.Contains("Saved · revision 2", Status(window));
             Assert.Equal("Renamed demo", window.GetVisualDescendants().OfType<TextBox>().Single(t => t.Classes.Contains("title")).Text);
-            rows = Rows(window); Assert.Contains(rows[0].Children.OfType<TextBlock>(), t => t.Text == "Renamed demo");
+            rows = Rows(window); Assert.Contains(Texts(rows[0]), t => t.Text == "Renamed demo");
             window.GetVisualDescendants().OfType<TextBox>().Single(t => t.Classes.Contains("title")).Text = "dirty";
             RowButton(rows[1], "Open").RaiseEvent(new RoutedEventArgs(Avalonia.Controls.Button.ClickEvent));
             var dialog = Assert.Single(window.OwnedWindows); Assert.Equal("Discard unsaved changes?", dialog.Title);
@@ -103,8 +104,8 @@ public sealed class RecentTests
         try
         {
             var rows = Rows(window); Assert.Equal(2, rows.Length);
-            var missing = rows.Single(r => r.Children.OfType<TextBlock>().Any(t => t.Text == "Second project"));
-            Assert.Contains(missing.Children.OfType<TextBlock>(), t => (t.Text ?? "").StartsWith("MISSING · "));
+            var missing = rows.Single(r => Texts(r).Any(t => t.Text == "Second project"));
+            Assert.Contains(Texts(missing), t => (t.Text ?? "").StartsWith("MISSING · "));
             Assert.False(RowButton(missing, "Open").IsEnabled);
             RowButton(missing, "Forget").RaiseEvent(new RoutedEventArgs(Avalonia.Controls.Button.ClickEvent));
             Assert.Single(Rows(window));

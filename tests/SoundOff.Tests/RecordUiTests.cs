@@ -122,6 +122,45 @@ public sealed class RecordUiTests
         Assert.Empty(Directory.GetFiles(Path.Combine(store.MediaDirectory, "recordings")));
     }
 
+    // One recorder, in one of two places: on the start screen before there is a project, folded into the Audio
+    // card once the project has audio. A running take is announced in the top bar wherever the recorder is.
+    [AvaloniaFact] public async Task The_recorder_moves_from_the_start_screen_to_the_audio_card_and_a_take_shows_in_the_top_bar()
+    {
+        using var folder = new TestDirectory();
+        var engine = new FakeCaptureEngine { SourceClip = Clip };
+        var window = new MainWindow(new Picker(folder.Project), folder.Settings, null, null, new FakePlaybackEngine(), engine); window.Show();
+        try
+        {
+            var panel = window.FindControl<Control>("RecordPanel")!;
+            Assert.Same(window.FindControl<ContentControl>("StartRecordHost"), panel.Parent);
+            Assert.False(window.FindControl<Control>("RecordingPill")!.IsVisible);
+            Assert.False(window.FindControl<Control>("EditTools")!.IsVisible);
+
+            Click(window, "RecordButton"); await Idle(window);
+            Assert.Same(window.FindControl<ContentControl>("CardRecordHost"), panel.Parent);
+            Assert.True(window.FindControl<Control>("CardRecordHost")!.IsVisible);   // open while a take runs
+            engine.Capture(2_000_000); Dispatcher.UIThread.RunJobs();
+            Assert.True(window.FindControl<Control>("RecordingPill")!.IsVisible);
+            Assert.Equal("0:02", window.FindControl<TextBlock>("RecordingPillText")!.Text);
+
+            Click(window, "RecordingPillStop"); await Idle(window);
+            Assert.False(window.FindControl<Control>("RecordingPill")!.IsVisible);
+            // The project has audio now, so the recorder folds away behind "Record a new take".
+            var toggle = window.FindControl<Avalonia.Controls.Primitives.ToggleButton>("NewTakeToggle")!;
+            Assert.True(toggle.IsVisible);
+            Assert.False(window.FindControl<Control>("CardRecordHost")!.IsVisible);
+            toggle.IsChecked = true;
+            Assert.True(window.FindControl<Control>("CardRecordHost")!.IsVisible);
+            Assert.True(window.FindControl<Control>("MediaRow")!.IsVisible);
+            // No transcript yet: the next step is offered in the middle of the window, and Find/Export are not.
+            Assert.True(window.FindControl<Control>("EmptyTranscript")!.IsVisible);
+            Assert.True(window.FindControl<Control>("EmptyTranscribeButton")!.IsVisible);
+            Assert.False(window.FindControl<Control>("FindToggle")!.IsVisible);
+            Assert.False(window.FindControl<Control>("ExportMenuButton")!.IsVisible);
+        }
+        finally { window.Close(); }
+    }
+
     [AvaloniaFact] public async Task An_empty_take_adds_nothing_and_an_interrupted_one_keeps_what_was_captured()
     {
         using var folder = new TestDirectory();
@@ -133,7 +172,8 @@ public sealed class RecordUiTests
             File.WriteAllBytes(Path.Combine(Directory.GetDirectories(Path.Combine(folder.Root, "Test project.soundoff.media"), "recordings")[0], "placeholder"), []);
             Click(window, "StopRecordButton"); await Idle(window);   // nothing captured
             Assert.Contains("Nothing was captured", Record(window));
-            Assert.Equal("No audio yet", Media(window));   // the window owns the project, so ask it, not the file
+            Assert.Equal("", Media(window));   // the window owns the project, so ask it, not the file
+            Assert.False(window.FindControl<Control>("MediaRow")!.IsVisible);
 
             Click(window, "RecordButton"); await Idle(window);
             engine.Capture(2_000_000);

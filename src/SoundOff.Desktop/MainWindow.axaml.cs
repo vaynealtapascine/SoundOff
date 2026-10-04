@@ -36,7 +36,7 @@ public sealed partial class MainWindow : Window
     private readonly CancellationTokenSource lifetime = new();
     private bool dirty, busy, rendering, allowClose, confirmingClose;
     private readonly StackPanel documentHost, speakerHost;
-    private readonly Control startScreen, speakersCard, historyCard;
+    private readonly Control startScreen, speakersCard, historyCard, editTools, exportMenu, panelDivider, dirtyDot;
     private readonly TextBlock status, path;
     private readonly TextBox titleInput;
     private readonly Button save, undo, redo, discard, startImport, startOpen, startDemo;
@@ -62,6 +62,8 @@ public sealed partial class MainWindow : Window
         startScreen = this.FindControl<Control>("StartScreen")!;
         speakersCard = this.FindControl<Control>("SpeakersCard")!; historyCard = this.FindControl<Control>("HistoryCard")!;
         status = this.FindControl<TextBlock>("StatusText")!; path = this.FindControl<TextBlock>("PathText")!;
+        editTools = this.FindControl<Control>("EditTools")!; exportMenu = this.FindControl<Control>("ExportMenuButton")!;
+        panelDivider = this.FindControl<Control>("PanelDivider")!; dirtyDot = this.FindControl<Control>("DirtyDot")!;
         titleInput = this.FindControl<TextBox>("TitleInput")!;
         titleInput.PropertyChanged += OnDraftChanged;
         demo = this.FindControl<MenuItem>("DemoItem")!; open = this.FindControl<MenuItem>("OpenProjectItem")!;
@@ -365,7 +367,6 @@ public sealed partial class MainWindow : Window
         // The page has a surface of its own now, so an empty one would sit behind the start screen as a bar.
         // Its paper is taken away rather than the scroller hidden: an unmeasured ScrollViewer never builds its
         // content, and the transcript's controls have to exist for the window to be driven at all.
-        documentPage.Classes.Set("blank", store is null);
         historyCard.IsVisible = store is not null;
         speakersCard.IsVisible = snapshot is not null && snapshot.Provenance != Provenance.Empty;
         Title = store is null || snapshot is null ? "SoundOff" : $"{snapshot.Title} — SoundOff";
@@ -373,15 +374,10 @@ public sealed partial class MainWindow : Window
         // reset here rather than rebuilt, and `rendering` keeps that from reading as an edit.
         titleInput.Text = snapshot?.Title ?? "";
         titleInput.IsVisible = snapshot is not null && snapshot.Provenance != Provenance.Empty;
-        if (store is not null && (snapshot is null || snapshot.Provenance == Provenance.Empty))
-        {
-            var message = new StackPanel { Spacing = 8, Margin = new Thickness(0, 48, 0, 0), HorizontalAlignment = HorizontalAlignment.Center };
-            message.Children.Add(new TextBlock { Text = "No transcript yet", FontSize = 22, FontWeight = FontWeight.SemiBold, HorizontalAlignment = HorizontalAlignment.Center });
-            var hint = store.MediaAssets().Count > 0 ? "Choose Transcribe to create one from the recording." : "Import or record audio to get started.";
-            message.Children.Add(new TextBlock { Text = hint, Classes = { "muted" }, FontSize = 14, HorizontalAlignment = HorizontalAlignment.Center });
-            documentHost.Children.Add(message);
-        }
-        else if (snapshot is not null && snapshot.Provenance != Provenance.Empty)
+        // An empty project offers its next step in the middle of the window (see RenderEmptyState); the page
+        // itself stays blank rather than repeating it.
+        documentPage.Classes.Set("blank", store is null || snapshot is null || snapshot.Provenance == Provenance.Empty);
+        if (snapshot is not null && snapshot.Provenance != Provenance.Empty)
         {
             var badge = ProvenanceBadge(snapshot.Provenance);
             documentHost.Children.Add(badge); documentLead.Add((badge, new Thickness(0, 0, 0, 14)));
@@ -436,8 +432,10 @@ public sealed partial class MainWindow : Window
                 var gutter = new Button { Classes = { "gutter" }, IsEnabled = block.Timing is not null };
                 AutomationProperties.SetName(gutter, $"Move the playhead to paragraph {ordinal}");
                 ToolTip.SetShowOnDisabled(gutter, true);
-                ToolTip.SetTip(gutter, block.Timing is null ? "This paragraph has no timing." : "Move the playhead here");
+                ToolTip.SetTip(gutter, block.Timing is null ? "This paragraph has no timing." : "Move the playhead here · double-click to play from here");
                 gutter.Click += (_, _) => SeekToBlock(id);
+                // A single click only moves; a double-click is the deliberate "play from here".
+                gutter.AddHandler(Gestures.DoubleTappedEvent, (_, _) => PlayFromBlock(id), RoutingStrategies.Bubble, handledEventsToo: true);
                 blockGutters.Add(id, gutter); Grid.SetRow(gutter, 1); grid.Children.Add(gutter);
 
                 var startBox = new TextBox { Text = TimingText(block.Timing, true), Watermark = "Start", IsUndoEnabled = false };
@@ -478,7 +476,7 @@ public sealed partial class MainWindow : Window
                 var speakerLabel = new TextBlock { Classes = { "speaker" }, Text = name, VerticalAlignment = VerticalAlignment.Center };
                 blockSpeakerLabels.Add(id, speakerLabel);
                 var cueDot = SpeakerDot(0);
-                var cue = new StackPanel { Orientation = Orientation.Horizontal, IsVisible = false, Margin = new Thickness(7, 12, 0, 2) };
+                var cue = new StackPanel { Orientation = Orientation.Horizontal, IsVisible = false, Margin = new Thickness(7, 22, 0, 6) };
                 cue.Children.Add(cueDot); cue.Children.Add(speakerLabel);
                 blockSpeakerCues.Add(id, cue); blockSpeakerDots.Add(id, [cueDot, rowDot]);
                 Grid.SetColumn(cue, 5); grid.Children.Add(cue);
@@ -542,6 +540,8 @@ public sealed partial class MainWindow : Window
             documentHost.Children.Add(add); documentLead.Add((add, new Thickness(-11, 14, 0, 0)));
         }
         ApplyDocumentView();
+        ApplySidebar(persist: false);
+        RefreshWaveformRegions();
         rendering = false; RenderHistory(); RenderTranscribe(); RefreshPlaybackHighlight(force: true); UpdateControls();
     }
 
@@ -634,8 +634,14 @@ public sealed partial class MainWindow : Window
         ToolTip.SetTip(srt, timed ? null : "Every paragraph needs timing first.");
         findNext.IsEnabled = replaceOne.IsEnabled = replaceAll.IsEnabled = !busy && snapshot is not null && snapshot.Blocks.Length != 0;
         documentHost.IsEnabled = speakerHost.IsEnabled = historyHost.IsEnabled = !busy;
+        // The top bar only offers what can be done to what is open.
+        var hasTranscript = snapshot is not null && snapshot.Provenance != Provenance.Empty;
+        editTools.IsVisible = store is not null;
+        findToggle.IsVisible = exportMenu.IsVisible = hasTranscript;
+        panelDivider.IsVisible = sidebarToggle.IsVisible = store is not null;
+        dirtyDot.IsVisible = dirty;
         recentHost.IsEnabled = !busy && !JobRunning && !Recording;
-        UpdateTranscribeControls(); RefreshRecording(); RefreshStateDot();
+        UpdateTranscribeControls(); PlaceRecorder(); RefreshRecording(); RefreshStateDot();
     }
 
     private async Task<bool> ConfirmAsync(string title, string message, string affirmative)

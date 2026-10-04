@@ -138,13 +138,43 @@ public sealed class WaveformOverview : Control
 
     public void SetPeaks(float[]? values) { peaks = values; InvalidateVisual(); }
 
+    // The transcript laid over the sound: one band per timed paragraph, tinted with its speaker's colour, so the
+    // strip reads as a timeline of who spoke when rather than as an anonymous envelope.
+    public readonly record struct Region(long Start, long End, IBrush Colour);
+    private IReadOnlyList<Region> regions = [];
+    private int activeRegion = -1;
+    public IReadOnlyList<Region> Regions => regions;
+    public void SetRegions(IReadOnlyList<Region> values) { regions = values; activeRegion = -1; InvalidateVisual(); }
+    public int ActiveRegion
+    {
+        get => activeRegion;
+        set { if (activeRegion == value) return; activeRegion = value; InvalidateVisual(); }
+    }
+    // Off by default so the drawing is exactly the envelope unless the host asks for a timeline.
+    public bool ShowRuler { get; set; }
+    private const double RulerHeight = 16;
+    private double? hoverX;
+    public event EventHandler<long>? PlayRequested;
+
     protected override void OnPointerWheelChanged(PointerWheelEventArgs e)
     {
         base.OnPointerWheelChanged(e);
         if (duration <= 0 || peaks is null) return;
+        // A sideways swipe, or Shift with the wheel, slides the view along the recording; the plain wheel zooms.
+        var sideways = Math.Abs(e.Delta.X) > Math.Abs(e.Delta.Y) ? e.Delta.X : e.KeyModifiers.HasFlag(KeyModifiers.Shift) ? e.Delta.Y : 0;
+        if (sideways != 0) { Pan(-sideways * 0.15); e.Handled = true; return; }
         var fraction = Math.Clamp(e.GetPosition(this).X / Math.Max(1, Bounds.Width), 0, 1);
         Zoom(Math.Pow(1 / 1.5, e.Delta.Y), fraction);   // wheel up (Y > 0) zooms in under the cursor
         e.Handled = true;
+    }
+
+    // Moves the visible span by a fraction of itself. Only meaningful when zoomed in; the playhead stays put.
+    public void Pan(double fraction)
+    {
+        if (duration <= 0 || windowMicros == 0 || !double.IsFinite(fraction)) return;
+        var span = Window;
+        viewStart = Math.Clamp(viewStart + (long)(fraction * span), 0, Math.Max(0, duration - span));
+        InvalidateVisual();
     }
 
     // factor > 1 widens (zoom out), < 1 narrows (zoom in). The point of the waveform under
@@ -185,20 +215,22 @@ public sealed class WaveformOverview : Control
         if (!e.GetCurrentPoint(this).Properties.IsLeftButtonPressed) return;
         dragging = true; e.Pointer.Capture(this); e.Handled = true;
         SeekTo(e);
+        // A double-click means "play from here": the first click has already moved the playhead there.
+        if (e.ClickCount == 2) PlayRequested?.Invoke(this, TimeAt(e.GetPosition(this).X));
     }
     protected override void OnPointerMoved(PointerEventArgs e)
     {
+        hoverX = e.GetPosition(this).X; InvalidateVisual();
         if (dragging) SeekTo(e);
     }
+    protected override void OnPointerExited(PointerEventArgs e) { hoverX = null; InvalidateVisual(); base.OnPointerExited(e); }
+    private long TimeAt(double x) => Math.Clamp(viewStart + (long)(Math.Clamp(x / Math.Max(1, Bounds.Width), 0, 1) * Window), 0, Math.Max(0, duration));
     protected override void OnPointerReleased(PointerReleasedEventArgs e) { dragging = false; e.Pointer.Capture(null); }
     protected override void OnPointerCaptureLost(PointerCaptureLostEventArgs e) { dragging = false; base.OnPointerCaptureLost(e); }
 
     private void SeekTo(PointerEventArgs e)
     {
-        var width = Math.Max(1, Bounds.Width);
-        var fraction = Math.Clamp(e.GetPosition(this).X / width, 0, 1);
-        var target = Math.Clamp(viewStart + (long)(fraction * Window), 0, Math.Max(0, duration));
-        SeekRequested?.Invoke(this, target);
+        SeekRequested?.Invoke(this, TimeAt(e.GetPosition(this).X));
     }
 
     public override void Render(DrawingContext context)
@@ -212,6 +244,11 @@ public sealed class WaveformOverview : Control
         _ = RequestDetailAsync();
         context.FillRectangle(background, new Rect(0, 0, width, height));
         var span = Window;
+        var ruler = ShowRuler && height >= 56 ? RulerHeight : 0;
+        double X(long time) => (double)(time - viewStart) / span * width;
+        if (regions.Count > 0) DrawRegions(context, width, height, ruler, X);
+        if (ruler > 0) DrawRuler(context, width, ruler, span, idle);
+        var waveTop = ruler; var waveHeight = height - ruler;
         var ticks = peaks is { Length: > 0 } ? peaks.Length : 0;
         var columns = (int)Math.Clamp(Math.Ceiling(width * (TopLevel.GetTopLevel(this)?.RenderScaling ?? 1)), 1, 8192);
         for (var column = 0; column < columns; column++)
@@ -220,15 +257,66 @@ public sealed class WaveformOverview : Control
             var to = viewStart + (long)((double)(column + 1) / columns * span);
             var magnitude = ticks > 0 ? PeakOver(from, to, ticks) : 0f;
             var range = HasSampleDetail ? detail!.Range(from, to) : (-magnitude, magnitude);
-            var scale = Math.Max(0, height / 2 - 3);
-            var top = height / 2 - range.Item2 * scale;
-            var bottom = height / 2 - range.Item1 * scale;
+            var scale = Math.Max(0, waveHeight / 2 - 3);
+            var top = waveTop + waveHeight / 2 - range.Item2 * scale;
+            var bottom = waveTop + waveHeight / 2 - range.Item1 * scale;
             var x = column * width / columns;
             context.FillRectangle(from < position ? played : idle,
                 new Rect(x, top, width / columns, Math.Max(0.75, bottom - top)));
         }
-        var headX = (double)(position - viewStart) / span * width;
+        if (hoverX is { } hover && hover >= 0 && hover <= width && !dragging)
+        {
+            context.FillRectangle(idle, new Rect(hover, ruler, 1, height - ruler));
+            var label = Text(Format(TimeAt(hover), span), 11, head);
+            var left = Math.Clamp(hover + 5, 2, Math.Max(2, width - label.Width - 4));
+            context.FillRectangle(background, new Rect(left - 3, ruler + 2, label.Width + 6, label.Height + 2), 3);
+            context.DrawText(label, new Point(left, ruler + 3));
+        }
+        var headX = X(position);
         if (headX >= 0 && headX <= width) context.FillRectangle(head, new Rect(headX - 0.5, 0, 1.5, height));
+    }
+
+    private void DrawRegions(DrawingContext context, double width, double height, double ruler, Func<long, double> x)
+    {
+        for (var i = 0; i < regions.Count; i++)
+        {
+            var region = regions[i];
+            var left = Math.Max(0, x(region.Start)); var right = Math.Min(width, x(region.End));
+            if (right <= 0 || left >= width || right - left < 0.5) continue;
+            var colour = (region.Colour as ISolidColorBrush)?.Color ?? Colors.Gray;
+            var active = i == activeRegion;
+            // A faint wash over the paragraph's span, a solid edge where it starts, and a speaker-coloured cap.
+            context.FillRectangle(new SolidColorBrush(colour, active ? 0.16 : 0.06), new Rect(left, ruler, right - left, height - ruler));
+            context.FillRectangle(new SolidColorBrush(colour, 0.9), new Rect(left, ruler, right - left, 3));
+            if (x(region.Start) >= 0) context.FillRectangle(new SolidColorBrush(colour, 0.6), new Rect(left, ruler, 1, height - ruler));
+        }
+    }
+
+    // Steps that read as a clock does: never closer than about 80 px, always a round number.
+    private static readonly double[] RulerSteps = [0.1, 0.25, 0.5, 1, 2, 5, 10, 15, 30, 60, 120, 300, 600, 900, 1800, 3600];
+    private void DrawRuler(DrawingContext context, double width, double ruler, long span, IBrush ink)
+    {
+        var seconds = span / 1_000_000.0;
+        var step = RulerSteps.FirstOrDefault(s => s / seconds * width >= 80, RulerSteps[^1]);
+        var stepMicros = (long)(step * 1_000_000);
+        var first = (viewStart + stepMicros - 1) / stepMicros * stepMicros;
+        for (var t = first; t <= viewStart + span; t += stepMicros)
+        {
+            var px = (double)(t - viewStart) / span * width;
+            context.FillRectangle(ink, new Rect(px, ruler - 5, 1, 5));
+            var label = Text(Format(t, span), 10, ink);
+            if (px + 3 + label.Width < width) context.DrawText(label, new Point(px + 3, 1));
+        }
+    }
+
+    private static FormattedText Text(string text, double size, IBrush brush) =>
+        new(text, System.Globalization.CultureInfo.InvariantCulture, FlowDirection.LeftToRight, new Typeface("Segoe UI"), size, brush);
+    // Tenths only when the span is short enough for them to mean something.
+    private static string Format(long micros, long span)
+    {
+        var t = TimeSpan.FromTicks(Math.Max(0, micros) * 10);
+        var clock = t.TotalHours >= 1 ? $"{(int)t.TotalHours}:{t.Minutes:00}:{t.Seconds:00}" : $"{t.Minutes}:{t.Seconds:00}";
+        return span <= 20_000_000 ? clock + "." + (t.Milliseconds / 100) : clock;
     }
 
     // Highest peak bucket overlapping [from, to); regions with no analysis read as silence, which is what they are here.

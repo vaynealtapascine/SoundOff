@@ -37,7 +37,8 @@ public sealed partial class MainWindow
     // Everything a transcript pass needs without leaving the keys: Ctrl+S save, Ctrl+Z/Ctrl+Y undo and redo,
     // Ctrl+F find, F3 find next, Esc close find, Ctrl+B side panel, Ctrl+1/Ctrl+2 the two views, F1 help,
     // Ctrl+Space play/pause, Alt+Left/Alt+Right mark this paragraph's start and end at the playhead the way a
-    // subtitle editor does, F8/F9 five seconds either way, Ctrl+Enter split where the caret is. Paragraph controls have their own undo disabled,
+    // subtitle editor does, Alt+Up/Alt+Down previous and next paragraph, F8/F9 five seconds either way,
+    // Ctrl+Enter split where the caret is. Paragraph controls have their own undo disabled,
     // so Ctrl+Z never silently discards typed text: while a draft exists undo/redo do nothing.
     private void OnShortcut(object? sender, KeyEventArgs e)
     {
@@ -51,6 +52,7 @@ public sealed partial class MainWindow
         if (control && e.Key is Key.D1 or Key.D2) { SelectView(e.Key == Key.D1); e.Handled = true; return; }
         if (control && e.Key == Key.Space) { if (playPause.IsEnabled) TogglePlay(); e.Handled = true; return; }
         if (alt && e.Key is Key.Left or Key.Right) { MarkTiming(e.Key == Key.Left); e.Handled = true; return; }
+        if (alt && e.Key is Key.Up or Key.Down) { StepParagraph(e.Key == Key.Down ? 1 : -1); e.Handled = true; return; }
         if (none && e.Key == Key.F8) { if (skipBack.IsEnabled) Skip(-SkipMicroseconds); e.Handled = true; return; }
         if (none && e.Key == Key.F9) { if (skipForward.IsEnabled) Skip(SkipMicroseconds); e.Handled = true; return; }
         if (control && e.Key == Key.Enter) { SplitAtCaret(); e.Handled = true; return; }
@@ -84,6 +86,22 @@ public sealed partial class MainWindow
         RevealSection(id);
         var ordinal = sections.TryGetValue(id, out var section) ? section.Ordinal : 0;
         status.Text = $"Paragraph {ordinal} {(start ? "start" : "end")} marked at {Clock(position)} · not saved yet";
+    }
+
+    // Alt+Up and Alt+Down walk the transcript a paragraph at a time: the caret goes to the start of the next one
+    // and, if it is timed, the playhead goes with it, the same pairing a click in the text makes.
+    internal void StepParagraph(int direction)
+    {
+        if (busy || snapshot is null || snapshot.Blocks.Length == 0) return;
+        var current = CurrentBlockId();
+        var index = current is { } id ? snapshot.Blocks.IndexOf(snapshot.Blocks.First(b => b.Id == id)) : -1;
+        var next = Math.Clamp(index < 0 ? (direction > 0 ? 0 : snapshot.Blocks.Length - 1) : index + direction, 0, snapshot.Blocks.Length - 1);
+        var target = snapshot.Blocks[next].Id;
+        RevealSection(target);
+        if (!blockInputs.TryGetValue(target, out var box)) return;
+        box.Focus(); box.CaretIndex = 0; box.SelectionStart = box.SelectionEnd = 0;
+        if (blockCards.TryGetValue(target, out var card)) card.BringIntoView();
+        if (snapshot.Blocks[next].Timing is not null) SeekToBlock(target);
     }
 
     private void SplitAtCaret()

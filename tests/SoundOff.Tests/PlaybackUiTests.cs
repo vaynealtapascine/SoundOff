@@ -343,4 +343,56 @@ public sealed class PlaybackUiTests
         }
         finally { Discard(window); window.Close(); }
     }
+
+    // The waveform is a timeline of the transcript: a band per timed paragraph, the spoken one lit, and a
+    // sideways scroll that slides the view without touching the playhead.
+    [AvaloniaFact] public async Task Waveform_shows_a_band_per_timed_paragraph_and_slides_without_seeking()
+    {
+        using var folder = new TestDirectory();
+        var (window, engine) = await OpenAsync(folder);
+        try
+        {
+            var wave = window.FindControl<WaveformOverview>("Waveform")!;
+            Assert.Equal([1_000_000L, 4_500_000L], wave.Regions.Select(r => r.Start).ToArray());   // the untimed one has no band
+            Assert.Equal(-1, wave.ActiveRegion);
+            engine.Seek(6_000_000);
+            Assert.Equal(1, wave.ActiveRegion);
+
+            UiDriver.Click(window, "ZoomInButton"); UiDriver.Click(window, "ZoomInButton");
+            var start = wave.ViewStartMicroseconds;
+            var pointer = new Pointer(3, PointerType.Mouse, true);
+            var swipe = new PointerWheelEventArgs(wave, pointer, wave, new Avalonia.Point(10, 10), 0,
+                new PointerPointProperties(), KeyModifiers.Shift, new Avalonia.Vector(0, -1));
+            wave.RaiseEvent(swipe);
+            Assert.True(swipe.Handled);
+            Assert.True(wave.ViewStartMicroseconds > start);
+            Assert.Equal(6_000_000, engine.PositionMicroseconds);
+            Assert.NotEqual(PlaybackStatus.Playing, engine.Status);
+        }
+        finally { window.Close(); }
+    }
+
+    // Alt+Up and Alt+Down walk the transcript a paragraph at a time, taking the playhead along when there is a
+    // time to take it to, and never starting playback.
+    [AvaloniaFact] public async Task Alt_up_and_down_step_between_paragraphs_and_move_the_playhead()
+    {
+        using var folder = new TestDirectory();
+        var (window, engine) = await OpenAsync(folder);
+        try
+        {
+            var blocks = Blocks(window);
+            window.StepParagraph(1);
+            Assert.Equal(1_000_000, engine.PositionMicroseconds);
+            window.StepParagraph(1);
+            Assert.Equal(4_500_000, engine.PositionMicroseconds);
+            window.StepParagraph(1);   // untimed: the caret moves, the playhead stays
+            Assert.Equal(4_500_000, engine.PositionMicroseconds);
+            window.StepParagraph(1);   // already at the end
+            window.StepParagraph(-1); window.StepParagraph(-1);
+            Assert.Equal(1_000_000, engine.PositionMicroseconds);
+            Assert.NotEqual(PlaybackStatus.Playing, engine.Status);
+            Assert.Equal(3, blocks.Length);
+        }
+        finally { window.Close(); }
+    }
 }

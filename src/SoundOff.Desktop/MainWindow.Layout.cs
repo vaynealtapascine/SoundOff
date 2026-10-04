@@ -64,7 +64,8 @@ public sealed partial class MainWindow
     // window, which is the width that matters while reading and correcting. Both the choice and the width persist.
     private void ApplySidebar(bool persist)
     {
-        var show = sidebarToggle.IsChecked == true;
+        // The start screen carries its own recorder, so with no project there is nothing for the panel to hold.
+        var show = sidebarToggle.IsChecked == true && store is not null;
         var column = workArea.ColumnDefinitions[2];
         sidebar.IsVisible = show;
         sidebarSplitter.IsVisible = show;

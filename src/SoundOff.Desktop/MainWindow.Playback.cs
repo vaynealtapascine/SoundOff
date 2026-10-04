@@ -164,6 +164,13 @@ public sealed partial class MainWindow
         if (availability == SeekAvailability.Untimed) { SetPlaybackText("That paragraph has no timing."); return; }
         SetPlaybackText(""); followSuspended = false; playback.Seek(target); RefreshPlaybackHighlight(force: true);
     }
+    private void PlayFromBlock(Guid blockId)
+    {
+        if (Recording || playback.DurationMicroseconds <= 0) return;
+        SeekToBlock(blockId);
+        if (playback.Status != PlaybackStatus.Playing) playback.Play();
+        RefreshPlaybackHighlight(force: true);
+    }
     private void SeekToWord(Guid blockId, int wordIndex)
     {
         if (snapshot?.Blocks.FirstOrDefault(b => b.Id == blockId) is not { } block) return;
@@ -212,6 +219,7 @@ public sealed partial class MainWindow
         if (!force && spans.SequenceEqual(activeSpans)) return;
         activeSpans = spans;
         foreach (var (id, card) in blockCards) card.Classes.Set("playing", spans.Any(s => s.BlockId == id));
+        if (waveform is not null) waveform.ActiveRegion = spans.Count > 0 ? regionBlocks.IndexOf(spans[0].BlockId) : -1;
         RenderWordRibbon(spans);
         RenderInlineHighlight(spans);
         if (playing && !followSuspended && followButton.IsChecked == true && spans.Count > 0 && blockCards.TryGetValue(spans[0].BlockId, out var active))

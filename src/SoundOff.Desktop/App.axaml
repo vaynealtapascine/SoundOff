@@ -18,6 +18,8 @@
           <Color x:Key="BorderColor">#DDDFDD</Color>
           <Color x:Key="SuccessColor">#2F7D4F</Color>
           <Color x:Key="DangerColor">#B3382C</Color>
+          <Color x:Key="RecordColor">#D93A2B</Color>
+          <Color x:Key="RecordSoftColor">#FBE7E4</Color>
 
           <Color x:Key="PrimaryForegroundColor">#FFFFFF</Color>
           <Color x:Key="PrimaryPressedColor">#084A52</Color>
@@ -67,6 +69,8 @@
           <SolidColorBrush x:Key="WordActiveBrush" Color="{StaticResource WordActiveColor}" />
           <SolidColorBrush x:Key="LineActiveBrush" Color="{StaticResource LineActiveColor}" />
           <SolidColorBrush x:Key="RowSelectedBrush" Color="{StaticResource RowSelectedColor}" />
+          <SolidColorBrush x:Key="RecordBrush" Color="{StaticResource RecordColor}" />
+          <SolidColorBrush x:Key="RecordSoftBrush" Color="{StaticResource RecordSoftColor}" />
         </ResourceDictionary>
 
         <ResourceDictionary x:Key="Dark">
@@ -81,6 +85,8 @@
           <Color x:Key="BorderColor">#363D38</Color>
           <Color x:Key="SuccessColor">#6BBF8A</Color>
           <Color x:Key="DangerColor">#EE7E6D</Color>
+          <Color x:Key="RecordColor">#F0503F</Color>
+          <Color x:Key="RecordSoftColor">#3A1E1B</Color>
 
           <Color x:Key="PrimaryForegroundColor">#0B1015</Color>
           <Color x:Key="PrimaryPressedColor">#15848C</Color>
@@ -130,6 +136,8 @@
           <SolidColorBrush x:Key="WordActiveBrush" Color="{StaticResource WordActiveColor}" />
           <SolidColorBrush x:Key="LineActiveBrush" Color="{StaticResource LineActiveColor}" />
           <SolidColorBrush x:Key="RowSelectedBrush" Color="{StaticResource RowSelectedColor}" />
+          <SolidColorBrush x:Key="RecordBrush" Color="{StaticResource RecordColor}" />
+          <SolidColorBrush x:Key="RecordSoftBrush" Color="{StaticResource RecordSoftColor}" />
         </ResourceDictionary>
       </ResourceDictionary.ThemeDictionaries>
 
@@ -179,10 +187,8 @@
     </Style>
     <!-- The speaker's name over a run of paragraphs in Document view: a script cue, not a form field. -->
     <Style Selector="TextBlock.speaker">
-      <Setter Property="FontSize" Value="12" /><Setter Property="FontWeight" Value="SemiBold" />
-      <Setter Property="LetterSpacing" Value="0.5" />
-      <Setter Property="Margin" Value="0,14,0,2" />
-      <Setter Property="Foreground" Value="{DynamicResource MutedBrush}" />
+      <Setter Property="FontSize" Value="13.5" /><Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="Foreground" Value="{DynamicResource TextBrush}" />
     </Style>
 
     <!-- ===================================================================
@@ -571,6 +577,113 @@
       <Setter Property="Background" Value="{DynamicResource PrimaryBrush}" />
     </Style>
 
+
+    <!-- ===================================================================
+         Start screen, empty states, recording and drop target
+         =================================================================== -->
+    <Style Selector="Border.tile">
+      <Setter Property="CornerRadius" Value="{StaticResource RadiusLg}" />
+      <Setter Property="Padding" Value="22" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="BorderBrush" Value="{DynamicResource EdgeBrush}" />
+      <Setter Property="Background" Value="{DynamicResource SurfaceBrush}" />
+    </Style>
+    <!-- The file tile is also a drop target, so it is drawn as one. -->
+    <Style Selector="Border.tileicon">
+      <Setter Property="Width" Value="40" /><Setter Property="Height" Value="40" />
+      <Setter Property="CornerRadius" Value="11" />
+      <Setter Property="HorizontalAlignment" Value="Left" />
+      <Setter Property="Background" Value="{DynamicResource AccentSoftBrush}" />
+    </Style>
+    <Style Selector="Border.tileicon PathIcon">
+      <Setter Property="Foreground" Value="{DynamicResource PrimaryBrush}" />
+    </Style>
+    <Style Selector="Border.tileicon.rec">
+      <Setter Property="Background" Value="{DynamicResource RecordSoftBrush}" />
+    </Style>
+    <Style Selector="Border.tileicon.rec PathIcon">
+      <Setter Property="Foreground" Value="{DynamicResource RecordBrush}" />
+    </Style>
+    <Style Selector="TextBlock.tiletitle">
+      <Setter Property="FontSize" Value="16" /><Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+    <Style Selector="Border.emptystate">
+      <Setter Property="Padding" Value="32" />
+      <Setter Property="Margin" Value="24" />
+    </Style>
+    <Style Selector="Border.dropoverlay">
+      <Setter Property="Background" Value="{DynamicResource CanvasBrush}" />
+      <Setter Property="Opacity" Value="0.96" />
+      <Setter Property="Margin" Value="12" />
+      <Setter Property="CornerRadius" Value="{StaticResource RadiusLg}" />
+      <Setter Property="BorderThickness" Value="2" />
+      <Setter Property="BorderBrush" Value="{DynamicResource PrimaryBrush}" />
+    </Style>
+
+    <Style Selector="Border.mediarow">
+      <Setter Property="Padding" Value="8" />
+      <Setter Property="CornerRadius" Value="{StaticResource RadiusMd}" />
+      <Setter Property="Background" Value="{DynamicResource CanvasBrush}" />
+    </Style>
+    <Style Selector="Border.mediaicon">
+      <Setter Property="Width" Value="32" /><Setter Property="Height" Value="32" />
+      <Setter Property="CornerRadius" Value="{StaticResource RadiusSm}" />
+      <Setter Property="Background" Value="{DynamicResource AccentSoftBrush}" />
+    </Style>
+    <Style Selector="Border.mediaicon PathIcon">
+      <Setter Property="Foreground" Value="{DynamicResource PrimaryBrush}" />
+    </Style>
+
+    <!-- A heading that opens what is under it, left-aligned like the other headings in its card. -->
+    <Style Selector="ToggleButton.disclosure">
+      <Setter Property="Background" Value="Transparent" /><Setter Property="BorderBrush" Value="Transparent" />
+      <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+      <Setter Property="Padding" Value="8,6" /><Setter Property="Margin" Value="-8,0" />
+      <Setter Property="Foreground" Value="{DynamicResource MutedBrush}" />
+    </Style>
+    <Style Selector="ToggleButton.disclosure /template/ ContentPresenter#PART_ContentPresenter,
+                     ToggleButton.disclosure:checked /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="Transparent" /><Setter Property="BorderBrush" Value="Transparent" />
+      <Setter Property="TextElement.Foreground" Value="{DynamicResource MutedBrush}" />
+      <Setter Property="TextElement.FontWeight" Value="Normal" />
+    </Style>
+    <Style Selector="ToggleButton.disclosure:pointerover /template/ ContentPresenter#PART_ContentPresenter,
+                     ToggleButton.disclosure:checked:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource GhostHoverBrush}" /><Setter Property="BorderBrush" Value="Transparent" />
+      <Setter Property="TextElement.Foreground" Value="{DynamicResource TextBrush}" />
+    </Style>
+
+    <!-- Recording has its own colour, used for nothing else, so a take in progress is unmistakable. -->
+    <Style Selector="Ellipse.rec">
+      <Setter Property="Width" Value="10" /><Setter Property="Height" Value="10" />
+      <Setter Property="Fill" Value="{DynamicResource RecordBrush}" />
+    </Style>
+    <Style Selector="Button.record:disabled Ellipse.rec">
+      <Setter Property="Fill" Value="{DynamicResource MutedBrush}" />
+    </Style>
+    <Style Selector="Border.recpill">
+      <Setter Property="CornerRadius" Value="14" />
+      <Setter Property="Padding" Value="10,2,2,2" />
+      <Setter Property="Background" Value="{DynamicResource RecordSoftBrush}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="BorderBrush" Value="{DynamicResource RecordBrush}" />
+    </Style>
+    <Style Selector="Border.recpill Button">
+      <Setter Property="CornerRadius" Value="12" />
+    </Style>
+    <Style Selector="Border.recpill.paused Ellipse.rec">
+      <Setter Property="Fill" Value="{DynamicResource MutedBrush}" />
+    </Style>
+    <Style Selector="ProgressBar.level">
+      <Setter Property="Foreground" Value="{DynamicResource SuccessBrush}" />
+      <Setter Property="CornerRadius" Value="3" />
+    </Style>
+    <Style Selector="Ellipse.dirty">
+      <Setter Property="Width" Value="7" /><Setter Property="Height" Value="7" />
+      <Setter Property="Margin" Value="-2,0,4,0" />
+      <Setter Property="Fill" Value="{DynamicResource PrimaryBrush}" />
+    </Style>
+
     <!-- ===================================================================
          Icons. Filled paths on a 24x24 grid; Foreground is inherited from the
          button's content presenter so hover and disabled states come for free.
@@ -625,6 +738,15 @@
     </Style>
     <Style Selector="PathIcon.forward5">
       <Setter Property="Data" Value="M12,6 V18 L20,12 Z M4,6 V18 L12,12 Z" />
+    </Style>
+    <Style Selector="PathIcon.minus">
+      <Setter Property="Data" Value="M4.5,10.9 H19.5 V13.1 H4.5 Z" />
+    </Style>
+    <Style Selector="PathIcon.wave">
+      <Setter Property="Data" Value="M3,10.5 H5 V13.5 H3 Z M6.5,7 H8.5 V17 H6.5 Z M10,3.5 H12 V20.5 H10 Z M13.5,8 H15.5 V16 H13.5 Z M17,5.5 H19 V18.5 H17 Z M20.5,10 H22 V14 H20.5 Z" />
+    </Style>
+    <Style Selector="PathIcon.document">
+      <Setter Property="Data" Value="M6,2.5 H14.5 L19.5,7.5 V21.5 H6 Z M8,4.5 V19.5 H17.5 V8.5 H13.5 V4.5 Z M9.5,11 H16 V12.6 H9.5 Z M9.5,14.5 H16 V16.1 H9.5 Z" />
     </Style>
     <Style Selector="PathIcon.mic">
       <Setter Property="Data" Value="M12,3 A3,3 0 0,1 15,6 V11 A3,3 0 0,1 9,11 V6 A3,3 0 0,1 12,3 Z M7,11 H8.6 A3.4,3.4 0 0,0 15.4,11 H17 A5,5 0 0,1 12.8,15.9 V19 H15 V20.6 H9 V19 H11.2 V15.9 A5,5 0 0,1 7,11 Z" />
@@ -733,7 +855,7 @@
       <Setter Property="FontSize" Value="11" />
       <Setter Property="FontFamily" Value="{StaticResource ClockFont}" />
       <Setter Property="Foreground" Value="{DynamicResource MutedBrush}" />
-      <Setter Property="Opacity" Value="0.55" />
+      <Setter Property="Opacity" Value="0.8" />
       <Setter Property="CornerRadius" Value="{StaticResource RadiusSm}" />
       <Setter Property="HorizontalAlignment" Value="Right" />
       <Setter Property="VerticalAlignment" Value="Top" />
@@ -804,6 +926,9 @@
     <!-- The reading highlight behind the words being spoken. -->
     <Style Selector="controls|WordHighlight">
       <Setter Property="Fill" Value="{DynamicResource WordActiveBrush}" />
+    </Style>
+    <Style Selector="Border.recentrow">
+      <Setter Property="Padding" Value="12,9" />
     </Style>
 
     <!-- Paragraph actions are within reach in both views but never in the way: they surface on hover. -->

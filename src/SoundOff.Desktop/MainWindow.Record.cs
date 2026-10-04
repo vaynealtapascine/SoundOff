@@ -1,4 +1,5 @@
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using SoundOff.Core;
 
 namespace SoundOff.Desktop;
@@ -12,7 +13,11 @@ public sealed partial class MainWindow
     private StackPanel captureRenderPanel = null!;
     private Button recordButton = null!, pauseRecordButton = null!, stopRecordButton = null!;
     private ProgressBar levelMeter = null!;
-    private TextBlock recordText = null!;
+    private TextBlock recordText = null!, recordButtonText = null!, pillText = null!;
+    private Control recordPanel = null!, recordingPill = null!;
+    private ContentControl startRecordHost = null!, cardRecordHost = null!;
+    private ToggleButton newTakeToggle = null!;
+    private PathIcon newTakeChevron = null!;
     private RecordingResult? pendingTake;
     private IReadOnlyList<CaptureDevice> captureDevices = [];
     private IReadOnlyList<CaptureDevice> renderDevices = [];
@@ -29,7 +34,13 @@ public sealed partial class MainWindow
         captureRenderPanel = this.FindControl<StackPanel>("CaptureRenderPanel")!;
         recordButton = this.FindControl<Button>("RecordButton")!; pauseRecordButton = this.FindControl<Button>("PauseRecordButton")!;
         stopRecordButton = this.FindControl<Button>("StopRecordButton")!; levelMeter = this.FindControl<ProgressBar>("LevelMeter")!;
-        recordText = this.FindControl<TextBlock>("RecordText")!;
+        recordText = this.FindControl<TextBlock>("RecordText")!; recordButtonText = this.FindControl<TextBlock>("RecordButtonText")!;
+        recordPanel = this.FindControl<Control>("RecordPanel")!; recordingPill = this.FindControl<Control>("RecordingPill")!;
+        pillText = this.FindControl<TextBlock>("RecordingPillText")!;
+        startRecordHost = this.FindControl<ContentControl>("StartRecordHost")!; cardRecordHost = this.FindControl<ContentControl>("CardRecordHost")!;
+        newTakeToggle = this.FindControl<ToggleButton>("NewTakeToggle")!; newTakeChevron = this.FindControl<PathIcon>("NewTakeChevron")!;
+        newTakeToggle.IsCheckedChanged += (_, _) => PlaceRecorder();
+        this.FindControl<Button>("RecordingPillStop")!.Click += async (_, _) => await GuardAsync(StopRecordingAsync);
         captureModeChoice.SelectionChanged += (_, _) => RefreshCaptureDevices();
         capture.Changed += (_, _) => Avalonia.Threading.Dispatcher.UIThread.Post(() => { if (!lifetime.IsCancellationRequested) UpdateControls(); });
         recordButton.Click += async (_, _) => await GuardAsync(StartRecordingAsync);
@@ -153,7 +164,11 @@ public sealed partial class MainWindow
         var state = capture.State;
         var running = state is RecordingState.Recording or RecordingState.Paused;
         recordButton.IsEnabled = !busy && !Recording && !JobRunning && SourcesAvailable;
-        recordButton.Content = running ? "Recording…" : "Record";
+        recordButtonText.Text = running ? "Recording…" : "Record";
+        // Wherever the recorder happens to be, a running take is announced in the top bar with its clock and Stop.
+        recordingPill.IsVisible = running || state == RecordingState.Stopping;
+        recordingPill.Classes.Set("paused", state == RecordingState.Paused);
+        pillText.Text = (state == RecordingState.Paused ? "Paused " : "") + Clock(capture.RecordedMicroseconds);
         pauseRecordButton.IsEnabled = !busy && running;
         pauseRecordButton.Content = state == RecordingState.Paused ? "Resume" : "Pause";
         stopRecordButton.IsEnabled = !busy && Recording && state != RecordingState.Stopping;
@@ -179,6 +194,23 @@ public sealed partial class MainWindow
         try { await StopRecordingAsync(); return true; }
         catch (Exception e) { status.Text = "Close cancelled: the recording could not be saved. " + e.Message; return false; }
         finally { busy = false; UpdateControls(); }
+    }
+
+    // One recorder, in one of two places: on the start screen before there is a project, in the Audio card after.
+    // In the card it is folded away once the project has audio, unless a take is running or the user opens it.
+    private void PlaceRecorder()
+    {
+        var target = store is null ? startRecordHost : cardRecordHost;
+        if (!ReferenceEquals(recordPanel.Parent, target))
+        {
+            (recordPanel.Parent as ContentControl)?.SetCurrentValue(ContentControl.ContentProperty, null);
+            target.Content = recordPanel;
+        }
+        var hasMedia = store?.MediaAssets().Count > 0;
+        newTakeToggle.IsVisible = store is not null && hasMedia;
+        var open = store is null || !hasMedia || newTakeToggle.IsChecked == true || Recording;
+        cardRecordHost.IsVisible = store is null || open;
+        newTakeChevron.Classes.Set("collapse", open); newTakeChevron.Classes.Set("expand", !open);
     }
 
     private void DisposeRecording() => capture.Dispose();

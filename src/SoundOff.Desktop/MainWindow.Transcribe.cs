@@ -22,7 +22,11 @@ public sealed partial class MainWindow
     private StackPanel runHost = null!;
     private ProgressBar jobProgress = null!;
     private Expander runsExpander = null!;
-    private Control transcribeCard = null!;
+    private Control transcribeCard = null!, mediaRow = null!, emptyTranscript = null!, dropOverlay = null!;
+    private TextBlock mediaDetail = null!, emptyHint = null!, emptyJobText = null!;
+    private Button emptyTranscribe = null!, emptyCancel = null!, emptyImport = null!;
+    private ProgressBar emptyProgress = null!;
+    private PathIcon mediaIcon = null!;
     private CancellationTokenSource? job;
     private Task? jobTask;
     private (string RunId, Transcript Proposal)? pendingResult;
@@ -38,22 +42,35 @@ public sealed partial class MainWindow
         languageChoice = this.FindControl<ComboBox>("LanguageChoice")!; deviceChoice = this.FindControl<ComboBox>("DeviceChoice")!; runHost = this.FindControl<StackPanel>("RunHost")!;
         jobProgress = this.FindControl<ProgressBar>("JobProgressBar")!; runsExpander = this.FindControl<Expander>("RunsExpander")!;
         transcribeCard = this.FindControl<Control>("TranscribeCard")!;
+        mediaRow = this.FindControl<Control>("MediaRow")!; mediaIcon = this.FindControl<PathIcon>("MediaIcon")!; mediaDetail = this.FindControl<TextBlock>("MediaDetail")!;
+        emptyTranscript = this.FindControl<Control>("EmptyTranscript")!; emptyHint = this.FindControl<TextBlock>("EmptyHint")!;
+        emptyJobText = this.FindControl<TextBlock>("EmptyJobText")!; emptyProgress = this.FindControl<ProgressBar>("EmptyProgress")!;
+        emptyTranscribe = this.FindControl<Button>("EmptyTranscribeButton")!; emptyCancel = this.FindControl<Button>("EmptyCancelButton")!;
+        emptyImport = this.FindControl<Button>("EmptyImportButton")!; dropOverlay = this.FindControl<Control>("DropOverlay")!;
+        emptyTranscribe.Click += (_, _) => StartJob(TranscribeJobAsync);
+        emptyCancel.Click += (_, _) => { job?.Cancel(); SetJobText("Stopping…"); UpdateControls(); };
+        emptyImport.Click += async (_, _) => await GuardAsync(() => ImportMediaAsync());
         importMedia.Click += async (_, _) => await GuardAsync(() => ImportMediaAsync());
         preparePack.Click += (_, _) => StartJob(PreparePackAsync);
         transcribe.Click += (_, _) => StartJob(TranscribeJobAsync);
         cancelRun.Click += (_, _) => { job?.Cancel(); SetJobText("Stopping…"); UpdateControls(); };
         applyResult.Click += async (_, _) => await GuardAsync(ApplyPendingResultAsync);
         AddHandler(DragDrop.DragOverEvent, OnDragOver);
+        AddHandler(DragDrop.DragLeaveEvent, (_, _) => dropOverlay.IsVisible = false);
         AddHandler(DragDrop.DropEvent, OnDrop);
     }
 
+    // The whole window is the drop target, so the whole window says so while a usable file is over it.
     private void OnDragOver(object? sender, DragEventArgs e)
     {
-        e.DragEffects = DroppedMedia(e) is null ? DragDropEffects.None : DragDropEffects.Copy;
+        var usable = DroppedMedia(e) is not null;
+        e.DragEffects = usable ? DragDropEffects.Copy : DragDropEffects.None;
+        dropOverlay.IsVisible = usable;
         e.Handled = true;
     }
     private async void OnDrop(object? sender, DragEventArgs e)
     {
+        dropOverlay.IsVisible = false;
         var dropped = DroppedMedia(e);
         e.Handled = true;
         if (dropped is null) return;
@@ -71,7 +88,11 @@ public sealed partial class MainWindow
         return MediaFormats.IsRecognized(local) ? local : null;
     }
 
-    private void SetJobText(string text) { jobText.Text = text; jobText.IsVisible = text.Length > 0; }
+    private void SetJobText(string text)
+    {
+        jobText.Text = text; jobText.IsVisible = text.Length > 0;
+        emptyJobText.Text = text; emptyJobText.IsVisible = text.Length > 0;
+    }
 
     private void RenderTranscribe()
     {
@@ -84,13 +105,23 @@ public sealed partial class MainWindow
         preparePack.IsVisible = runtime.IsInstalled && !runtime.IsPackReady(PackModel);
         // Before a project exists the card only matters if setup is still needed.
         transcribeCard.IsVisible = store is not null || runtimeText.IsVisible;
-        // Transcribe is the next step only while there is no transcript yet.
-        transcribe.Classes.Set("accent", snapshot is null || snapshot.Provenance == Provenance.Empty);
+        // Transcribe is the next step only while there is no transcript yet; after that it is a do-over.
+        var empty = snapshot is null || snapshot.Provenance == Provenance.Empty;
+        // The empty state in the middle of the window owns the one accent; this is the same action, kept in reach.
+        transcribe.Classes.Set("accent", false);
+        transcribe.Content = empty ? "Transcribe" : "Transcribe again";
         var asset = store?.MediaAssets().LastOrDefault();
-        mediaText.Text = store is null ? "" : asset is null ? "No audio yet"
-            : $"{asset.OriginalName} · {(asset.DurationMicroseconds is { } d ? Clock(d) : "unknown length")}";
-        mediaText.IsVisible = mediaText.Text.Length > 0;
-        ToolTip.SetTip(mediaText, asset is null ? null : $"{asset.Bytes / 1_048_576.0:0.0} MiB · copied to {asset.RelativePath}");
+        mediaText.Text = asset?.OriginalName ?? "";
+        mediaDetail.Text = asset is null ? "" : string.Join(" · ", new[]
+        {
+            asset.DurationMicroseconds is { } d ? Clock(d) : "unknown length", $"{asset.Bytes / 1_048_576.0:0.0} MB",
+            MediaFormats.IsVideo(asset.OriginalName) ? "video" : "audio"
+        });
+        mediaRow.IsVisible = asset is not null;
+        var video = asset is not null && MediaFormats.IsVideo(asset.OriginalName);
+        mediaIcon.Classes.Set("film", video); mediaIcon.Classes.Set("wave", !video);
+        ToolTip.SetTip(mediaRow, asset is null ? null : $"Copied into the project as {asset.RelativePath}");
+        RenderEmptyState(asset is not null);
         runHost.Children.Clear();
         var runs = store?.Runs().Take(10).ToList() ?? [];
         runsExpander.IsVisible = runs.Count > 0;
@@ -109,6 +140,21 @@ public sealed partial class MainWindow
         }
     }
 
+    // The empty project's next step: import or record if there is no audio, transcribe if there is.
+    private void RenderEmptyState(bool hasMedia)
+    {
+        var show = store is not null && (snapshot is null || snapshot.Provenance == Provenance.Empty);
+        emptyTranscript.IsVisible = show;
+        if (!show) return;
+        var runtime = inference.Runtime;
+        emptyHint.Text = !hasMedia ? "Import a recording, or record one from the Audio card in the side panel."
+            : !runtime.IsInstalled ? "The transcription runtime is not installed yet. The side panel says how to set it up."
+            : !runtime.IsPackReady(PackModel) ? "The speech model has not been prepared yet. Prepare it once from the side panel; it is about 2 GB."
+            : "Transcription runs on this computer. Nothing is uploaded.";
+        emptyImport.IsVisible = !hasMedia;
+        emptyTranscribe.IsVisible = hasMedia;
+    }
+
     private void UpdateTranscribeControls()
     {
         var runtimeReady = inference.Runtime.IsInstalled; var packReady = runtimeReady && inference.Runtime.IsPackReady(PackModel);
@@ -117,6 +163,12 @@ public sealed partial class MainWindow
         transcribe.IsEnabled = !busy && !JobRunning && !Recording && packReady && store?.MediaAssets().Count > 0;
         cancelRun.IsEnabled = JobRunning && job?.IsCancellationRequested == false;
         cancelRun.IsVisible = jobProgress.IsVisible = JobRunning;
+        emptyTranscribe.IsEnabled = transcribe.IsEnabled;
+        ToolTip.SetTip(emptyTranscribe, ToolTip.GetTip(transcribe));
+        emptyTranscribe.Content = JobRunning ? "Transcribing…" : "Transcribe";
+        emptyCancel.IsVisible = emptyProgress.IsVisible = JobRunning;
+        emptyCancel.IsEnabled = cancelRun.IsEnabled;
+        emptyImport.IsEnabled = importMedia.IsEnabled;
         applyResult.IsEnabled = !busy && !JobRunning && pendingResult is not null && store is not null;
         applyResult.IsVisible = pendingResult is not null;
         languageChoice.IsEnabled = deviceChoice.IsEnabled = !JobRunning;
@@ -158,7 +210,7 @@ public sealed partial class MainWindow
     }
     private async Task RunJobAsync(Func<CancellationToken, Task> work, CancellationToken token)
     {
-        jobProgress.IsIndeterminate = true;
+        jobProgress.IsIndeterminate = emptyProgress.IsIndeterminate = true;
         try { await work(token); }
         catch (OperationCanceledException) { SetJobText("Stopped. The transcript is unchanged."); }
         catch (Exception e) { SetJobText("Failed: " + e.Message); }
@@ -187,8 +239,8 @@ public sealed partial class MainWindow
                 var remaining = TimeSpan.FromSeconds(elapsed.TotalSeconds * (1 - f) / f);
                 eta = remaining.TotalMinutes >= 1 ? $" · about {Math.Ceiling(remaining.TotalMinutes):0} min left" : " · under a minute left";
             }
-            jobProgress.IsIndeterminate = p.Fraction is null;
-            if (p.Fraction is { } value) jobProgress.Value = Math.Clamp(value, 0, 1);
+            jobProgress.IsIndeterminate = emptyProgress.IsIndeterminate = p.Fraction is null;
+            if (p.Fraction is { } value) jobProgress.Value = emptyProgress.Value = Math.Clamp(value, 0, 1);
             SetJobText($"{verb}: {Describe(p.Stage)}{eta}");
             ToolTip.SetTip(jobText, p.Message);
         }, () => jobGeneration == generation && JobRunning);
