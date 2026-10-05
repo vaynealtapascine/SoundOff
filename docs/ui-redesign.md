@@ -26,6 +26,23 @@ a draft, and it leaves the waveform zoom alone.
 - **Chrome follows the project.** Undo, Redo and Save appear with a project; Find and Export with a transcript; a
   dot beside the project's name marks unsaved changes.
 
+## Saving, speed and saying so (2026-10-05)
+
+- **Autosave.** On by default (Settings ▸ Editing). A pause of two seconds commits the draft as its own revision,
+  labelled `auto-save` and shown as **Edited, saved automatically**, so Undo still steps back a burst of typing at a
+  time. The editor is **not rebuilt** after an autosave: a text edit never adds or removes a paragraph, so the
+  controls already show what was saved, and only what saving changes — cleared timing, renamed speakers in the
+  pickers — is updated in place. Focus, caret and scroll position stay put. A draft that cannot be saved yet waits
+  and says why; nothing is discarded to make a save succeed. Every path that used to ask "Discard unsaved
+  changes?" (close, open, restore, apply a result) saves instead when autosave is on, and still asks when it is off
+  or the save fails. Ctrl+Z on fresh typing saves it and then undoes it.
+- **Speed.** A button beside the clock, a menu of 0.5×–2×, and Ctrl+Shift+, / Ctrl+Shift+. to step. It is tinted
+  whenever the speed is not as recorded, and remembered. Changing speed never moves the playhead.
+- **Notes.** A small dark pill at the bottom of the work area for things that happened (Saved, Undone, Copied,
+  Exported, Imported, Transcript ready, Recording added, a timing mark, a speed step). It is not hit-testable,
+  never takes focus, goes after 2.6 s, is a polite live region, and has no transition under reduced motion.
+  Autosave does not raise one: it happens too often to be news.
+
 ## Moving around
 
 - **The waveform is a timeline.** Each timed paragraph is a band in its speaker's colour, with a solid cap and a

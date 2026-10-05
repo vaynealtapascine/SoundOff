@@ -6,8 +6,8 @@ Local transcription editor for Windows: import or record audio and video, transc
 
 Tagged builds are on the [releases page](https://github.com/vaynealtapascine/SoundOff/releases). **Windows is
 the only platform that has been run.** The macOS and Linux downloads are built from the same source and can
-import, edit and export, but they have **no playback and no recording** — those adapters are Windows-only and
-the app says so where their controls are — and nobody has launched them. See [verification
+import, edit, export, play back and record through the same cross-platform audio engine, but nobody has launched
+them yet. Recording a microphone and the computer together is Windows-only. See [verification
 evidence](docs/VERIFICATION.md) for the exact commands, results and limits, and
 [ARCHITECTURE.md](ARCHITECTURE.md) for the full intended product and its release gates.
 
@@ -47,7 +47,7 @@ python scripts/setup_runtime.py --dir %USERPROFILE%\SoundOff\runtime
 
 ## Build and run
 
-Tested environment: Windows x64 (build 26200), .NET SDK **8.0.319**, .NET 8 runtime **8.0.31**, ffmpeg 6.0. The solution targets `net8.0`; Avalonia **11.3.20**, Microsoft.Data.Sqlite **8.0.22**, NAudio.Core/NAudio.WinMM **2.4.0** and the test dependencies are pinned in the project files and `packages.lock.json`.
+Tested environment: Windows x64 (build 26200), .NET SDK **8.0.319**, .NET 8 runtime **8.0.31**, ffmpeg 6.0. The solution targets `net8.0`; Avalonia **11.3.20**, Microsoft.Data.Sqlite **8.0.22**, NAudio.Core/NAudio.WinMM/NAudio.Wasapi **2.4.0** (WAV reading and Windows capture), SoundFlow **1.4.1** (playback; MIT, over miniaudio, MIT or Unlicense) and the test dependencies are pinned in the project files and `packages.lock.json`.
 
 ```bash
 export DOTNET_CLI_TELEMETRY_OPTOUT=1
@@ -85,7 +85,7 @@ Both appearances use hand-built paper/graphite token palettes with restrained te
 
 The word being spoken is drawn **behind the paragraph's own text box**, from that box's text layout, so the box stays the only place the text lives: highlighting never moves the caret, changes your selection, dirties the draft or creates history. Recognized words carry no character offsets, so they are matched against the box's current text in order — a paragraph edited away from its words goes quiet rather than lighting the wrong span. In Timings the active paragraph also grows a row of clickable words. Seeking never starts playback: click a word in the text, click one in that row, or click a paragraph's margin timestamp or row number. A drag that selects a range is a selection rather than a move, and a paragraph with no timing stays put instead of complaining on every click inside it. Following resumes on an explicit move, because asking to be taken somewhere is the opposite of wandering off. A word that alignment never placed falls back to its paragraph and says so, and an untimed paragraph offers no seek at all. Typing or moving around suspends follow-scrolling until you turn **Follow** on again. The transport shows a friendly `m:ss` clock; exact microseconds stay in the timing boxes.
 
-Playback has a **Windows adapter only**; elsewhere the app says so instead of pretending. Anything that is not already a PCM wave file is decoded once into a cached proxy by the same ffmpeg the worker uses, so playback and stored timing share one time base. There is **no speed control**: honest time-stretching needs an LGPL dependency whose distribution terms are a packaging decision, and a pitch-shifting resample would be a worse lie than no control.
+Playback runs on [SoundFlow](https://github.com/LSXPrime/SoundFlow) over miniaudio — WASAPI on Windows, Core Audio on macOS, PulseAudio or ALSA on Linux — from one code path. Anything that is not already a PCM or float wave file is decoded once into a cached proxy by the same ffmpeg the worker uses, so playback and stored timing share one time base. **Speed** runs from half to double (0.5×–2×) with the pitch kept, by SoundFlow's own WSOLA time-stretch: no LGPL stretcher and no chipmunk resample. The clock stays in source time at any speed, so highlighting, seeking and stored timing are unaffected. SoundFlow reports where it has *read* to, which runs up to a quarter of a second ahead of what can be heard when a device starts or below 1×; the reported position is capped by where playing started plus the time since at the current speed, so the highlight never runs ahead of the sound, and a stalled device still stops it.
 
 **Video preview:** a video import shows its picture beside the transcript when the window is wide enough for both and above it otherwise — moving it never restarts the decoder — decoded locally by ffmpeg — not a linked video library — into 640×360 BGRA frames at 10 fps, in bounded four-second windows a couple of seconds ahead of playback. Its timing is anchored to the exact first rendered sample of the same audio selection/resampling the playback proxy uses (including AAC encoder priming and edit-list offsets), not to the container's average frame rate, so picture and sound stay together on files with variable frame rate or an audio/video start offset. Hiding it stops decoding without touching audio or the transcript; resizing it never restarts the decoder or reopens the audio device. A decode problem (missing ffmpeg, a damaged file, an oversized frame) degrades to a stated reason with playback and editing unaffected. This is a synchronized preview, not a general video player: no seeking within the picture area itself and no separate volume control — all transport goes through the audio controls at the bottom.
 
@@ -144,7 +144,7 @@ python scripts/worker_cli.py hello --probe-cuda
 
 - **Per-app capture.** Needs a Windows process-loopback API this build does not use; whole-computer capture is the closest available mode, and it is not silently widened further.
 - **Speaker diarization.** The worker implements the pyannote path, but it needs a Hugging Face token from an account that accepted the model terms, so it is off and untested here. Speakers come from the engine's own labels, or are yours to assign.
-- **Playback speed**, cue editing, reprocessing comparisons, durable job queues surviving restart, word-anchored editing inside the text box, media inside portable bundles, tray and notifications, model choices beyond `small`, library search, and OS reduced-motion detection.
+- Cue editing, reprocessing comparisons, durable job queues surviving restart, word-anchored editing inside the text box, media inside portable bundles, tray and notifications, model choices beyond `small`, library search, and OS reduced-motion detection.
 - **Packaging**: no installer, no self-contained runtime, no signing or notarization, no dependency or model licence audit, no macOS or Linux validation. Everyday users cannot install this yet.
 - **Mobile.**
 

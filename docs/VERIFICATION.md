@@ -3,6 +3,42 @@
 - Repository: `C:/Users/pcuser/source/repos/SoundOff`, branch `main`.
 - Scope: Windows development build, existing local WhisperX runtime/model pack, synthetic English TTS and video input, Windows playback, output-endpoint loopback, and combined microphone+system capture. This is not a release or completion of the architecture's acceptance matrix.
 
+## Cross-platform playback and recording, speed, autosave and notes (2026-10-05)
+
+- `python scripts/verify.py --clean --desktop-smoke`: **exit 0**, **379 passed, 0 failed**, worker and desktop
+  self-tests passed, native window smoke passed, inference, capture and playback adapters all exercised.
+- **Playback moved from NAudio's WaveOut to SoundFlow 1.4.1 over miniaudio** on every platform. Before adopting it,
+  a scratch probe played a 50-second recording on this machine's default output and recorded that output with
+  WASAPI loopback: peak 0.0000 before playing, 0.19 while playing at volume 0.3. So it is the real device, not
+  miniaudio's null backend (SoundFlow's `ActiveBackend` property reads "Null" regardless).
+- The probe found two things the engine now handles. SoundFlow does not resample a source, so a 16 kHz file opened
+  on a 48 kHz device reported 8.4 s for 50.4 s of audio; the device is now opened in the source's own format.
+  And SoundFlow's clock is where it has read to: the real-device test caught it 240 ms ahead 21 ms after a start,
+  and below 1× it leads by about 100 ms. The reported position is capped by start-plus-elapsed-times-speed.
+- The real-device test (`PlaybackEngineTests`) asserts the clock never runs ahead of wall time, pause holds,
+  seeks land, EOF and replay work, and **2× measured 2.00×**; it passed three runs in a row before the full suite.
+- The deterministic engine tests were ported to a hand-driven `IAudioOutput`: clock, pause/resume, seek, end,
+  replay, stale-device end, a close that must not deadlock, five device-failure points, the compressed-WAV proxy,
+  a float stereo take played in its own format, a missing device, and speed clamping across devices.
+- Autosave tests: a pause saves without replacing the text box or moving the caret and clears stale timing in
+  place; an unparseable draft waits and says why; Ctrl+Z saves then undoes; closing keeps the draft without a
+  question; off, the draft waits and the choice persists. The suite runs with autosave off by default
+  (`AutoSaveDefaults.Override`), and that override is never written to settings.
+- The full suite caught one real bug on the way: the note pill kept its transition under reduced motion, because
+  its own style came after the window-wide rule. Fixed with an explicit rule.
+
+- **Recording on macOS and Linux** goes through a new `SoundFlowCaptureEngine` over the same miniaudio context
+  (microphone; "whole computer" is a PulseAudio/PipeWire monitor on Linux or a loopback driver such as BlackHole on
+  macOS; microphone + computer stays Windows-only). Hand-driven tests cover the float WAV that is readable while it
+  grows, paused time excluded, gaps, a lost device keeping the take, an open failure, never truncating an existing
+  file, and which inputs count as "the whole computer". The same engine was then run **on this machine's real audio
+  stack** through miniaudio's WASAPI loopback while the playback engine rendered a clip at zero volume: 720 ms
+  recorded, pause excluded, ffprobe read 0.72 s (`adapter-evidence-portable-capture.json`). No microphone was opened.
+
+**Not run:** playback or recording on a Mac or a Linux machine (the native libraries are in those builds; nobody
+has launched them), Core Audio's microphone permission prompt, a PulseAudio monitor source, a listening test of
+the time-stretch at each speed, and an IME composition during an autosave.
+
 ## Ways in, the waveform timeline and moving around (2026-10-05)
 
 - `python scripts/verify.py --clean --desktop-smoke`: **exit 0**, **358 passed, 0 failed**, worker and desktop

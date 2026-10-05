@@ -21,6 +21,7 @@ The switch at the top of the window chooses between them, and so do Ctrl+1 and C
 
 ## Editing and saving
 
+- **Save automatically** (on by default, in Settings ▸ Editing) saves whenever you pause typing for a couple of seconds. Each of those saves is a revision of its own, shown in History as **Edited, saved automatically**, so Undo still steps back one burst of typing at a time. Saving never moves your cursor. A draft that cannot be saved yet — a half-typed time, say — is left exactly as you typed it, and the status bar says why. With it on, closing, opening another project, restoring and applying a result keep your changes instead of asking to throw them away, and Ctrl+Z on fresh typing takes that typing back.
 - Typing creates unsaved changes, marked by a dot beside the project's name. **Save** (Ctrl+S) records them as a new revision; **Discard**, which appears beside it only while there is something to discard, throws them away and asks first, because undo cannot bring them back.
 - The dot at the left of the status bar is the state: saved, unsaved changes, working, or the last action failed. When something fails, the message beside it turns red until the next action succeeds.
 - **Undo** (Ctrl+Z) and **Redo** (Ctrl+Y) step through saved revisions and still work after you reopen the project. They are unavailable while you have unsaved changes, so undo never silently throws away typing.
@@ -52,6 +53,7 @@ The switch at the top of the window chooses between them, and so do Ctrl+1 and C
 - **Microphone** records the selected input.
 - **Whole computer** records every app playing on the selected output device, and nothing playing on other devices. Recording a single app is not supported.
 - **Microphone + whole computer** records both and lines them up using each device's own hardware clock. Use headphones: there is no echo cancellation. If a device's clock misbehaves (common with virtual audio devices), both sources stop and the audio captured so far is kept.
+- **On macOS and Linux** recording goes through the same audio engine as playback. **Microphone** works as on Windows; macOS asks for microphone permission the first time, for the app or for the terminal it was started from. **Whole computer** uses what the system offers: on Linux, the "Monitor of …" input PulseAudio or PipeWire provides for each output; on macOS, nothing until a loopback driver such as BlackHole is installed and the sound is sent through it. **Microphone + whole computer** is Windows-only. These builds have not been run on a Mac or a Linux machine yet.
 - Starting a recording pauses playback. While a take runs, the top bar shows a red recording indicator with its clock and **Stop**, whether or not the side panel is open.
 - Once a project has audio, the recorder folds away under **Record a new take** in the Audio card.
 - Pausing excludes paused time from the recording. Pause-gap counts are session-only for a single source; they are not saved in the project.
@@ -67,7 +69,7 @@ The switch at the top of the window chooses between them, and so do Ctrl+1 and C
 - **Alt+Up** and **Alt+Down** move to the previous or next paragraph, taking the cursor and, if the paragraph is timed, the playhead with them. Selecting a range of text is a selection, not a move, and a paragraph with no timing stays where it is. A word that alignment never placed jumps to the start of its paragraph instead.
 - Following resumes when you ask to be taken somewhere, because that is the opposite of wandering off.
 - Drag the handle above the waveform to give it more or less height. The side panel has a drag handle of its own. Both sizes are remembered.
-- There is no playback speed control.
+- **Speed**: the button beside the clock plays from 0.5× to 2× with the pitch kept, so a voice stays itself. **Ctrl+Shift+,** and **Ctrl+Shift+.** step slower and faster. The button is highlighted whenever the speed is not as recorded, and the speed is remembered. Timing is always in the recording's own time, whatever the speed.
 - On a wide window the video sits beside the transcript; on a narrow one it goes above it. Moving it never restarts decoding.
 - Video plays as a 10 frames-per-second preview kept in step with the audio. The film button beside the position bar hides it, which stops decoding; audio keeps playing. Its height is in **Settings**.
 
@@ -107,18 +109,21 @@ The switch at the top of the window chooses between them, and so do Ctrl+1 and C
 | Alt+Left / Alt+Right | Mark this paragraph's start / end at the playhead |
 | Alt+Up / Alt+Down | Previous / next paragraph |
 | F8 / F9 | Back or forward 5 seconds |
+| Ctrl+Shift+, / Ctrl+Shift+. | Slower / faster playback |
 | Ctrl+Enter | Split the paragraph at the cursor |
 | F1 | Help |
 
 ## Settings
 
-**Settings** holds what you set once and rarely change: the theme (dark by default, light, or follow the system), reduced motion, whether the document fills the window, the spoken language and processing device for transcription, and the video preview's height. What to record and on which device stay in the Audio panel, where they are chosen before a take.
+**Settings** holds what you set once and rarely change: the theme (dark by default, light, or follow the system), reduced motion, whether the document fills the window, whether to save automatically, the spoken language and processing device for transcription, and the video preview's height. What to record and on which device stay in the Audio panel, where they are chosen before a take.
 
 The panel button (Ctrl+B) hides the side panel so the transcript gets the whole window. Recording, transcription, speakers and history live in that panel, so hide it while reading and correcting and show it again when you need them. With no project open there is no side panel: the start screen has its own recorder.
 
 The project's name sits at the top left and is renamed there.
 
-Remembered on this computer: the theme, reduced motion, whether the document fills the window, whether the side panel is showing and how wide it is, how tall the waveform is, and which view you were last in.
+Remembered on this computer: the theme, reduced motion, whether the document fills the window, whether the side panel is showing and how wide it is, how tall the waveform is, which view you were last in, the playback speed, and whether to save automatically.
+
+Short notes such as **Saved**, **Transcript copied** or **1.5× · pitch kept** appear at the bottom of the window when something happens, and go by themselves. They never take focus, and screen readers hear them politely; the status bar keeps the full sentence.
 
 ## Privacy
 
@@ -128,5 +133,5 @@ Remembered on this computer: the theme, reduced motion, whether the document fil
 ## Limits and not yet available
 
 - Up to 64 speakers, 20,000 paragraphs, and 16,384 UTF-16 characters per paragraph.
-- Not available yet: recording a single app, speaker diarization (speaker labels are corrected by hand, not re-clustered), playback speed, subtitle cue editing, comparing transcription runs, jobs that continue after the app closes, media inside bundles, installers, code signing, and mobile. macOS and Linux builds exist but have no playback or recording adapter, and have never been run.
+- Not available yet: recording a single app, speaker diarization (speaker labels are corrected by hand, not re-clustered), subtitle cue editing, comparing transcription runs, jobs that continue after the app closes, media inside bundles, installers, code signing, and mobile. macOS and Linux builds include playback and recording but have never been run.
 - Accessibility, input-method editors and very long recordings have not been tested.
