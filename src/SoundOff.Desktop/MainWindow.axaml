@@ -117,6 +117,12 @@
                     </StackPanel>
 
                     <StackPanel Spacing="8">
+                      <TextBlock Text="Editing" Classes="section" />
+                      <CheckBox x:Name="AutoSaveChoice" Content="Save automatically" IsChecked="True" AutomationProperties.Name="Save automatically"
+                                ToolTip.Tip="Save a revision whenever you pause. Each one is in History, and Undo steps back through them." />
+                    </StackPanel>
+
+                    <StackPanel Spacing="8">
                       <TextBlock Text="Transcription" Classes="section" />
                       <ComboBox x:Name="LanguageChoice" SelectedIndex="0" HorizontalAlignment="Stretch" AutomationProperties.Name="Spoken language">
                         <ComboBoxItem>Detect language</ComboBoxItem><ComboBoxItem>English</ComboBoxItem><ComboBoxItem>Filipino</ComboBoxItem>
@@ -222,7 +228,7 @@
                     <Border Classes="tileicon rec"><PathIcon Classes="mic" Width="20" Height="20" /></Border>
                     <StackPanel Spacing="4">
                       <TextBlock Text="Record" Classes="tiletitle" />
-                      <TextBlock Text="A microphone, the computer's own sound, or both at once." Classes="muted"
+                      <TextBlock x:Name="RecordTileText" Text="A microphone, the computer's own sound, or both at once." Classes="muted"
                                  TextWrapping="Wrap" FontSize="13" />
                     </StackPanel>
                     <!-- The recorder itself lives here until there is a project, then moves to the Audio card. -->
@@ -397,7 +403,16 @@
           <Button x:Name="SkipForwardButton" Grid.Column="2" Classes="quiet icon" ToolTip.Tip="Forward 5 seconds (F9)" AutomationProperties.Name="Skip forward five seconds">
             <PathIcon Classes="glyph forward5" />
           </Button>
-          <TextBlock x:Name="PositionText" Grid.Column="3" Classes="clock" FontSize="13" VerticalAlignment="Center" MinWidth="104" Margin="6,0,2,0" />
+          <StackPanel Grid.Column="3" Orientation="Horizontal" Spacing="2" VerticalAlignment="Center">
+            <TextBlock x:Name="PositionText" Classes="clock" FontSize="13" VerticalAlignment="Center" MinWidth="104" Margin="6,0,2,0" />
+            <!-- How fast to listen. Pitch is kept, so a voice stays itself at any of these. -->
+            <Button x:Name="SpeedButton" Classes="quiet speed" Content="1×" AutomationProperties.Name="Playback speed"
+                    ToolTip.Tip="Playback speed · Ctrl+Shift+, slower · Ctrl+Shift+. faster">
+              <Button.Flyout>
+                <MenuFlyout Placement="TopEdgeAlignedLeft" />
+              </Button.Flyout>
+            </Button>
+          </StackPanel>
           <Slider x:Name="PositionSlider" Grid.Column="4" Minimum="0" Maximum="1000" Value="0" VerticalAlignment="Center" AutomationProperties.Name="Playback position" />
           <!-- Zoom belongs to the waveform but sits with the other transport controls, so the strip keeps its full width. -->
           <StackPanel x:Name="ZoomControls" Grid.Column="5" Orientation="Horizontal" Spacing="0" VerticalAlignment="Center" Margin="4,0">
@@ -431,6 +446,12 @@
         </Grid>
         <TextBlock x:Name="PlaybackText" Grid.Row="2" TextWrapping="Wrap" Classes="muted" IsVisible="False" />
       </Grid>
+    </Border>
+
+    <!-- A note that something happened: it never takes focus, never needs dismissing, and goes by itself. -->
+    <Border x:Name="ToastHost" Grid.Row="1" Classes="toast" IsHitTestVisible="False" HorizontalAlignment="Center"
+            VerticalAlignment="Bottom" Margin="0,0,0,20">
+      <TextBlock x:Name="ToastText" />
     </Border>
 
     <!-- Shown only while a usable file is dragged over the window: the drop target is the whole window, and it says so. -->

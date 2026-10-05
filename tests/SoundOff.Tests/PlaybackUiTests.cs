@@ -21,6 +21,7 @@ internal sealed class FakePlaybackEngine : IPlaybackEngine
     public long DurationMicroseconds { get; private set; }
     public long PositionMicroseconds { get; private set; }
     public double Volume { get; set; } = 1.0;
+    public double Speed { get; set; } = 1.0;
     public string? LoadedPath { get; private set; }
     public long FailAfterLoad { get; set; }
     public event EventHandler? Changed;
@@ -394,5 +395,36 @@ public sealed class PlaybackUiTests
             Assert.Equal(3, blocks.Length);
         }
         finally { window.Close(); }
+    }
+
+    // Speed is chosen from the transport or stepped from the keys, shows on the button whenever it is not as
+    // recorded, and is still the speed in the next window.
+    [AvaloniaFact] public async Task Speed_is_chosen_stepped_shown_and_remembered()
+    {
+        using var folder = new TestDirectory();
+        var (window, engine) = await OpenAsync(folder);
+        try
+        {
+            var button = window.FindControl<Button>("SpeedButton")!;
+            Assert.Equal("1×", button.Content); Assert.DoesNotContain("changed", button.Classes);
+            var items = ((MenuFlyout)button.Flyout!).Items.OfType<MenuItem>().ToArray();
+            Assert.Equal(MainWindow.Speeds.Length, items.Length);
+            UiDriver.Press(items.Single(i => (i.Header as string)!.StartsWith("1.5×")));
+            Assert.Equal(1.5, engine.Speed); Assert.Equal("1.5×", button.Content); Assert.Contains("changed", button.Classes);
+            Assert.StartsWith("1.5×", items.Single(i => i.IsChecked).Header!.ToString());
+            window.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.OemPeriod, KeyModifiers = KeyModifiers.Control | KeyModifiers.Shift, Source = window });
+            Assert.Equal(1.75, engine.Speed); Assert.Equal("1.75× · pitch kept", window.ToastMessage);
+            for (var i = 0; i < 5; i++)
+                window.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.OemPeriod, KeyModifiers = KeyModifiers.Control | KeyModifiers.Shift, Source = window });
+            Assert.Equal(2.0, engine.Speed);   // the top of the list is as fast as it goes
+            window.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.OemComma, KeyModifiers = KeyModifiers.Control | KeyModifiers.Shift, Source = window });
+            Assert.Equal(1.75, engine.Speed);
+            Assert.Equal(0, engine.PositionMicroseconds);   // changing speed never moves the playhead
+        }
+        finally { window.Close(); }
+        var again = new FakePlaybackEngine();
+        var next = new MainWindow(null, folder.Settings, null, null, again); next.Show();
+        try { Assert.Equal(1.75, again.Speed); Assert.Equal("1.75×", next.FindControl<Button>("SpeedButton")!.Content); }
+        finally { next.Close(); }
     }
 }

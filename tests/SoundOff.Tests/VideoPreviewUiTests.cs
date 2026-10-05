@@ -4,34 +4,16 @@ using Avalonia.Headless.XUnit;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
-using NAudio.Wave;
 using SoundOff.Core;
 using SoundOff.Desktop;
 using Xunit;
 
 namespace SoundOff.Tests;
 
-// Real production window, MP4 decoder, PCM proxy and NAudio engine. Only the sound device is controlled;
+// Real production window, MP4 decoder, PCM proxy and playback engine. Only the sound device is controlled;
 // headless layout is not a native screenshot, listening test or compositor/vsync certification.
-[System.Runtime.Versioning.SupportedOSPlatform("windows")]
 public sealed class VideoPreviewUiTests
 {
-    private sealed class Output : IWavePlayer, IWavePosition
-    {
-        public WaveFormat OutputWaveFormat => Source.WaveFormat;
-        public PlaybackState PlaybackState { get; private set; }
-        public IWaveProvider Source = null!;
-        public float Volume { get; set; }
-        public long RenderedBytes;
-        public bool Disposed;
-        public event EventHandler<StoppedEventArgs>? PlaybackStopped;
-        public void Init(IWaveProvider source) => Source = source;
-        public void Play() { PlaybackState = PlaybackState.Playing; var ahead = new byte[OutputWaveFormat.AverageBytesPerSecond]; Source.Read(ahead, 0, ahead.Length); }
-        public void Pause() => PlaybackState = PlaybackState.Paused;
-        public void Stop() { PlaybackState = PlaybackState.Stopped; PlaybackStopped?.Invoke(this, new StoppedEventArgs(null)); }
-        public long GetPosition() => RenderedBytes;
-        public void Dispose() => Disposed = true;
-    }
     private sealed class Picker : IProjectPicker
     {
         internal string? Next;
@@ -52,7 +34,7 @@ public sealed class VideoPreviewUiTests
     [AvaloniaFact] public async Task A_wide_window_puts_the_preview_beside_the_transcript()
     {
         using var folder = new TestDirectory(); await PrepareAsync(folder);
-        var engine = new NAudioPlaybackEngine(Path.Combine(folder.Root, "cache"), () => new Output());
+        var engine = new PlaybackEngine(Path.Combine(folder.Root, "cache"), source => new FakeAudioOutput(source));
         var decoder = new FfmpegVideoPreviewDecoder();
         var window = new MainWindow(new Picker(), folder.Settings, folder.Project, playbackEngine: engine, videoDecoder: decoder) { Width = 1750, Height = 1000 };
         window.Show();
@@ -79,8 +61,8 @@ public sealed class VideoPreviewUiTests
     [AvaloniaFact] public async Task Rendered_audio_clock_controls_frames_and_hide_resize_switch_do_not_change_audio_or_text()
     {
         using var folder = new TestDirectory(); await PrepareAsync(folder);
-        var outputs = new List<Output>();
-        var engine = new NAudioPlaybackEngine(Path.Combine(folder.Root, "cache"), () => { var o = new Output(); outputs.Add(o); return o; });
+        var outputs = new List<FakeAudioOutput>();
+        var engine = new PlaybackEngine(Path.Combine(folder.Root, "cache"), source => { var o = new FakeAudioOutput(source); outputs.Add(o); return o; });
         var decoder = new FfmpegVideoPreviewDecoder(); var picker = new Picker();
         var window = new MainWindow(picker, folder.Settings, folder.Project, playbackEngine: engine, videoDecoder: decoder) { Width = 1400, Height = 1200 };
         window.Show();
@@ -95,8 +77,8 @@ public sealed class VideoPreviewUiTests
             Click(window, "PlayPauseButton");
             Assert.Single(outputs); Assert.Equal(PlaybackStatus.Playing, engine.Status);
             await Task.Delay(150); Dispatcher.UIThread.RunJobs();
-            Assert.Equal(0, engine.PositionMicroseconds); Assert.Equal(0, window.VideoPreview.Frame!.SourceMicroseconds); // reader buffered ahead, output did not
-            outputs[0].RenderedBytes = outputs[0].OutputWaveFormat.AverageBytesPerSecond / 2;
+            Assert.Equal(0, engine.PositionMicroseconds); Assert.Equal(0, window.VideoPreview.Frame!.SourceMicroseconds); // nothing rendered yet
+            outputs[0].Rendered = 500_000;
             await PumpUntil(() => window.VideoPreview.Frame?.SourceMicroseconds == 500_000);
             Click(window, "PlayPauseButton"); var paused = window.VideoPreview.Frame;
             await Task.Delay(200); Dispatcher.UIThread.RunJobs(); Assert.Same(paused, window.VideoPreview.Frame);
@@ -110,7 +92,7 @@ public sealed class VideoPreviewUiTests
             Assert.False(panel.IsVisible); Assert.Null(image.Source); Assert.Equal(0, window.LiveVideoBitmaps);
             Assert.True(window.DisposedVideoBitmaps > 0);
             await window.VideoPreview.PendingWork; Assert.Equal(0, decoder.ActiveProcesses); Assert.Equal(0, window.VideoPreview.BufferedFrameCount);
-            outputs[0].RenderedBytes = outputs[0].OutputWaveFormat.AverageBytesPerSecond * 2;
+            outputs[0].Rendered = 2_000_000;
             await Task.Delay(150); Dispatcher.UIThread.RunJobs();
             Assert.Equal(2_000_000, engine.PositionMicroseconds); Assert.Equal(PlaybackStatus.Playing, engine.Status); Assert.Single(outputs);
             Assert.Equal(starts, decoder.StartedProcesses); Assert.Null(window.VideoPreview.Frame);
@@ -138,7 +120,7 @@ public sealed class VideoPreviewUiTests
     [AvaloniaFact] public async Task Preview_failure_keeps_audio_and_editor_usable_with_retry_and_close_cleanup()
     {
         using var folder = new TestDirectory(); await PrepareAsync(folder);
-        var engine = new NAudioPlaybackEngine(Path.Combine(folder.Root, "cache"), () => new Output());
+        var engine = new PlaybackEngine(Path.Combine(folder.Root, "cache"), source => new FakeAudioOutput(source));
         var missing = new FfmpegVideoPreviewDecoder("absent-ffmpeg-soundoff", "absent-ffprobe-soundoff", TimeSpan.FromSeconds(2));
         var window = new MainWindow(null, folder.Settings, folder.Project, playbackEngine: engine, videoDecoder: missing); window.Show();
         try

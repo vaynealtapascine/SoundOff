@@ -59,6 +59,12 @@
           "NAudio.Core": "2.4.0"
         }
       },
+      "SoundFlow": {
+        "type": "Direct",
+        "requested": "[1.4.1, )",
+        "resolved": "1.4.1",
+        "contentHash": "KsCcIjdH6PzPwtpRZLtZtBWLPIU75cLSSRSI4E4e7Yf6X6bE4PnKYzBp9McsnbsObH6ITtf55NaMyrXv9A8+tw=="
+      },
       "Avalonia.Angle.Windows.Natives": {
         "type": "Transitive",
         "resolved": "2.1.25547.20250602",
@@ -264,11 +270,17 @@
       "soundoff.protocol": {
         "type": "Project",
         "dependencies": {
-          "SoundOff.Core": "[0.1.0, )"
+          "SoundOff.Core": "[1.0.0, )"
         }
       }
     },
     "net8.0/linux-x64": {
+      "SoundFlow": {
+        "type": "Direct",
+        "requested": "[1.4.1, )",
+        "resolved": "1.4.1",
+        "contentHash": "KsCcIjdH6PzPwtpRZLtZtBWLPIU75cLSSRSI4E4e7Yf6X6bE4PnKYzBp9McsnbsObH6ITtf55NaMyrXv9A8+tw=="
+      },
       "Avalonia.Angle.Windows.Natives": {
         "type": "Transitive",
         "resolved": "2.1.25547.20250602",
@@ -322,6 +334,12 @@
       }
     },
     "net8.0/osx-arm64": {
+      "SoundFlow": {
+        "type": "Direct",
+        "requested": "[1.4.1, )",
+        "resolved": "1.4.1",
+        "contentHash": "KsCcIjdH6PzPwtpRZLtZtBWLPIU75cLSSRSI4E4e7Yf6X6bE4PnKYzBp9McsnbsObH6ITtf55NaMyrXv9A8+tw=="
+      },
       "Avalonia.Angle.Windows.Natives": {
         "type": "Transitive",
         "resolved": "2.1.25547.20250602",
@@ -375,6 +393,12 @@
       }
     },
     "net8.0/osx-x64": {
+      "SoundFlow": {
+        "type": "Direct",
+        "requested": "[1.4.1, )",
+        "resolved": "1.4.1",
+        "contentHash": "KsCcIjdH6PzPwtpRZLtZtBWLPIU75cLSSRSI4E4e7Yf6X6bE4PnKYzBp9McsnbsObH6ITtf55NaMyrXv9A8+tw=="
+      },
       "Avalonia.Angle.Windows.Natives": {
         "type": "Transitive",
         "resolved": "2.1.25547.20250602",
@@ -428,6 +452,12 @@
       }
     },
     "net8.0/win-x64": {
+      "SoundFlow": {
+        "type": "Direct",
+        "requested": "[1.4.1, )",
+        "resolved": "1.4.1",
+        "contentHash": "KsCcIjdH6PzPwtpRZLtZtBWLPIU75cLSSRSI4E4e7Yf6X6bE4PnKYzBp9McsnbsObH6ITtf55NaMyrXv9A8+tw=="
+      },
       "Avalonia.Angle.Windows.Natives": {
         "type": "Transitive",
         "resolved": "2.1.25547.20250602",

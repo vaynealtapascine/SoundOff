@@ -12,7 +12,8 @@ namespace SoundOff.Desktop;
 // as unreadable. Out-of-range panel sizes are clamped on read, never refused.
 public sealed record AppearanceSettings([property: JsonRequired] int Version, [property: JsonRequired] string Theme,
     [property: JsonRequired] bool ReducedMotion, bool SidebarCollapsed = false,
-    double SidebarWidth = 320, double WaveformHeight = 104, bool TimingsView = false, bool FillWindow = false)
+    double SidebarWidth = 320, double WaveformHeight = 104, bool TimingsView = false, bool FillWindow = false,
+    double PlaybackSpeed = 1.0, bool AutoSave = true)
 {
     public const int CurrentVersion = 1;
     // A record's own constants cannot be its parameter defaults, so the two literals above repeat these.
@@ -26,6 +27,7 @@ public sealed record AppearanceSettings([property: JsonRequired] int Version, [p
     // refused by the strict reader that wrote it.
     public double ClampedSidebarWidth() => Clamp(SidebarWidth, MinSidebarWidth, MaxSidebarWidth, DefaultSidebarWidth);
     public double ClampedWaveformHeight() => Clamp(WaveformHeight, MinWaveformHeight, MaxWaveformHeight, DefaultWaveformHeight);
+    public double ClampedPlaybackSpeed() => Clamp(PlaybackSpeed, PlaybackEngine.MinSpeed, PlaybackEngine.MaxSpeed, 1.0);
     private static double Clamp(double value, double low, double high, double fallback) =>
         double.IsFinite(value) ? Math.Clamp(value, low, high) : fallback;
 }

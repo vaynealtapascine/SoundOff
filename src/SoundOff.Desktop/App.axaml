@@ -678,6 +678,42 @@
       <Setter Property="Foreground" Value="{DynamicResource SuccessBrush}" />
       <Setter Property="CornerRadius" Value="3" />
     </Style>
+    <!-- The speed reads as a value, not a word: fixed width so 1× and 1.75× do not shove the slider about. -->
+    <Style Selector="Button.speed">
+      <Setter Property="MinWidth" Value="50" /><Setter Property="Padding" Value="6,0" />
+      <Setter Property="MinHeight" Value="0" /><Setter Property="Height" Value="28" />
+      <Setter Property="FontFamily" Value="{StaticResource ClockFont}" /><Setter Property="FontSize" Value="12.5" />
+    </Style>
+    <Style Selector="Button.speed.changed /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource AccentSoftBrush}" />
+      <Setter Property="TextElement.Foreground" Value="{DynamicResource PrimaryBrush}" />
+    </Style>
+    <Style Selector="Border.toast">
+      <Setter Property="Background" Value="{DynamicResource TextBrush}" />
+      <Setter Property="CornerRadius" Value="{StaticResource RadiusMd}" />
+      <Setter Property="Padding" Value="14,8" />
+      <Setter Property="BoxShadow" Value="0 6 20 0 #40000000" />
+      <Setter Property="Opacity" Value="0" />
+      <Setter Property="RenderTransform" Value="translateY(6px)" />
+      <Setter Property="Transitions">
+        <Transitions>
+          <DoubleTransition Property="Opacity" Duration="0:0:0.16" />
+          <TransformOperationsTransition Property="RenderTransform" Duration="0:0:0.16" />
+        </Transitions>
+      </Setter>
+    </Style>
+    <!-- Declared after the toast's own transitions, which would otherwise win over the window-wide rule. -->
+    <Style Selector="Window.reducedMotion Border.toast">
+      <Setter Property="Transitions" Value="{x:Null}" />
+    </Style>
+    <Style Selector="Border.toast.shown">
+      <Setter Property="Opacity" Value="1" />
+      <Setter Property="RenderTransform" Value="none" />
+    </Style>
+    <Style Selector="Border.toast TextBlock">
+      <Setter Property="Foreground" Value="{DynamicResource CanvasBrush}" />
+      <Setter Property="FontSize" Value="13" /><Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
     <Style Selector="Ellipse.dirty">
       <Setter Property="Width" Value="7" /><Setter Property="Height" Value="7" />
       <Setter Property="Margin" Value="-2,0,4,0" />

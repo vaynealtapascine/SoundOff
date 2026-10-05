@@ -37,7 +37,8 @@ public sealed partial class MainWindow
     // Everything a transcript pass needs without leaving the keys: Ctrl+S save, Ctrl+Z/Ctrl+Y undo and redo,
     // Ctrl+F find, F3 find next, Esc close find, Ctrl+B side panel, Ctrl+1/Ctrl+2 the two views, F1 help,
     // Ctrl+Space play/pause, Alt+Left/Alt+Right mark this paragraph's start and end at the playhead the way a
-    // subtitle editor does, Alt+Up/Alt+Down previous and next paragraph, F8/F9 five seconds either way,
+    // subtitle editor does, Alt+Up/Alt+Down previous and next paragraph, Ctrl+Shift+,/. slower and faster,
+    // F8/F9 five seconds either way,
     // Ctrl+Enter split where the caret is. Paragraph controls have their own undo disabled,
     // so Ctrl+Z never silently discards typed text: while a draft exists undo/redo do nothing.
     private void OnShortcut(object? sender, KeyEventArgs e)
@@ -53,9 +54,14 @@ public sealed partial class MainWindow
         if (control && e.Key == Key.Space) { if (playPause.IsEnabled) TogglePlay(); e.Handled = true; return; }
         if (alt && e.Key is Key.Left or Key.Right) { MarkTiming(e.Key == Key.Left); e.Handled = true; return; }
         if (alt && e.Key is Key.Up or Key.Down) { StepParagraph(e.Key == Key.Down ? 1 : -1); e.Handled = true; return; }
+        if (e.KeyModifiers == (KeyModifiers.Control | KeyModifiers.Shift) && e.Key is Key.OemComma or Key.OemPeriod)
+        { StepSpeed(e.Key == Key.OemPeriod ? 1 : -1); e.Handled = true; return; }
         if (none && e.Key == Key.F8) { if (skipBack.IsEnabled) Skip(-SkipMicroseconds); e.Handled = true; return; }
         if (none && e.Key == Key.F9) { if (skipForward.IsEnabled) Skip(SkipMicroseconds); e.Handled = true; return; }
         if (control && e.Key == Key.Enter) { SplitAtCaret(); e.Handled = true; return; }
+        // Ctrl+Z on a draft means "take back that typing": with autosave on, keep it as a revision first so undo
+        // can step back over it, rather than doing nothing.
+        if (control && e.Key == Key.Z && dirty && AutoSaveOn) AutoSaveNow();
         Button? target = (e.Key, control) switch
         {
             (Key.S, true) => save, (Key.Z, true) => undo, (Key.Y, true) => redo,
@@ -85,7 +91,8 @@ public sealed partial class MainWindow
         (start ? boxes.Start : boxes.End).Text = TimeText.Format(position);
         RevealSection(id);
         var ordinal = sections.TryGetValue(id, out var section) ? section.Ordinal : 0;
-        status.Text = $"Paragraph {ordinal} {(start ? "start" : "end")} marked at {Clock(position)} · not saved yet";
+        status.Text = $"Paragraph {ordinal} {(start ? "start" : "end")} marked at {Clock(position)}" + (AutoSaveOn ? "" : " · not saved yet");
+        Toast($"Paragraph {ordinal} {(start ? "starts" : "ends")} at {Clock(position)}");
     }
 
     // Alt+Up and Alt+Down walk the transcript a paragraph at a time: the caret goes to the start of the next one
@@ -162,5 +169,6 @@ public sealed partial class MainWindow
         }
         lastFind = null;
         findStatus.Text = total == 0 ? "No matches in the draft." : $"Replaced {total} occurrence(s) in {paragraphs} paragraph(s).";
+        if (total > 0) Toast($"Replaced {total}");
     }
 }

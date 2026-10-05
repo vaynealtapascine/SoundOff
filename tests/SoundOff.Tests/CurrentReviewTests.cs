@@ -172,7 +172,7 @@ public sealed class CurrentReviewTests
     {
         using var folder = new TestDirectory(); var mp3 = Path.Combine(folder.Root, "clip.mp3");
         await MediaTools.DecodeToMp3ForTestAsync(Clip, mp3);
-        using var engine = new NAudioPlaybackEngine(Path.Combine(folder.Root, "cache"));
+        using var engine = new PlaybackEngine(Path.Combine(folder.Root, "cache"));
         var load = engine.LoadAsync(mp3, CancellationToken.None);
         if (dispose) engine.Dispose(); else engine.Unload();
         await load;

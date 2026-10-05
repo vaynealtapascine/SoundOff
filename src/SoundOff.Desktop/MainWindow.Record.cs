@@ -42,6 +42,11 @@ public sealed partial class MainWindow
         newTakeToggle.IsCheckedChanged += (_, _) => PlaceRecorder();
         this.FindControl<Button>("RecordingPillStop")!.Click += async (_, _) => await GuardAsync(StopRecordingAsync);
         captureModeChoice.SelectionChanged += (_, _) => RefreshCaptureDevices();
+        // Recording both at once needs WASAPI's packet timestamps, so off Windows the tile promises what is there.
+        if (!OperatingSystem.IsWindows())
+            this.FindControl<TextBlock>("RecordTileText")!.Text = OperatingSystem.IsMacOS()
+                ? "A microphone, or the computer's own sound through a loopback driver such as BlackHole."
+                : "A microphone, or the computer's own sound from the sound server's monitor.";
         capture.Changed += (_, _) => Avalonia.Threading.Dispatcher.UIThread.Post(() => { if (!lifetime.IsCancellationRequested) UpdateControls(); });
         recordButton.Click += async (_, _) => await GuardAsync(StartRecordingAsync);
         pauseRecordButton.Click += async (_, _) => await GuardAsync(() =>
@@ -149,6 +154,7 @@ public sealed partial class MainWindow
             var gaps = result.Gaps.Count == 0 ? "" : $" · {result.Gaps.Count} pause(s)";
             var interrupted = result.Interrupted ? $" Stopped early ({result.InterruptionReason}); the captured audio was kept." : "";
             SetRecordText($"Recorded {Clock(asset.DurationMicroseconds ?? 0)}{gaps}.{interrupted}{mappingProblem}", $"From {result.DeviceName}.{recovery}");
+            Toast($"Recording added · {Clock(asset.DurationMicroseconds ?? 0)}");
         }
         catch (Exception e)
         {

@@ -32,6 +32,10 @@ public sealed partial class MainWindow
     private static readonly Geometry PauseGlyph = Geometry.Parse("M6,5 H10 V19 H6 Z M14,5 H18 V19 H14 Z");
     private readonly PathIcon playIcon = new() { Data = PlayGlyph, Width = 14, Height = 14 };
     private bool showingPause;
+    private Button speedButton = null!;
+    private MenuFlyout speedMenu = null!;
+    // The steps a transcriber actually uses: slower to catch a mumble, faster to skim what is already right.
+    internal static readonly double[] Speeds = [0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0];
 
     // Friendly clock for transport and recording: m:ss, or h:mm:ss past an hour. Exact microseconds stay in the timing boxes.
     internal static string Clock(long microseconds)
@@ -50,6 +54,14 @@ public sealed partial class MainWindow
         positionSlider = this.FindControl<Slider>("PositionSlider")!; volumeSlider = this.FindControl<Slider>("VolumeSlider")!;
         positionText = this.FindControl<TextBlock>("PositionText")!; playbackText = this.FindControl<TextBlock>("PlaybackText")!;
         playPause.Content = playIcon;
+        speedButton = this.FindControl<Button>("SpeedButton")!; speedMenu = (MenuFlyout)speedButton.Flyout!;
+        foreach (var value in Speeds)
+        {
+            var item = new MenuItem { Header = SpeedText(value) + (value == 1.0 ? "  normal" : ""), ToggleType = MenuItemToggleType.Radio, Tag = value };
+            Avalonia.Automation.AutomationProperties.SetName(item, $"Play at {SpeedText(value)}");
+            item.Click += (_, _) => { SetSpeed(value); if (!applyingSettings) SaveAppearance(); };
+            speedMenu.Items.Add(item);
+        }
         playPause.Click += (_, _) => TogglePlay();
         skipBack.Click += (_, _) => Skip(-SkipMicroseconds);
         skipForward.Click += (_, _) => Skip(SkipMicroseconds);
@@ -83,10 +95,34 @@ public sealed partial class MainWindow
         if (generation != waveformGeneration || lifetime.IsCancellationRequested) return;
         if (playback.DurationMicroseconds > 0)
         {
-            var wavePath = OperatingSystem.IsWindows() && playback is NAudioPlaybackEngine native ? native.ProxyPath ?? wanted : wanted;
+            var wavePath = playback is PlaybackEngine engine ? engine.ProxyPath ?? wanted : wanted;
             _ = LoadWaveformAsync(wavePath, playback.DurationMicroseconds);
         }
         RefreshPlaybackHighlight(force: true);
+    }
+
+    internal static string SpeedText(double value) =>
+        value.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture) + "×";
+
+    // The engine clamps; the button shows what it settled on, and stands out whenever it is not as recorded.
+    internal void SetSpeed(double value)
+    {
+        playback.Speed = value;
+        var actual = playback.Speed;
+        speedButton.Content = SpeedText(actual);
+        speedButton.Classes.Set("changed", Math.Abs(actual - 1.0) > 0.001);
+        foreach (var item in speedMenu.Items.OfType<MenuItem>()) item.IsChecked = item.Tag is double v && Math.Abs(v - actual) < 0.001;
+    }
+
+    // One step along the menu's own list, from wherever the speed is now.
+    internal void StepSpeed(int direction)
+    {
+        var current = playback.Speed;
+        var next = direction > 0 ? Speeds.FirstOrDefault(s => s > current + 0.001, Speeds[^1]) : Speeds.LastOrDefault(s => s < current - 0.001, Speeds[0]);
+        SetSpeed(next);
+        if (!applyingSettings) SaveAppearance();
+        status.Text = $"Playing at {SpeedText(playback.Speed)}" + (Math.Abs(playback.Speed - 1.0) < 0.001 ? ", as recorded" : ", pitch kept");
+        Toast(SpeedText(playback.Speed) + (Math.Abs(playback.Speed - 1.0) < 0.001 ? " · as recorded" : " · pitch kept"));
     }
 
     private void TogglePlay()

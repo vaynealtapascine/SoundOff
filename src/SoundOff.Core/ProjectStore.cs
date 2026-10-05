@@ -297,6 +297,9 @@ public sealed class ProjectStore : IDisposable
             : (edits.IsEmpty ? "" : "manual-edit+") + string.Join("+", operations.Select(o => o.Name).Distinct());
         return Commit(expectedRevision, label, (previous, _) => TranscriptEdits.Apply(previous, edits, operations), CommitKind.Edit);
     }
+    // The same edit, committed because the user paused rather than because they pressed Save; History says which.
+    public Transcript AutoSave(long expectedRevision, EditBatch edits) =>
+        Commit(expectedRevision, "auto-save", (previous, _) => TranscriptEdits.Apply(previous, edits, []), CommitKind.Edit);
     public Transcript Undo(long expectedRevision) => Commit(expectedRevision, "undo", (previous, _) => previous, CommitKind.Undo);
     public Transcript Redo(long expectedRevision) => Commit(expectedRevision, "redo", (previous, _) => previous, CommitKind.Redo);
 

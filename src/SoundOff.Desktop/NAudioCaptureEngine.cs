@@ -7,14 +7,21 @@ namespace SoundOff.Desktop;
 
 public static class CaptureEngines
 {
-    public static ICaptureEngine Create() => OperatingSystem.IsWindows() ? new WindowsCaptureEngine() : new UnavailableCaptureEngine();
+    // Windows keeps the WASAPI adapter, which can also record a microphone and the computer together; macOS and Linux
+    // record through miniaudio. Where even that cannot start, the app says so instead of pretending.
+    public static ICaptureEngine Create()
+    {
+        if (OperatingSystem.IsWindows()) return new WindowsCaptureEngine();
+        try { _ = SoundFlowShared.Engine; return new SoundFlowCaptureEngine(); }
+        catch (Exception e) { return new UnavailableCaptureEngine("Recording is unavailable: the audio system could not be opened (" + e.Message + ")."); }
+    }
 }
 
 // Honest stand-in where no adapter exists: importing and editing still work, recording does not.
-public sealed class UnavailableCaptureEngine : ICaptureEngine
+public sealed class UnavailableCaptureEngine(string reason) : ICaptureEngine
 {
     public RecordingState State => RecordingState.Failed;
-    public string? FailureReason => "Recording has a Windows adapter only in this build.";
+    public string? FailureReason => reason;
     public long RecordedMicroseconds => 0;
     public double PeakLevel => 0;
     public event EventHandler? Changed { add { } remove { } }

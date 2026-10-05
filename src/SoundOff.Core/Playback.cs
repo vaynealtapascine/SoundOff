@@ -57,6 +57,8 @@ public interface IPlaybackEngine : IDisposable
     long DurationMicroseconds { get; }
     long PositionMicroseconds { get; }
     double Volume { get; set; }
+    // 1.0 is as recorded. Pitch is kept; the position stays in source time whatever the speed.
+    double Speed { get; set; }
     Task LoadAsync(string path, CancellationToken cancellationToken);
     void Play();
     void Pause();

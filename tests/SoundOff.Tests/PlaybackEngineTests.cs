@@ -15,7 +15,6 @@ public sealed class PlaybackEngineTests
         using var engine = PlaybackEngines.Create(Path.Combine(folder.Root, "cache"));
         Assert.Equal(PlaybackStatus.Empty, engine.Status);
         await engine.LoadAsync(Clip, CancellationToken.None);
-        if (engine.Status == PlaybackStatus.Failed && engine.FailureReason!.Contains("Windows adapter only")) return; // no adapter on this platform
         Assert.Equal(PlaybackStatus.Ready, engine.Status);
         Assert.InRange(engine.DurationMicroseconds, 9_000_000, 9_600_000);
         Assert.Equal(0, engine.PositionMicroseconds);
@@ -37,7 +36,6 @@ public sealed class PlaybackEngineTests
         var cache = Path.Combine(folder.Root, "cache");
         using var engine = PlaybackEngines.Create(cache);
         await engine.LoadAsync(mp3, CancellationToken.None);
-        if (engine.Status == PlaybackStatus.Failed && engine.FailureReason!.Contains("Windows adapter only")) return;
         Assert.Equal(PlaybackStatus.Ready, engine.Status);
         // Resampling changes the sample rate, never the duration, so timing recorded against the source stays valid.
         Assert.InRange(engine.DurationMicroseconds, 9_000_000, 9_700_000);
@@ -67,19 +65,15 @@ public sealed class PlaybackEngineTests
         using var folder = new TestDirectory();
         using var engine = PlaybackEngines.Create(Path.Combine(folder.Root, "cache"));
         await engine.LoadAsync(Clip, CancellationToken.None);
-        if (engine is UnavailablePlaybackEngine) { AdapterEvidence.Write("playback", false, engine.FailureReason!); return; }
         Assert.Equal(PlaybackStatus.Ready, engine.Status); // decode failures are never mistaken for missing hardware
         engine.Volume = 0.0;   // audible output is not the point; the clock is
-        var devices = OperatingSystem.IsWindows() ? NAudio.Wave.WaveOutEvent.DeviceCount : 0;
         engine.Play();
-        if (devices == 0)
+        // Only a device that could not be opened counts as unavailable; one that opens and then stalls fails below.
+        if (engine.Status == PlaybackStatus.Failed && engine.FailureReason!.Contains("No audio output device"))
         {
-            Assert.Equal(PlaybackStatus.Failed, engine.Status);
-            Assert.Contains("No audio output device", engine.FailureReason);
             AdapterEvidence.Write("playback", false, engine.FailureReason!);
             return;
         }
-        // A fixed 600 ms sleep races the WaveOutEvent producer's thread-pool startup under a full suite.
         // Wait for measured progress, with a hard failure deadline, never mark a stalled device unavailable.
         await RequireRenderedProgress(engine, 0);
         engine.Pause();
@@ -96,7 +90,14 @@ public sealed class PlaybackEngineTests
         while (engine.Status == PlaybackStatus.Playing && deadline.Elapsed < TimeSpan.FromSeconds(5)) await Task.Delay(20);
         Assert.Equal(PlaybackStatus.Ended, engine.Status); Assert.Equal(engine.DurationMicroseconds, engine.PositionMicroseconds);
         engine.Play(); await RequireRenderedProgress(engine, 0); engine.Pause();
-        AdapterEvidence.Write("playback", true, "Real Windows output device at zero volume; rendered-byte clock, pause/resume, seek, EOF and replay asserted. No listening or audiovisual sync certification.");
+        // At double speed the source clock runs ahead of the wall clock, and by about twice as much.
+        engine.Seek(1_000_000); engine.Speed = 2.0;
+        var wall = System.Diagnostics.Stopwatch.StartNew(); engine.Play();
+        await Task.Delay(1200);
+        var advanced = engine.PositionMicroseconds - 1_000_000; var elapsed = wall.Elapsed.TotalMilliseconds * 1000;
+        engine.Pause();
+        Assert.InRange(advanced / elapsed, 1.6, 2.2);
+        AdapterEvidence.Write("playback", true, $"Real output device ({Environment.OSVersion.Platform}) through SoundFlow/miniaudio at zero volume; clock, pause/resume, seek, EOF, replay and 2x speed ({advanced / elapsed:0.00}x measured) asserted. No listening or audiovisual sync certification.");
     }
 
     private static async Task RequireRenderedProgress(IPlaybackEngine engine, long origin)

@@ -45,7 +45,7 @@ public sealed partial class MainWindow
         if (operation.StartsWith("import-inference:", StringComparison.Ordinal)) return "Transcription applied";
         var words = operation.Split('+').Select(part => part switch
         {
-            "create" => "Created", "manual-edit" => "Edited", "load-synthetic-fixture" => "Demo loaded", "undo" => "Undo", "redo" => "Redo",
+            "create" => "Created", "manual-edit" => "Edited", "auto-save" => "Edited, saved automatically", "load-synthetic-fixture" => "Demo loaded", "undo" => "Undo", "redo" => "Redo",
             "split-block" => "Split", "merge-blocks" => "Merged", "insert-block" => "Paragraph added", "delete-block" => "Paragraph deleted",
             "add-speaker" => "Speaker added", "remove-speaker" => "Speaker removed",
             "split-speaker" => "Speaker split", "merge-speakers" => "Speakers merged", _ => part
@@ -54,10 +54,11 @@ public sealed partial class MainWindow
     }
     private async Task RestoreAsync(long revision)
     {
-        if (dirty && !await ConfirmAsync("Discard unsaved changes?",
+        if (!await SettleDraftAsync("Discard unsaved changes?",
             "Restoring replaces the document with that revision as a new saved revision. Saved revisions stay in History.", "Discard and restore"))
             return;
         snapshot = store!.Restore(snapshot!.Revision, revision); Render(); SavedStatus();
+        Toast($"Restored revision {revision}");
     }
 
     // How long ago, the way a person says it; past a week the date itself is clearer.

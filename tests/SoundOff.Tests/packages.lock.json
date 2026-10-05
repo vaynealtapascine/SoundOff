@@ -273,6 +273,11 @@
         "resolved": "2.88.9",
         "contentHash": "wb2kYgU7iy84nQLYZwMeJXixvK++GoIuECjU4ECaUKNuflyRlJKyiRhN1MAHswvlvzuvkrjRWlK0Za6+kYQK7w=="
       },
+      "SoundFlow": {
+        "type": "Transitive",
+        "resolved": "1.4.1",
+        "contentHash": "KsCcIjdH6PzPwtpRZLtZtBWLPIU75cLSSRSI4E4e7Yf6X6bE4PnKYzBp9McsnbsObH6ITtf55NaMyrXv9A8+tw=="
+      },
       "SQLitePCLRaw.bundle_e_sqlite3": {
         "type": "Transitive",
         "resolved": "2.1.6",
@@ -389,6 +394,7 @@
           "NAudio.Core": "[2.4.0, )",
           "NAudio.Wasapi": "[2.4.0, )",
           "NAudio.WinMM": "[2.4.0, )",
+          "SoundFlow": "[1.4.1, )",
           "SoundOff.Core": "[1.0.0, )",
           "SoundOff.Protocol": "[1.0.0, )"
         }

@@ -84,8 +84,8 @@ public sealed partial class MainWindow : Window
         startOpen.Click += async (_, _) => await GuardAsync(OpenAsync);
         startImport.Click += async (_, _) => await GuardAsync(() => ImportMediaAsync());
         save.Click += async (_, _) => await GuardAsync(() => { Save(); return Task.CompletedTask; });
-        undo.Click += async (_, _) => await GuardAsync(() => { snapshot = store!.Undo(snapshot!.Revision); Render(); SavedStatus(); return Task.CompletedTask; });
-        redo.Click += async (_, _) => await GuardAsync(() => { snapshot = store!.Redo(snapshot!.Revision); Render(); SavedStatus(); return Task.CompletedTask; });
+        undo.Click += async (_, _) => await GuardAsync(() => { snapshot = store!.Undo(snapshot!.Revision); Render(); SavedStatus(); Toast("Undone"); return Task.CompletedTask; });
+        redo.Click += async (_, _) => await GuardAsync(() => { snapshot = store!.Redo(snapshot!.Revision); Render(); SavedStatus(); Toast("Redone"); return Task.CompletedTask; });
         // Discard is the one destructive top-bar action and had no confirmation at all, while every other
         // path that loses a draft (open, apply, restore, close) asks. It asks now too.
         discard.Click += async (_, _) => await GuardAsync(async () =>
@@ -112,6 +112,8 @@ public sealed partial class MainWindow : Window
         sidebarWidth = appearance.ClampedSidebarWidth();
         ApplySidebar(persist: false);
         SetWaveformHeight(appearance.ClampedWaveformHeight());
+        SetSpeed(appearance.ClampedPlaybackSpeed());
+        InitializeAutoSave(appearance.AutoSave);
         SelectView(!appearance.TimingsView);
         applyingSettings = false;
         themeChoice.SelectionChanged += (_, _) => ApplyAppearance(persist: true);
@@ -126,8 +128,8 @@ public sealed partial class MainWindow : Window
             e.Cancel = true;
             if (confirmingClose) return;
             confirmingClose = true;
-            var proceed = await StopRecordingForCloseAsync() && await StopJobForCloseAsync() && (!dirty ||
-                await ConfirmAsync("Discard unsaved changes?", "Your last saved revision stays on disk.", "Discard and close"));
+            var proceed = await StopRecordingForCloseAsync() && await StopJobForCloseAsync() &&
+                await SettleDraftAsync("Discard unsaved changes?", "Your last saved revision stays on disk.", "Discard and close");
             if (proceed) { allowClose = true; Close(); }
             confirmingClose = false;
         };
@@ -183,8 +185,8 @@ public sealed partial class MainWindow : Window
         finally { busy = false; lastActionFailed = failed; if (!lifetime.IsCancellationRequested) UpdateControls(); }
     }
 
-    private async Task<bool> MayReplaceAsync() => !JobRunning && !Recording && (!dirty || await ConfirmAsync("Discard unsaved changes?",
-        "Opening another project discards your unsaved changes. Saved revisions stay in the current project.", "Discard"));
+    private async Task<bool> MayReplaceAsync() => !JobRunning && !Recording && await SettleDraftAsync("Discard unsaved changes?",
+        "Opening another project discards your unsaved changes. Saved revisions stay in the current project.", "Discard");
 
     private async Task LoadDemoAsync()
     {
@@ -277,6 +279,7 @@ public sealed partial class MainWindow : Window
         if (!local.EndsWith(".srt", StringComparison.OrdinalIgnoreCase))
             throw new IOException("Subtitle exports must use .srt, never a project, text or media filename.");
         TextExport.WriteAtomic(local, result.Srt, overwrite: true);
+        Toast($"Exported {result.CueCount} subtitle cue(s)");
         status.Text = $"Exported {result.CueCount} subtitle cue(s) from revision {revision}"
             + (result.CombinedOverlaps > 0 ? $"; {result.CombinedOverlaps} overlap(s) combined" : "")
             + (result.SkippedEmpty > 0 ? $"; {result.SkippedEmpty} empty paragraph(s) skipped" : "")
@@ -293,6 +296,7 @@ public sealed partial class MainWindow : Window
         RequireBundleExtension(local);
         var manifest = ProjectBundle.Export(store!, local, overwrite: true);
         status.Text = $"Exported a bundle of revision {manifest.Revision}." + (wasDirty ? " The unsaved draft is not included." : "");
+        Toast("Bundle exported");
     }
     private async Task ImportBundleAsync()
     {
@@ -313,6 +317,7 @@ public sealed partial class MainWindow : Window
         var title = snapshot!.Title;
         snapshot = store!.Apply(snapshot.Revision, DraftEdits());
         Render(); SavedStatus();
+        Toast("Saved");
         if (snapshot.Title != title) RememberCurrent();
     }
     private Task ExportAsync() => ExportAsync(false);
@@ -327,6 +332,7 @@ public sealed partial class MainWindow : Window
             throw new IOException("Text exports must use .txt, never a project or subtitle filename.");
         TextExport.WriteAtomic(local, text, overwrite: true);
         status.Text = wasDraft ? "Exported the unsaved draft. Your changes are still not saved." : $"Exported revision {revision} as text.";
+        Toast("Exported " + Path.GetFileName(local));
     }
     private Task CopyAsync() => CopyAsync(false);
     private async Task CopyAsync(bool document)
@@ -336,6 +342,7 @@ public sealed partial class MainWindow : Window
         await clipboard.SetTextAsync(text);
         if (await clipboard.TryGetTextAsync() != text) throw new IOException("Clipboard read-back did not match. Use Export text instead.");
         status.Text = dirty ? "Copied the unsaved draft." : $"Copied saved revision {snapshot!.Revision}.";
+        Toast(document ? "Document copied" : "Transcript copied");
     }
 
     // Paragraph/speaker actions commit the current draft together with the structural change as ONE revision.
@@ -604,18 +611,20 @@ public sealed partial class MainWindow : Window
     {
         if (rendering || snapshot is null || lifetime.IsCancellationRequested) return;
         SuspendFollow();
-        dirty = (titleInput.Text ?? "") != snapshot.Title ||
-                speakerInputs.Any(p => p.Value.Text != snapshot.Speakers.Single(s => s.Id == p.Key).Name) ||
-                blockInputs.Any(p => p.Value.Text != snapshot.Blocks.Single(b => b.Id == p.Key).Text) ||
-                blockSpeakerInputs.Any(p => SpeakerChoice(p.Key) != snapshot.Blocks.Single(b => b.Id == p.Key).SpeakerId) ||
-                blockTimingInputs.Keys.Any(TimingTouched);
-        if (dirty) status.Text = $"Unsaved changes · based on revision {snapshot.Revision}";
+        dirty = ComputeDirty();
+        if (dirty) status.Text = AutoSaveOn ? "Editing · saves when you pause" : $"Unsaved changes · based on revision {snapshot.Revision}";
         else SavedStatus();
+        ScheduleAutoSave();
         // Typing moves every word after the caret, and can take a paragraph away from its recognized words
         // altogether; the highlight has to be recomputed now rather than at the next word boundary.
         RenderInlineHighlight(activeSpans);
         UpdateControls();
     }
+    private bool ComputeDirty() => snapshot is not null && ((titleInput.Text ?? "") != snapshot.Title ||
+        speakerInputs.Any(p => p.Value.Text != snapshot.Speakers.Single(s => s.Id == p.Key).Name) ||
+        blockInputs.Any(p => p.Value.Text != snapshot.Blocks.Single(b => b.Id == p.Key).Text) ||
+        blockSpeakerInputs.Any(p => SpeakerChoice(p.Key) != snapshot.Blocks.Single(b => b.Id == p.Key).SpeakerId) ||
+        blockTimingInputs.Keys.Any(TimingTouched));
     private void SavedStatus() => status.Text = snapshot is null ? "No project open" : $"Saved · revision {snapshot.Revision}";
     private void UpdateControls()
     {

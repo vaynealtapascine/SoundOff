@@ -198,6 +198,7 @@ public sealed partial class MainWindow
         RenderTranscribe(); SavedStatus();
         await SyncPlaybackSourceAsync();
         status.Text = $"Imported {asset.OriginalName}. " + status.Text;
+        Toast("Imported " + asset.OriginalName);
     }
 
     // Jobs run outside GuardAsync so the editor stays usable; only media/model actions are blocked meanwhile.
@@ -287,6 +288,7 @@ public sealed partial class MainWindow
             {
                 snapshot = store.ImportInference(snapshot.Revision, proposal, runId); Render(); SavedStatus();
                 SetJobText($"Done. Transcript created as revision {snapshot.Revision}.");
+                Toast("Transcript ready");
             }
             else
             {
@@ -319,11 +321,12 @@ public sealed partial class MainWindow
     }
     private async Task<bool> ApplyProposalAsync(string runId, Transcript proposal)
     {
-        if (dirty && !await ConfirmAsync("Discard unsaved changes?", "Applying the result replaces the whole document and discards your unsaved changes.", "Discard and apply")) return false;
+        if (!await SettleDraftAsync("Discard unsaved changes?", "Applying the result replaces the whole document and discards your unsaved changes.", "Discard and apply")) return false;
         if (snapshot!.Provenance != Provenance.Empty && !await ConfirmAsync("Replace the transcript?",
             "The result replaces the current text, speakers and timing as a new revision. The current version stays in History.", "Replace")) return false;
         snapshot = store!.ImportInference(snapshot.Revision, proposal with { Revision = snapshot.Revision }, runId); Render(); SavedStatus();
         status.Text = $"Applied the transcription result as revision {snapshot.Revision}.";
+        Toast("Transcription applied");
         return true;
     }
 
