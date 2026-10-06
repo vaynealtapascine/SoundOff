@@ -19,14 +19,25 @@ public sealed record MediaProbe([property: JsonRequired] string FormatName, [pro
 
 public static class MediaTools
 {
-    // Resolved from SOUNDOFF_FFMPEG_DIR, then PATH. Packaging will bundle a pinned build; development uses the installed one.
+    // Resolved from SOUNDOFF_FFMPEG_DIR, then the pinned build the Windows installer puts beside the app, then PATH.
     public static string Ffprobe => Resolve("ffprobe");
     public static string Ffmpeg => Resolve("ffmpeg");
-    private static string Resolve(string tool)
+    private static string Resolve(string tool) => ToolDirectory is { } dir ? Path.Combine(dir, Executable(tool)) : tool;
+    private static string Executable(string tool) => tool + (OperatingSystem.IsWindows() ? ".exe" : "");
+
+    // The folder ffmpeg is taken from, or null to leave it to PATH. The transcription worker gets this folder at the front of
+    // its PATH, because WhisperX runs ffmpeg by name. An app opened from the macOS Finder inherits only the system PATH, so
+    // Homebrew's folders are looked in explicitly.
+    public static string? ToolDirectory
     {
-        var dir = Environment.GetEnvironmentVariable("SOUNDOFF_FFMPEG_DIR");
-        if (!string.IsNullOrWhiteSpace(dir)) return Path.Combine(dir, tool + (OperatingSystem.IsWindows() ? ".exe" : ""));
-        return tool;
+        get
+        {
+            var configured = Environment.GetEnvironmentVariable("SOUNDOFF_FFMPEG_DIR");
+            if (!string.IsNullOrWhiteSpace(configured)) return configured;
+            var candidates = new List<string> { Path.Combine(AppContext.BaseDirectory, "ffmpeg") };
+            if (OperatingSystem.IsMacOS()) candidates.AddRange(["/opt/homebrew/bin", "/usr/local/bin"]);
+            return candidates.FirstOrDefault(dir => File.Exists(Path.Combine(dir, Executable("ffmpeg"))) && File.Exists(Path.Combine(dir, Executable("ffprobe"))));
+        }
     }
 
     // A regenerable playback proxy: 16-bit PCM mono at 22.05 kHz, the same decoder the transcription worker uses, so the

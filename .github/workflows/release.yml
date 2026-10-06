@@ -38,20 +38,26 @@ jobs:
         run: dotnet test SoundOff.sln -c Release --no-build --filter "FullyQualifiedName!~CaptureEngineTests&FullyQualifiedName!~PlaybackEngineTests&FullyQualifiedName!~InferenceTests"
 
   publish:
-    name: Publish ${{ matrix.rid }}
+    name: Package ${{ matrix.rid }}
     needs: test
     # One platform failing must not quietly ship the other three: the release job below needs them all.
     strategy:
       fail-fast: false
       matrix:
         include:
-          - { os: windows-latest, rid: win-x64 }
-          - { os: macos-latest,   rid: osx-arm64 }
+          # uv is pinned per platform by its release digest; it runs the bundled transcription setup.
+          - { os: windows-latest, rid: win-x64,   uv: uv-x86_64-pc-windows-msvc.zip,     uv_sha256: 75d05de6762778c31ee183398de7dd15093fad0ed90b1f236d8205ea5ec00c90 }
+          - { os: macos-latest,   rid: osx-arm64, uv: uv-aarch64-apple-darwin.tar.gz,    uv_sha256: 50487ae565ccd96e499056b4674d438f4c53170202617b4c759defe0c6a1b544 }
           # Cross-compiled from the Apple Silicon runner rather than waiting on a scarce Intel one; .NET
           # produces the same payload either way, and neither macOS build is verified by running it anyway.
-          - { os: macos-latest,   rid: osx-x64 }
-          - { os: ubuntu-latest,  rid: linux-x64 }
+          - { os: macos-latest,   rid: osx-x64,   uv: uv-x86_64-apple-darwin.tar.gz,     uv_sha256: 960da44cb4b73685206ddd250b19e0a117fa41095710c1038f081f5cb613efb4 }
+          - { os: ubuntu-latest,  rid: linux-x64, uv: uv-x86_64-unknown-linux-gnu.tar.gz, uv_sha256: 9167d72b3319674b6303c4cbe071854bba13ebdf3d76b1a7cbdc175471fb66d6 }
     runs-on: ${{ matrix.os }}
+    env:
+      UV_VERSION: 0.12.23
+      # The ffmpeg build the Windows installer carries: the same gyan.dev 6.0 essentials build the app is verified with.
+      FFMPEG_URL: https://github.com/GyanD/codexffmpeg/releases/download/6.0/ffmpeg-6.0-essentials_build.zip
+      FFMPEG_SHA256: 9ae315c4310bda9127ff1ef7ea8cbe968c2c2fb70287c71a3d9c2251d629289e
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-dotnet@v4
@@ -66,6 +72,7 @@ jobs:
           else
             version="$(sed -n 's:.*<Version>\(.*\)</Version>.*:\1:p' Directory.Build.props | head -1)-dev"
           fi
+          echo "version=$version" >> "$GITHUB_ENV"
           echo "bundle=SoundOff-$version-${{ matrix.rid }}" >> "$GITHUB_ENV"
 
       # The lock file carries every platform's native packages, because the projects declare the four
@@ -78,26 +85,71 @@ jobs:
           dotnet publish src/SoundOff.Desktop/SoundOff.Desktop.csproj \
             -c Release -r "${{ matrix.rid }}" --self-contained true \
             -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=false \
-            -o "out/$bundle"
-          cp README.md LICENSE "out/$bundle/"
-          mkdir -p "out/$bundle/docs" && cp docs/HELP.md "out/$bundle/docs/"
+            -o out/app
+          cp LICENSE out/app/
 
-      # Git Bash on a Windows runner has no zip, and tar on Windows would lose nothing but gains nothing either.
-      - name: Archive (Windows)
-        if: runner.os == 'Windows'
-        shell: pwsh
+      # The setup kit the app's Set up transcription button runs: uv, the runtime script and its pinned requirements.
+      - name: Add the transcription setup kit
+        shell: bash
         run: |
-          New-Item -ItemType Directory -Force dist | Out-Null
-          Compress-Archive -Path "out/$env:bundle" -DestinationPath "dist/$env:bundle.zip"
-      # -y keeps symlinks as symlinks, and zip preserves the executable bit the apphost needs.
-      - name: Archive (macOS)
+          kit=out/app/setup
+          mkdir -p "$kit/scripts" "$kit/runtime" "$kit/tools" uv
+          cp scripts/setup_runtime.py scripts/runtime_paths.py "$kit/scripts/"
+          cp runtime/requirements.txt "$kit/runtime/"
+          curl -fsSLo "uv/${{ matrix.uv }}" "https://github.com/astral-sh/uv/releases/download/$UV_VERSION/${{ matrix.uv }}"
+          echo "${{ matrix.uv_sha256 }}  uv/${{ matrix.uv }}" | sha256sum -c -
+          if [ "${{ runner.os }}" = "Windows" ]; then
+            unzip -q "uv/${{ matrix.uv }}" uv.exe -d "$kit/tools"
+            cp packaging/setup-transcription.cmd "$kit/"
+          else
+            tar xzf "uv/${{ matrix.uv }}" -C uv --strip-components=1
+            install -m 755 uv/uv "$kit/tools/uv"
+            install -m 755 packaging/setup-transcription.sh "$kit/"
+          fi
+
+      - name: Windows installer
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          curl -fsSLo ffmpeg.zip "$FFMPEG_URL"
+          echo "$FFMPEG_SHA256  ffmpeg.zip" | sha256sum -c -
+          unzip -q ffmpeg.zip -d ffmpeg-build
+          mkdir -p out/app/ffmpeg
+          cp ffmpeg-build/*/bin/ffmpeg.exe ffmpeg-build/*/bin/ffprobe.exe out/app/ffmpeg/
+          cp ffmpeg-build/*/LICENSE out/app/ffmpeg/LICENSE.txt
+          cp ffmpeg-build/*/README.txt out/app/ffmpeg/README.txt
+          choco install innosetup -y --no-progress
+          mkdir -p dist
+          "/c/Program Files (x86)/Inno Setup 6/ISCC.exe" -Q "-DAppVersion=$version" "-DSourceDir=$(cygpath -w out/app)" \
+            "-DOutputDir=$(cygpath -w dist)" packaging/windows/SoundOff.iss
+
+      # A .app inside a disk image with an Applications shortcut to drag it onto. Unsigned beyond an ad-hoc signature.
+      - name: macOS disk image
         if: runner.os == 'macOS'
         shell: bash
-        run: mkdir -p dist && cd out && zip -qry "../dist/$bundle.zip" "$bundle"
-      - name: Archive (Linux)
+        run: |
+          app=dmg/SoundOff.app
+          mkdir -p "$app/Contents/MacOS" dist
+          cp -R out/app/. "$app/Contents/MacOS/"
+          sed "s/__VERSION__/$version/" packaging/macos/Info.plist > "$app/Contents/Info.plist"
+          codesign --force --deep --sign - "$app"
+          ln -s /Applications dmg/Applications
+          hdiutil create -volname SoundOff -srcfolder dmg -ov -format UDZO "dist/$bundle.dmg"
+
+      # A .deb for Debian and Ubuntu, which pulls in ffmpeg, and a plain archive for everything else.
+      - name: Linux package
         if: runner.os == 'Linux'
         shell: bash
-        run: mkdir -p dist && cd out && tar czf "../dist/$bundle.tar.gz" "$bundle"
+        run: |
+          root="deb/soundoff_${version}_amd64"
+          mkdir -p "$root/DEBIAN" "$root/opt" "$root/usr/bin" "$root/usr/share/applications" dist
+          cp -R out/app "$root/opt/soundoff"
+          ln -s /opt/soundoff/SoundOff.Desktop "$root/usr/bin/soundoff"
+          cp packaging/linux/soundoff.desktop "$root/usr/share/applications/"
+          sed "s/__VERSION__/${version//-/\~}/" packaging/linux/control > "$root/DEBIAN/control"
+          dpkg-deb --root-owner-group --build "$root" "dist/$bundle.deb"
+          cp -R out/app "out/$bundle"
+          tar czf "dist/$bundle.tar.gz" -C out "$bundle"
 
       - uses: actions/upload-artifact@v4
         with:

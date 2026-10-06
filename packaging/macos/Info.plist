@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- The release workflow replaces __VERSION__. -->
+<plist version="1.0">
+<dict>
+  <key>CFBundleName</key><string>SoundOff</string>
+  <key>CFBundleDisplayName</key><string>SoundOff</string>
+  <key>CFBundleIdentifier</key><string>garden.vayne.soundoff</string>
+  <key>CFBundleExecutable</key><string>SoundOff.Desktop</string>
+  <key>CFBundlePackageType</key><string>APPL</string>
+  <key>CFBundleVersion</key><string>__VERSION__</string>
+  <key>CFBundleShortVersionString</key><string>__VERSION__</string>
+  <key>CFBundleInfoDictionaryVersion</key><string>6.0</string>
+  <key>LSMinimumSystemVersion</key><string>12.0</string>
+  <key>NSHighResolutionCapable</key><true/>
+  <key>NSMicrophoneUsageDescription</key><string>SoundOff records your microphone when you press Record.</string>
+</dict>
+</plist>

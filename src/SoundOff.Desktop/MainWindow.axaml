@@ -350,6 +350,7 @@
           <Border x:Name="TranscribeCard" Classes="card"><StackPanel Spacing="10">
             <TextBlock Text="Transcribe" Classes="section" />
             <TextBlock x:Name="RuntimeText" TextWrapping="Wrap" Classes="muted" IsVisible="False" />
+            <Button x:Name="SetupRuntimeButton" Content="Set up transcription" IsVisible="False" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" />
             <Button x:Name="PreparePackButton" Content="Prepare model pack" IsVisible="False" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" />
             <Grid ColumnDefinitions="*,Auto" ColumnSpacing="6">
               <Button x:Name="TranscribeButton" Classes="accent" Content="Transcribe" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" ToolTip.ShowOnDisabled="True" />

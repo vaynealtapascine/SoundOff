@@ -46,7 +46,7 @@ The switch at the top of the window chooses between them, and so do Ctrl+1 and C
 - When the project is still empty at the starting revision, with no draft or competing edit, the result becomes the transcript. Otherwise it waits behind **Apply result**, which asks before replacing the document. The replaced version stays in History.
 - **Previous runs** keeps every run; a finished run can be applied again later.
 - Language and whether recognition runs on the CPU or the GPU are in **Settings**. GPU needs the CUDA build of the runtime.
-- The transcription runtime is installed separately with `python scripts/setup_runtime.py`. Speaker diarization is not available.
+- The speech engine is installed once, separately: press **Set up transcription** in the Transcribe card and wait for its window to say it is done. A build from source uses `python scripts/setup_runtime.py` instead. Speaker diarization is not available.
 
 ## Recording
 

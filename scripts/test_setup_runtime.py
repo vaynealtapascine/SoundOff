@@ -43,5 +43,21 @@ class SetupPrivacyTests(unittest.TestCase):
             self.assertEqual({}, json.loads((Path(folder) / "runtime.json").read_text())["packages"])
 
 
+
+class RuntimeLocationTests(unittest.TestCase):
+    # The app looks in .NET's LocalApplicationData; a runtime installed anywhere else is never found.
+    def test_default_matches_where_the_app_looks_on_each_platform(self):
+        with patch.dict(os.environ, {"SOUNDOFF_HOME": ""}):
+            os.environ.pop("SOUNDOFF_HOME")
+            if os.name == "nt":
+                with patch.dict(os.environ, {"LOCALAPPDATA": r"C:\Local"}):
+                    self.assertEqual(Path(r"C:\Local") / "SoundOff" / "runtime", setup.default_runtime_dir())
+                return
+            with patch.object(setup.sys, "platform", "darwin"):
+                self.assertEqual(Path.home() / "Library" / "Application Support" / "SoundOff" / "runtime", setup.default_runtime_dir())
+            with patch.object(setup.sys, "platform", "linux"), patch.dict(os.environ, {"XDG_DATA_HOME": "/data"}):
+                self.assertEqual(Path("/data") / "SoundOff" / "runtime", setup.default_runtime_dir())
+
+
 if __name__ == "__main__":
     unittest.main()

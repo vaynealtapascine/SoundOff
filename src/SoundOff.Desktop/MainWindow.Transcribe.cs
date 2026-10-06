@@ -17,7 +17,7 @@ public sealed partial class MainWindow
     private const string PackModel = "small";
     private InferenceWorkerClient inference = null!;
     private TextBlock runtimeText = null!, mediaText = null!, jobText = null!;
-    private Button importMedia = null!, preparePack = null!, transcribe = null!, cancelRun = null!, applyResult = null!;
+    private Button importMedia = null!, setupRuntime = null!, preparePack = null!, transcribe = null!, cancelRun = null!, applyResult = null!;
     private ComboBox languageChoice = null!, deviceChoice = null!;
     private StackPanel runHost = null!;
     private ProgressBar jobProgress = null!;
@@ -32,12 +32,15 @@ public sealed partial class MainWindow
     private (string RunId, Transcript Proposal)? pendingResult;
     private int jobGeneration;
     private bool JobRunning => job is not null;
+    // Set once the setup window has been opened, so coming back to SoundOff notices the runtime without a restart.
+    private bool awaitingSetup;
 
     private void InitializeTranscribe(InferenceWorkerClient? client)
     {
         inference = client ?? new InferenceWorkerClient();
         runtimeText = this.FindControl<TextBlock>("RuntimeText")!; mediaText = this.FindControl<TextBlock>("MediaText")!; jobText = this.FindControl<TextBlock>("JobText")!;
         importMedia = this.FindControl<Button>("ImportMediaButton")!; preparePack = this.FindControl<Button>("PreparePackButton")!;
+        setupRuntime = this.FindControl<Button>("SetupRuntimeButton")!;
         transcribe = this.FindControl<Button>("TranscribeButton")!; cancelRun = this.FindControl<Button>("CancelRunButton")!; applyResult = this.FindControl<Button>("ApplyResultButton")!;
         languageChoice = this.FindControl<ComboBox>("LanguageChoice")!; deviceChoice = this.FindControl<ComboBox>("DeviceChoice")!; runHost = this.FindControl<StackPanel>("RunHost")!;
         jobProgress = this.FindControl<ProgressBar>("JobProgressBar")!; runsExpander = this.FindControl<Expander>("RunsExpander")!;
@@ -51,6 +54,12 @@ public sealed partial class MainWindow
         emptyCancel.Click += (_, _) => { job?.Cancel(); SetJobText("Stopping…"); UpdateControls(); };
         emptyImport.Click += async (_, _) => await GuardAsync(() => ImportMediaAsync());
         importMedia.Click += async (_, _) => await GuardAsync(() => ImportMediaAsync());
+        setupRuntime.Click += (_, _) => LaunchSetup();
+        Activated += (_, _) =>
+        {
+            if (!awaitingSetup || !inference.Runtime.IsInstalled) return;
+            awaitingSetup = false; RenderTranscribe(); UpdateControls();
+        };
         preparePack.Click += (_, _) => StartJob(PreparePackAsync);
         transcribe.Click += (_, _) => StartJob(TranscribeJobAsync);
         cancelRun.Click += (_, _) => { job?.Cancel(); SetJobText("Stopping…"); UpdateControls(); };
@@ -98,10 +107,13 @@ public sealed partial class MainWindow
     {
         var runtime = inference.Runtime;
         runtimeText.Text = !runtime.IsInstalled
-            ? "The transcription runtime is not installed. Run scripts/setup_runtime.py, then restart. " + runtime.MissingReason
+            ? TranscriptionSetup.Script is null
+                ? "The transcription runtime is not installed. Run scripts/setup_runtime.py, then restart. " + runtime.MissingReason
+                : "Transcription needs a one-time setup that downloads the speech engine. It runs in its own window; come back when it says it is done."
             : runtime.IsPackReady(PackModel) ? ""
             : "The model pack is not prepared yet. It is a one-time download of about 2 GB.";
         runtimeText.IsVisible = runtimeText.Text.Length > 0;
+        setupRuntime.IsVisible = !runtime.IsInstalled && TranscriptionSetup.Script is not null;
         preparePack.IsVisible = runtime.IsInstalled && !runtime.IsPackReady(PackModel);
         // Before a project exists the card only matters if setup is still needed.
         transcribeCard.IsVisible = store is not null || runtimeText.IsVisible;
@@ -148,17 +160,25 @@ public sealed partial class MainWindow
         if (!show) return;
         var runtime = inference.Runtime;
         emptyHint.Text = !hasMedia ? "Import a recording, or record one from the Audio card in the side panel."
-            : !runtime.IsInstalled ? "The transcription runtime is not installed yet. The side panel says how to set it up."
+            : !runtime.IsInstalled ? "Transcription needs a one-time setup first. Start it from the Transcribe card in the side panel."
             : !runtime.IsPackReady(PackModel) ? "The speech model has not been prepared yet. Prepare it once from the side panel; it is about 2 GB."
             : "Transcription runs on this computer. Nothing is uploaded.";
         emptyImport.IsVisible = !hasMedia;
         emptyTranscribe.IsVisible = hasMedia;
     }
 
+    private void LaunchSetup()
+    {
+        if (TranscriptionSetup.Script is not { } script) return;
+        awaitingSetup = true;
+        if (!TranscriptionSetup.Launch(script)) runtimeText.Text = "No terminal window could be opened. Run this in a terminal, then come back: " + script;
+    }
+
     private void UpdateTranscribeControls()
     {
         var runtimeReady = inference.Runtime.IsInstalled; var packReady = runtimeReady && inference.Runtime.IsPackReady(PackModel);
         importMedia.IsEnabled = !busy && !JobRunning && !Recording;
+        setupRuntime.IsEnabled = !busy && !JobRunning && !Recording;
         preparePack.IsEnabled = !busy && !JobRunning && !Recording && runtimeReady;
         transcribe.IsEnabled = !busy && !JobRunning && !Recording && packReady && store?.MediaAssets().Count > 0;
         cancelRun.IsEnabled = JobRunning && job?.IsCancellationRequested == false;

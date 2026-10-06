@@ -25,11 +25,21 @@ PYTORCH_CUDA_INDEX = "https://download.pytorch.org/whl/cu126"
 
 
 def default_runtime_dir() -> Path:
-    """SOUNDOFF_HOME wins; otherwise %LOCALAPPDATA%/SoundOff. Packaged hosts virtualize LOCALAPPDATA per app, so pass
-    --dir %USERPROFILE%/SoundOff/runtime when the runtime must be shared with launches from other hosts."""
+    """SOUNDOFF_HOME wins; otherwise the folder .NET calls LocalApplicationData, plus SoundOff, which is where the app looks.
+    Packaged hosts virtualize LOCALAPPDATA per app, so pass --dir %USERPROFILE%/SoundOff/runtime when the runtime must be
+    shared with launches from other hosts."""
     home = os.environ.get("SOUNDOFF_HOME")
-    base = Path(home) if home else Path(os.environ.get("LOCALAPPDATA") or str(Path.home() / "AppData" / "Local")) / "SoundOff"
-    return base / "runtime"
+    return (Path(home) if home else local_app_data() / "SoundOff") / "runtime"
+
+
+def local_app_data() -> Path:
+    """.NET 8's LocalApplicationData: %LOCALAPPDATA% on Windows, ~/Library/Application Support on macOS, and
+    $XDG_DATA_HOME or ~/.local/share on Linux."""
+    if os.name == "nt":
+        return Path(os.environ.get("LOCALAPPDATA") or str(Path.home() / "AppData" / "Local"))
+    if sys.platform == "darwin":
+        return Path.home() / "Library" / "Application Support"
+    return Path(os.environ.get("XDG_DATA_HOME") or str(Path.home() / ".local" / "share"))
 
 
 def run(command: list[str], **kwargs) -> subprocess.CompletedProcess:
@@ -46,7 +56,8 @@ def main() -> int:
     runtime = args.dir.resolve()
     venv = runtime / "venv"
     runtime.mkdir(parents=True, exist_ok=True)
-    uv = shutil.which("uv")
+    # Under `uv run` (how the installers' setup kit starts this script) uv names itself in UV.
+    uv = shutil.which("uv") or os.environ.get("UV")
     if uv is None:
         print("uv is required (https://docs.astral.sh/uv/); it provisions an isolated interpreter without touching system Python.", file=sys.stderr)
         return 2

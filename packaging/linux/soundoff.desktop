@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=SoundOff
+GenericName=Transcription editor
+Comment=Transcribe and edit recordings on this computer
+Exec=/opt/soundoff/SoundOff.Desktop
+Terminal=false
+Categories=AudioVideo;Audio;Utility;

@@ -77,7 +77,7 @@ public sealed record InferenceRuntime(string PythonPath, string WorkerScriptPath
     public string PackManifestPath(string model) => Path.Combine(ModelsDir, "packs", model + ".json");
     public bool IsPackReady(string model) => File.Exists(PackManifestPath(model));
     public string MissingReason => !File.Exists(PythonPath)
-        ? $"The private Python runtime is not installed at {PythonPath}. Run scripts/setup_runtime.py first."
+        ? $"The private Python runtime is not installed at {PythonPath}. Use Set up transcription, or run scripts/setup_runtime.py."
         : !File.Exists(WorkerScriptPath) ? $"The inference worker script is missing at {WorkerScriptPath}. Rebuild the desktop app." : "";
 }
 
@@ -101,6 +101,7 @@ public sealed class InferenceWorkerClient
             if (!captured.IsInstalled) throw new InvalidOperationException(captured.MissingReason);
             var info = new ProcessStartInfo(captured.PythonPath); info.ArgumentList.Add(captured.WorkerScriptPath);
             info.Environment["PYTHONIOENCODING"] = "utf-8"; info.Environment["PYTHONUTF8"] = "1";
+            if (MediaTools.ToolDirectory is { } tools) info.Environment["PATH"] = tools + Path.PathSeparator + info.Environment["PATH"];
             return info;
         };
         this.liveness = liveness ?? TimeSpan.FromSeconds(120); this.cancelGrace = cancelGrace ?? TimeSpan.FromSeconds(10);

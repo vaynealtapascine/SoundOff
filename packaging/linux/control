@@ -1,0 +1,11 @@
+Package: soundoff
+Version: __VERSION__
+Section: sound
+Priority: optional
+Architecture: amd64
+Maintainer: Vayne Altapascine <vaynealtapascine@proton.me>
+Depends: ffmpeg, libfontconfig1, libx11-6, libice6, libsm6, libasound2 | libasound2t64, libicu76 | libicu74 | libicu72 | libicu70 | libicu67 | libicu66
+Homepage: https://github.com/vaynealtapascine/SoundOff
+Description: Transcribe and edit recordings on this computer
+ Import or record audio and video, transcribe it on this computer, and edit
+ the transcript with the audio. Nothing is uploaded.
