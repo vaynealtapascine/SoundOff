@@ -120,8 +120,8 @@ jobs:
           cp ffmpeg-build/*/README.txt out/app/ffmpeg/README.txt
           choco install innosetup -y --no-progress
           mkdir -p dist
-          "/c/Program Files (x86)/Inno Setup 6/ISCC.exe" -Q "-DAppVersion=$version" "-DSourceDir=$(cygpath -w out/app)" \
-            "-DOutputDir=$(cygpath -w dist)" packaging/windows/SoundOff.iss
+          "/c/Program Files (x86)/Inno Setup 6/ISCC.exe" -Q "-DAppVersion=$version" "-DSourceDir=$(cygpath -aw out/app)" \
+            "-DOutputDir=$(cygpath -aw dist)" packaging/windows/SoundOff.iss
 
       # A .app inside a disk image with an Applications shortcut to drag it onto. Unsigned beyond an ad-hoc signature.
       - name: macOS disk image
