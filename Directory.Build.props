@@ -6,7 +6,7 @@
 
     <!-- One version for every assembly in the solution. A release tag is this number with a v in front, and the
          Project menu shows it, so a report can say which build it came from. -->
-    <Version>1.0.0</Version>
+    <Version>1.1.0</Version>
     <Product>SoundOff</Product>
     <Authors>Vayne Altapascine</Authors>
     <Company>Vayne Altapascine</Company>

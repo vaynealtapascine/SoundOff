@@ -1,58 +1,50 @@
 SoundOff turns a recording into an editable transcript on your own computer. No account, no upload, no hosted
-inference. This is 1.0: the workflow it was built for — record or import, transcribe, listen and correct, export —
-is complete on Windows. Read what each download can actually do.
+inference. 1.1 makes it installable: a real installer on every platform, and transcription set up from inside the
+app instead of from a terminal. Read what each download can actually do.
 
-## New in 1.0
+## New in 1.1
 
-- **Playback speed, with the pitch kept.** 0.5× to 2× from the button beside the clock, or Ctrl+Shift+, and
-  Ctrl+Shift+. to step. Timing stays in the recording's own time at any speed.
-- **One audio engine on every platform.** Playback moved to SoundFlow over miniaudio, so the macOS and Linux builds
-  now play back and record too.
-- **Recording on macOS and Linux.** A microphone, or the computer's own sound where the system offers it: the sound
-  server's monitor on Linux, a loopback driver such as BlackHole on macOS. Recording both at once stays Windows-only.
-- **Autosave.** On by default: a pause in typing saves a revision of its own, without moving your cursor. Undo still
-  steps back one burst of typing at a time, and closing never asks you to throw work away.
-- **Notes that say what happened.** Saved, Copied, Exported, Recording added and the rest appear briefly at the
-  bottom of the window and go by themselves.
-
-Since 0.2.0 also: the start screen's two ways in, the waveform drawn as a timeline of who spoke when, Alt+Up/Down
-between paragraphs, and double-click to play from a point.
+- **Installers.** A Windows installer that needs no administrator rights, a Mac disk image, and a Debian/Ubuntu
+  package. They replace the zip files.
+- **ffmpeg comes with the Windows installer.** The Debian package installs it for you. On a Mac it comes from Homebrew,
+  which the app now finds even when it is opened from the Finder.
+- **Set up transcription from the app.** A button in the Transcribe card installs the speech engine in its own
+  window, and SoundOff notices when it is done without a restart. The Windows installer offers it on its last page.
+  No Python install or repository download needed.
+- **Transcription setup on macOS and Linux now installs where the app looks.** It used to install somewhere the app
+  never checked.
 
 ## Which download
 
 | Download | What it can do |
 |---|---|
-| `SoundOff-1.0.0-win-x64.zip` | Everything, and the only build that has been run: import, record (including microphone and computer together), transcribe, play back at any speed with the spoken word lit inside the text, correct, export. |
-| `SoundOff-1.0.0-osx-arm64.zip`, `SoundOff-1.0.0-osx-x64.zip`, `SoundOff-1.0.0-linux-x64.tar.gz` | The same app, with playback and recording through the same engine as Windows. **Never launched on a Mac or a Linux machine by anyone.** Treat them as something to try. |
+| `SoundOff-…-win-x64-setup.exe` | Everything, and the only build that has been run: import, record (including microphone and computer together), transcribe, play back at any speed with the spoken word lit inside the text, correct, export. Installs for you alone, with no administrator prompt, and carries its own ffmpeg. |
+| `SoundOff-…-osx-arm64.dmg` (Apple Silicon), `SoundOff-…-osx-x64.dmg` (Intel) | The same app, with playback and recording through the same engine as Windows. **Never launched on a Mac by anyone.** Treat it as something to try. |
+| `SoundOff-…-linux-x64.deb` (Debian, Ubuntu), `SoundOff-…-linux-x64.tar.gz` (anything else) | The same again. **Never launched on Linux by anyone.** |
 
-## What every build needs
+## Setting up transcription
 
-- **ffmpeg and ffprobe on `PATH`** (or in `SOUNDOFF_FFMPEG_DIR`). They identify imported media, decode audio for
-  recognition and build playback proxies. Nothing that touches media works without them.
-- **Transcription needs the private Python runtime**, installed once with `python scripts/setup_runtime.py`, and
-  then a one-time model-pack download of about 2 GB from inside the app. See the README. The runtime's paths are
-  correct on macOS and Linux, but transcription has never been run there.
-- Nothing else: the app is self-contained, demo included.
+Transcription needs a speech engine that is installed once, after the app: about 2 GB on disk. The Windows
+installer offers to do it on its last page. Otherwise press **Set up transcription** in the app's Transcribe card,
+which opens a window that shows the download and says when it is done. Then **Prepare model pack** in the app
+downloads the speech models, about 2 GB more, also once. The engine has never been set up on a Mac or on Linux.
 
 ## macOS
 
-The macOS builds are **unsigned and not notarized**, and they are a plain executable rather than a `.app`
-bundle. Gatekeeper will refuse to open them until you clear the quarantine attribute yourself, and they launch
-from a terminal — which is also what macOS will ask about the first time you record from the microphone:
+Open the disk image and drag SoundOff onto Applications. The app is **not signed or notarized**, so macOS will
+refuse to open it the first time. Open it once, then go to System Settings → Privacy & Security and choose
+**Open Anyway**. Do that only if you are comfortable running an unsigned app you have checked the provenance of.
 
-```
-xattr -dr com.apple.quarantine SoundOff-1.0.0-osx-arm64
-./SoundOff-1.0.0-osx-arm64/SoundOff.Desktop
-```
-
-Do that only if you are comfortable running an unsigned binary you have checked the provenance of.
+The Mac app does not carry ffmpeg. Install it with [Homebrew](https://brew.sh): `brew install ffmpeg`.
 
 ## Linux
 
 ```
-tar xzf SoundOff-1.0.0-linux-x64.tar.gz
-./SoundOff-1.0.0-linux-x64/SoundOff.Desktop
+sudo apt install ./SoundOff-…-linux-x64.deb
 ```
+
+That installs ffmpeg too, and puts SoundOff in the applications menu. With the archive instead, install ffmpeg
+yourself, then run `SoundOff.Desktop` from the unpacked folder.
 
 ## What was verified
 
