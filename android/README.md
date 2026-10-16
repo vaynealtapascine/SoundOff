@@ -155,6 +155,6 @@ git tag -a android/v0.5.0 -m "SoundOff Android 0.5.0"
 git push origin android/v0.5.0
 ```
 
-Push tags only after the intended changes are committed: a Git tag identifies a commit, not uncommitted files. The tag push runs `android-release.yml`, checks the version, builds/tests, signs and verifies the APK, and publishes the Android release. A manual run validates/builds the selected branch with the supplied tag name but does **not** create a tag or publish; it still requires signing secrets. This workflow does not upload to Google Play.
+Push tags only after the intended changes are committed: a Git tag identifies a commit, not uncommitted files. The tag push runs `android-release.yml`, checks the version, builds/tests, signs and verifies the APK, and publishes the Android release. A manual run builds the supplied existing tag using the workflow from the selected branch; enable `publish` to recover a failed release without moving its tag. Manual builds require signing secrets and do not create tags. This workflow does not upload to Google Play.
 
 Release signing differs from the local debug signing key used on the test phone. If those keys differ, Android cannot install the release APK over that debug build. Export recordings before uninstalling a debug installation; uninstalling deletes app-private recordings. Subsequent releases signed with the same release key can update in place.
