@@ -1,6 +1,6 @@
-name: Release
+name: Desktop release
 
-# Tagging vX.Y.Z builds every platform and publishes the release. Running it by hand builds the same
+# Tagging vX.Y.Z builds desktop platforms and publishes the release. Running it by hand builds the same
 # artifacts and uploads them to the run without publishing anything, so the pipeline can be proved first.
 on:
   push:

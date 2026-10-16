@@ -8,3 +8,9 @@ TestResults/
 **/__pycache__/
 *.soundoff.zip
 *.local.md
+android/.gradle/
+android/**/build/
+android/**/.cxx/
+android/local.properties
+*.jks
+*.keystore

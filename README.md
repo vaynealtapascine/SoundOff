@@ -46,7 +46,11 @@ Press **F1** in the app for the full guide, including keyboard shortcuts.
 - Signed app
 - Automatic speaker detection (you can name speakers yourself)
 - Recording a single app rather than all computer sound
-- Mobile
+- Android is an initial release; broader device testing and Filipino/Taglish quality validation are still pending.
+
+## Android
+
+The [Android app](android/README.md) focuses on microphone recording and live on-device transcription, with English, Filipino, and mixed-language modes. It also imports existing audio files, saves recordings, exports WAV or MP3 through the Android file picker, and copies transcripts to the clipboard. The app opens directly to an empty waveform and transcript editor. Recording saves audio while transcription catches up in the background; corrections are preserved as new passages arrive. Stop and Resume append interview segments to the same recording without silence for the break. The editor supports scrubbing, pause/play, custom 0.1–4× speeds, and autosaved transcript editing. Multilingual Tiny, Base, and quantized Small models are available. Build instructions and device-testing limits are in the Android guide. Android releases use `android/vX.Y.Z` tags independently of desktop `vX.Y.Z` tags.
 
 ## For developers
 
